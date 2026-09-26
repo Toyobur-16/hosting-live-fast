@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Crucial: Prevent any SVG or Lucide icon from shrinking or being crushed in flex containers */
+svg {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Ensure mobile buttons and interactive elements maintain proper touch behavior */
+button, a, [role="button"], input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent unwanted horizontal overflow on mobile screens */
+body {
+  overflow-x: hidden;
+  position: relative;
+  width: 100%;
+}
+
+@layer base {
+  * {
+    border-color: var(--border, rgba(226, 232, 240, 0.8));
+  }
+
+  .dark * {
+    border-color: var(--border, rgba(31, 41, 61, 0.8));
+  }
+  
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+    background-color: #0a0e1a;
+    color: #f3f4f6;
+  }
+
+  html:not(.dark) {
+    color-scheme: light;
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+
+  html.dark {
+    color-scheme: dark;
+    background-color: #0a0e1a;
+    color: #f3f4f6;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Custom sleek scrollbar for terminal & lists */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
