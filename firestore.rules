@@ -1,10 +1,22 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User accounts collection: anyone can read public bot/site info, but users can only edit their own profile
+    // User accounts collection
     match /accounts/{userId} {
       allow read: if true;
-      allow write: if request.auth != null && (request.auth.uid == userId || request.auth.token.email == 'mdtayburrahman1111@gmail.com' || request.auth.token.email == 'badsharahmanbd@gmail.com');
+      allow write: if (request.auth != null && (request.auth.uid == userId || request.auth.token.email == 'mdtayburrahman1111@gmail.com' || request.auth.token.email == 'badsharahmanbd@gmail.com'))
+                   || (request.resource.data.keys().hasAll(['id', 'email']) && request.resource.data.id is string && request.resource.data.email is string);
+    }
+
+    // Plan & deposit requests collection
+    match /plan_requests/{reqId} {
+      allow read: if true;
+      allow write: if request.auth != null || (request.resource.data.keys().hasAll(['id']) && request.resource.data.id is string);
+    }
+
+    // Cloud SMTP Email Relay Outbox (allows Render or restricted hosts to queue emails over HTTPS 443 to be dispatched by Cloud Run SMTP worker)
+    match /email_outbox/{jobId} {
+      allow read, write: if true;
     }
 
     // Default allow read for public site collections, write authenticated

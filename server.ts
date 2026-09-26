@@ -27,7 +27,8 @@ import {
   testSmtpWithParams,
   DEFAULT_SMTP_SETTINGS,
   SMTP_BRIDGE_SECRET,
-  buildTransportOptions
+  buildTransportOptions,
+  startCloudSmtpRelayWorker
 } from './server/emailAlerts';
 import nodemailer from 'nodemailer';
 import { FirebaseSync } from './server/firebaseSync';
@@ -1113,6 +1114,7 @@ function generateAuthToken(user: any): string {
     email: user.email,
     name: user.name,
     role: user.role,
+    emailVerified: Boolean(user.emailVerified && user.isVerified),
     issuedAt: Date.now(),
     expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 // Valid for 30 days (persists across 24h)
   };
@@ -1201,35 +1203,60 @@ function getAuthUser(req: express.Request): any | null {
   if (sessions[token]) {
     const userId = sessions[token];
     const user = accounts.find((a) => a.id === userId);
-    if (user) return enrichUserWithPlanAndRole(user);
+    if (user) {
+      if (user.emailVerified === false || user.isVerified === false) {
+        delete sessions[token];
+        saveSessions(sessions);
+        return null;
+      }
+      return enrichUserWithPlanAndRole(user);
+    }
   }
 
-  // 2. Structured self-healing token (retains login across container restarts for 30 days)
+  // 2. Structured self-healing token (retains login across container restarts for 30 days, ONLY for verified accounts)
   if (token.startsWith('bt_')) {
     try {
       const jsonStr = Buffer.from(token.slice(3), 'base64url').toString('utf-8');
       const payload = JSON.parse(jsonStr);
       if (payload && payload.userId && payload.expiresAt && payload.expiresAt > Date.now()) {
+        // Reject any token that was issued before email verification
+        if (payload.emailVerified === false) {
+          return null;
+        }
         let user = accounts.find(
           (a) => a.id === payload.userId || (payload.email && a.email?.toLowerCase() === payload.email.toLowerCase())
         );
-        if (!user) {
-          const isAdmin = accounts.length === 0 || 
-            (payload.email && (payload.email.toLowerCase() === 'mdtayburrahman1111@gmail.com' || payload.email.toLowerCase() === 'badsharahmanbd@gmail.com' || payload.email.toLowerCase() === 'toyobur@telegram.bot'));
+        if (user) {
+          if (user.emailVerified === false || user.isVerified === false) {
+            return null;
+          }
+          sessions[token] = user.id;
+          saveSessions(sessions);
+          return enrichUserWithPlanAndRole(user);
+        } else if (payload.emailVerified === true) {
+          const isAdmin =
+            payload.email &&
+            (payload.email.toLowerCase() === 'mdtayburrahman1111@gmail.com' ||
+              payload.email.toLowerCase() === 'badsharahmanbd@gmail.com' ||
+              payload.email.toLowerCase() === 'toyoburrahman9090@gmail.com' ||
+              payload.email.toLowerCase() === 'toyoburrahman526@gmail.com' ||
+              payload.email.toLowerCase() === 'toyobur@telegram.bot');
           user = {
             id: payload.userId,
             name: payload.name || (payload.email ? payload.email.split('@')[0] : 'User'),
             email: payload.email || 'user@bot-host.local',
             role: isAdmin ? 'admin' : (payload.role || 'user'),
             plan: 'free',
-            maxBots: isAdmin ? 999 : 1
+            maxBots: isAdmin ? 999 : 1,
+            emailVerified: true,
+            isVerified: true
           };
           accounts.push(user);
           saveAccounts(accounts);
+          sessions[token] = user.id;
+          saveSessions(sessions);
+          return enrichUserWithPlanAndRole(user);
         }
-        sessions[token] = user.id;
-        saveSessions(sessions);
-        return enrichUserWithPlanAndRole(user);
       }
     } catch {
       // Invalid payload
@@ -1701,100 +1728,54 @@ app.get('/site/:slug*', (req, res) => {
   return res.status(404).send('File not found');
 });
 
-// 1. Auth routes with 6-digit Email Verification
+// 1. Auth routes with strict 6-digit Email Verification (No account creation or login token until OTP is verified!)
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email) {
-    return res.status(400).json({ error: 'Name and email are required' });
+    return res.status(400).json({ error: 'নাম এবং ইমেইল প্রদান করা আবশ্যক' });
   }
   const cleanEmail = email.trim().toLowerCase();
   const accounts = getAccounts();
-  const existing = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  const existingIdx = accounts.findIndex((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
 
-  if (existing) {
-    // If the existing account is not yet verified, allow re-registering to update details and send a fresh verification code!
-    if (!existing.emailVerified && !existing.isVerified) {
-      existing.name = name.trim();
-      if (password) existing.password = password;
-      saveAccounts(accounts);
-
-      const enrichedExisting = enrichUserWithPlanAndRole(existing);
-      const tokenExisting = generateAuthToken(enrichedExisting);
-      const sessions = getSessions();
-      sessions[tokenExisting] = existing.id;
-      saveSessions(sessions);
-
-      try {
-        await createAndSendVerificationCode(cleanEmail, name.trim(), true);
-      } catch (err) {
-        console.error('Failed to send verification code for existing unverified user:', err);
-      }
-
-      return res.json({
-        success: true,
-        token: tokenExisting,
-        user: enrichedExisting,
-        requiresVerification: true,
-        message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
-      });
+  if (existingIdx !== -1) {
+    const existing = accounts[existingIdx];
+    // If the existing account is already verified, ask them to login
+    if (existing.emailVerified && existing.isVerified) {
+      return res.status(400).json({ error: 'এই ইমেইলে ইতোমধ্যে অ্যাকাউন্ট খোলা আছে। অনুগ্রহ করে লগইন করুন।' });
     }
-
-    return res.status(400).json({ error: 'এই ইমেইলে ইতোমধ্যে অ্যাকাউন্ট খোলা আছে। অনুগ্রহ করে লগইন করুন।' });
+    // Clean up any previously saved unverified account & its sessions so it cannot auto-login
+    const unverifiedId = existing.id;
+    accounts.splice(existingIdx, 1);
+    saveAccounts(accounts);
+    const sessions = getSessions();
+    let sessionModified = false;
+    for (const [tk, uid] of Object.entries(sessions)) {
+      if (uid === unverifiedId) {
+        delete sessions[tk];
+        sessionModified = true;
+      }
+    }
+    if (sessionModified) saveSessions(sessions);
   }
 
-  const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const isAdmin =
-    cleanEmail === 'mdtayburrahman1111@gmail.com' ||
-    cleanEmail === 'badsharahmanbd@gmail.com' ||
-    cleanEmail === 'toyoburrahman9090@gmail.com' ||
-    cleanEmail === 'toyoburrahman526@gmail.com' ||
-    cleanEmail === 'toyobur@telegram.bot';
-
-  const newUser = {
-    id: userId,
-    name: name.trim(),
-    email: cleanEmail,
-    password: password || '',
-    role: isAdmin ? 'admin' : 'user',
-    plan: 'free',
-    maxBots: isAdmin ? 999 : 1,
-    maxWebsites: isAdmin ? 999 : 2,
-    maxStorageMb: isAdmin ? 500 : 50,
-    planExpiresAt: null,
-    balanceBdt: 0,
-    balanceUsd: 0,
-    isVerified: false,
-    emailVerified: false,
-    avatar: '',
-    googleId: '',
-    createdAt: new Date().toISOString()
-  };
-  accounts.push(newUser);
-  saveAccounts(accounts);
-
-  const enriched = enrichUserWithPlanAndRole(newUser);
-  // Keep emailVerified false until OTP is verified on registration
-  enriched.emailVerified = false;
-  enriched.isVerified = false;
-
-  const token = generateAuthToken(enriched);
-  const sessions = getSessions();
-  sessions[token] = userId;
-  saveSessions(sessions);
-
-  // Always dispatch 6-digit verification email on user registration
+  // Store pending registration inside verification record and dispatch 6-digit OTP email.
+  // Account will ONLY be created in accounts.json when /api/auth/verify-email succeeds!
   try {
-    await createAndSendVerificationCode(cleanEmail, name.trim(), true);
+    await createAndSendVerificationCode(cleanEmail, name.trim(), true, {
+      name: name.trim(),
+      email: cleanEmail,
+      password: password || ''
+    });
   } catch (err) {
     console.error('Failed to send initial verification code:', err);
   }
 
   res.json({
     success: true,
-    token,
-    user: enriched,
     requiresVerification: true,
-    message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
+    email: cleanEmail,
+    message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করলে আপনার রেজিস্ট্রেশন সম্পন্ন হবে।'
   });
 });
 
@@ -1838,7 +1819,7 @@ app.post('/api/auth/resend-verification-code', async (req, res) => {
   });
 });
 
-// Verify 6-digit code and activate account
+// Verify 6-digit code, finalize registration, and activate account
 app.post('/api/auth/verify-email', (req, res) => {
   const { email, code } = req.body;
   if (!email || !code) {
@@ -1852,16 +1833,56 @@ app.post('/api/auth/verify-email', (req, res) => {
   }
 
   const accounts = getAccounts();
-  const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
   if (!user) {
-    return res.status(404).json({ error: 'ইউজার খুঁজে পাওয়া যায়নি' });
+    // Create the verified user account now that 6-digit OTP has been verified
+    const pending = verifyResult.pendingRegistration;
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const isAdmin =
+      cleanEmail === 'mdtayburrahman1111@gmail.com' ||
+      cleanEmail === 'badsharahmanbd@gmail.com' ||
+      cleanEmail === 'toyoburrahman9090@gmail.com' ||
+      cleanEmail === 'toyoburrahman526@gmail.com' ||
+      cleanEmail === 'toyobur@telegram.bot';
+
+    user = {
+      id: userId,
+      name: (pending?.name || cleanEmail.split('@')[0]).trim(),
+      email: cleanEmail,
+      password: pending?.password || '',
+      role: isAdmin ? 'admin' : 'user',
+      plan: 'free',
+      maxBots: isAdmin ? 999 : 1,
+      maxWebsites: isAdmin ? 999 : 2,
+      maxStorageMb: isAdmin ? 500 : 50,
+      planExpiresAt: null,
+      balanceBdt: 0,
+      balanceUsd: 0,
+      isVerified: true,
+      emailVerified: true,
+      avatar: '',
+      googleId: '',
+      createdAt: new Date().toISOString()
+    };
+    accounts.push(user);
+    saveAccounts(accounts);
+  } else {
+    if (verifyResult.pendingRegistration?.name) {
+      user.name = verifyResult.pendingRegistration.name.trim();
+    }
+    if (verifyResult.pendingRegistration?.password) {
+      user.password = verifyResult.pendingRegistration.password;
+    }
+    user.emailVerified = true;
+    user.isVerified = true;
+    saveAccounts(accounts);
   }
 
-  user.emailVerified = true;
-  user.isVerified = true;
-  saveAccounts(accounts);
-
   const enriched = enrichUserWithPlanAndRole(user);
+  enriched.emailVerified = true;
+  enriched.isVerified = true;
+
   const token = generateAuthToken(enriched);
   const sessions = getSessions();
   sessions[token] = user.id;
@@ -1883,50 +1904,45 @@ app.post('/api/auth/verify-email', (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+    return res.status(400).json({ error: 'ইমেইল এড্রেস প্রদান করুন' });
   }
   const cleanEmail = email.trim().toLowerCase();
   const accounts = getAccounts();
   let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
   if (!user) {
-    // Quick auto-registration if doesn't exist
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const isAdmin =
-      cleanEmail === 'mdtayburrahman1111@gmail.com' ||
-      cleanEmail === 'badsharahmanbd@gmail.com' ||
-      cleanEmail === 'toyoburrahman9090@gmail.com' ||
-      cleanEmail === 'toyoburrahman526@gmail.com' ||
-      cleanEmail === 'toyobur@telegram.bot';
-    user = {
-      id: userId,
-      name: cleanEmail.split('@')[0],
+    return res.status(404).json({
+      error: 'এই ইমেইলে কোনো ভেরিফাইড অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে প্রথমে রেজিস্ট্রেশন করুন অথবা Google দিয়ে লগইন করুন।'
+    });
+  }
+
+  // Check password if set
+  if (user.password && password && user.password !== password) {
+    return res.status(401).json({ error: 'ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন অথবা পাসওয়ার্ড রিসেট করুন।' });
+  }
+  if (user.password && !password) {
+    return res.status(401).json({ error: 'অনুগ্রহ করে আপনার পাসওয়ার্ড প্রদান করুন।' });
+  }
+
+  // Do NOT issue token if email is not verified!
+  const requiresVerification = user.emailVerified === false || user.isVerified === false;
+  if (requiresVerification) {
+    try {
+      await createAndSendVerificationCode(cleanEmail, user.name, true, {
+        name: user.name,
+        email: cleanEmail,
+        password: user.password || password || ''
+      });
+    } catch (err) {
+      console.error('Failed to send login verification code:', err);
+    }
+
+    return res.json({
+      success: true,
+      requiresVerification: true,
       email: cleanEmail,
-      password: password || '',
-      role: isAdmin ? 'admin' : 'user',
-      plan: 'free',
-      maxBots: isAdmin ? 999 : 1,
-      maxWebsites: isAdmin ? 999 : 2,
-      maxStorageMb: isAdmin ? 500 : 50,
-      planExpiresAt: null,
-      balanceBdt: 0,
-      balanceUsd: 0,
-      isVerified: isAdmin ? true : false,
-      emailVerified: isAdmin ? true : false,
-      avatar: '',
-      googleId: '',
-      createdAt: new Date().toISOString()
-    };
-    accounts.push(user);
-    saveAccounts(accounts);
-  } else {
-    // Check password if set
-    if (user.password && password && user.password !== password) {
-      return res.status(401).json({ error: 'ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন অথবা পাসওয়ার্ড রিসেট করুন।' });
-    }
-    if (!user.password && password) {
-      user.password = password;
-      saveAccounts(accounts);
-    }
+      message: 'আপনার অ্যাকাউন্টটি এখনো ইমেইল কোড দিয়ে ভেরিফাই করা হয়নি। আপনার ইমেইলে ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।'
+    });
   }
 
   user = enrichUserWithPlanAndRole(user);
@@ -1935,22 +1951,11 @@ app.post('/api/auth/login', async (req, res) => {
   sessions[token] = user.id;
   saveSessions(sessions);
 
-  const requiresVerification = (user.emailVerified === false || user.isVerified === false) && user.role !== 'admin';
-
-  if (requiresVerification) {
-    try {
-      await createAndSendVerificationCode(cleanEmail, user.name, true);
-    } catch (err) {
-      console.error('Failed to send login verification code:', err);
-    }
-  }
-
   res.json({
     success: true,
     token,
     user,
-    requiresVerification,
-    message: requiresVerification ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।' : undefined
+    requiresVerification: false
   });
 });
 
@@ -6498,6 +6503,8 @@ async function start() {
     FirebaseSync.initSync(getAccounts, saveAccounts).catch((err) => {
       console.warn('Firebase initial sync warning:', err);
     });
+    // Start Cloud SMTP Relay Worker to dispatch any emails queued over HTTPS Port 443
+    startCloudSmtpRelayWorker();
   });
 }
 

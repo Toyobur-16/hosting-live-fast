@@ -417,21 +417,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           throw new Error(data.error || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
         }
 
-        // Store temporary session
-        localStorage.setItem('bot_auth_token', data.token);
-        localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
-
-        if (data.requiresVerification) {
+        if (data.requiresVerification || !data.token || !data.user) {
+          // Strictly do NOT store any auth token or user session until 6-digit OTP code is verified!
+          localStorage.removeItem('bot_auth_token');
+          localStorage.removeItem('bot_auth_user');
           setMode('verify');
+          setDigits(['', '', '', '', '', '']);
           setExpirySeconds(600);
           setResendCooldown(60);
           setSuccessMessage(
             lang === 'bn'
-              ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
-              : 'We have sent a 6-digit verification code to your email.'
+              ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করলে রেজিস্ট্রেশন সম্পন্ন হবে।'
+              : 'We have sent a 6-digit verification code to your email. Verify the code to complete registration.'
           );
           setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
+          localStorage.setItem('bot_auth_token', data.token);
+          localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
           onSuccess(data.user, data.token);
           if (onClose) onClose();
         }
@@ -445,20 +447,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         if (!res.ok || !data.success) {
           throw new Error(data.error || (lang === 'bn' ? 'লগইন ব্যর্থ হয়েছে' : 'Login failed'));
         }
-        localStorage.setItem('bot_auth_token', data.token);
-        localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
 
-        if (data.requiresVerification) {
+        if (data.requiresVerification || !data.token || !data.user) {
+          // Do NOT store auth token or user session until 6-digit OTP code is verified!
+          localStorage.removeItem('bot_auth_token');
+          localStorage.removeItem('bot_auth_user');
           setMode('verify');
+          setDigits(['', '', '', '', '', '']);
           setExpirySeconds(600);
           setResendCooldown(60);
           setSuccessMessage(
             lang === 'bn'
-              ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
+              ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করুন।'
               : 'We have sent a 6-digit verification code to your email.'
           );
           setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
+          localStorage.setItem('bot_auth_token', data.token);
+          localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
           onSuccess(data.user, data.token);
           if (onClose) onClose();
         }

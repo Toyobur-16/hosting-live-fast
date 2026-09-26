@@ -10,6 +10,12 @@ const PASSWORD_RESETS_FILE = path.join(HOSTED_BOTS_DIR, 'password_resets.json');
 // Secret salt for HMAC hashing verification codes
 const VERIFICATION_SECRET = process.env.VERIFICATION_SECRET || 'hlf_email_verify_secret_key_2026';
 
+export interface PendingRegistrationData {
+  name: string;
+  email: string;
+  password?: string;
+}
+
 export interface VerificationRecord {
   email: string;
   codeHash: string;
@@ -17,6 +23,7 @@ export interface VerificationRecord {
   attempts: number; // max 5 attempts
   lastSentAt: number; // rate limit resend (60s)
   createdAt: number;
+  pendingRegistration?: PendingRegistrationData;
 }
 
 function loadVerifications(): Record<string, VerificationRecord> {
@@ -58,7 +65,8 @@ function hashCode(email: string, code: string): string {
 export async function createAndSendVerificationCode(
   email: string,
   userName?: string,
-  forceSend = false
+  forceSend = false,
+  pendingRegistration?: PendingRegistrationData
 ): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean }> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
@@ -83,6 +91,8 @@ export async function createAndSendVerificationCode(
   const code = crypto.randomInt(100000, 1000000).toString();
   const codeHash = hashCode(cleanEmail, code);
   const expiresAt = now + 10 * 60 * 1000; // 10 minutes expiration
+  const savedPending = pendingRegistration || existing?.pendingRegistration;
+  const effectiveName = userName || savedPending?.name || cleanEmail.split('@')[0];
 
   verifications[cleanEmail] = {
     email: cleanEmail,
@@ -90,13 +100,14 @@ export async function createAndSendVerificationCode(
     expiresAt,
     attempts: 0,
     lastSentAt: now,
-    createdAt: now
+    createdAt: now,
+    ...(savedPending ? { pendingRegistration: savedPending } : {})
   };
   saveVerifications(verifications);
 
   // Send the professional HTML email
   try {
-    const emailResult = await sendVerificationEmail(cleanEmail, code, userName);
+    const emailResult = await sendVerificationEmail(cleanEmail, code, effectiveName);
     if (!emailResult.success && !emailResult.simulated) {
       console.warn(`[VERIFICATION EMAIL WARNING] Failed to deliver real SMTP email to ${cleanEmail}: ${emailResult.error}`);
       return { success: true, emailSent: false, error: emailResult.error };
@@ -114,7 +125,7 @@ export async function createAndSendVerificationCode(
 export function verifyEmailCode(
   email: string,
   code: string
-): { success: boolean; error?: string } {
+): { success: boolean; error?: string; pendingRegistration?: PendingRegistrationData } {
   const cleanEmail = email.trim().toLowerCase();
   const cleanCode = (code || '').trim().replace(/\s+/g, '');
 
@@ -154,11 +165,12 @@ export function verifyEmailCode(
     };
   }
 
-  // Code is valid! Clean up verification record
+  // Code is valid! Clean up verification record and return pendingRegistration if present
+  const pendingRegistration = record.pendingRegistration;
   delete verifications[cleanEmail];
   saveVerifications(verifications);
 
-  return { success: true };
+  return { success: true, pendingRegistration };
 }
 
 function loadPasswordResets(): Record<string, VerificationRecord> {
