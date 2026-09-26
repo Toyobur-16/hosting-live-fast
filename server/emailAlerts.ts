@@ -45,19 +45,39 @@ export interface SmtpSettingsData {
   secure?: boolean;
 }
 
+const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
+  host: 'smtp.gmail.com',
+  port: 587,
+  user: 'badsharahmanbd@gmail.com',
+  pass: 'crjzmhuzjnvsadpq',
+  from: '"hosting live fast" <badsharahmanbd@gmail.com>',
+  secure: false
+};
+
 export function loadSmtpSettingsFile(): SmtpSettingsData | null {
   try {
     if (fs.existsSync(SMTP_SETTINGS_FILE)) {
       const content = fs.readFileSync(SMTP_SETTINGS_FILE, 'utf-8');
       const data = JSON.parse(content);
-      if (data && (data.host || data.user)) {
-        return data;
+      if (data && data.user && data.pass) {
+        return {
+          ...DEFAULT_SMTP_SETTINGS,
+          ...data,
+          pass: String(data.pass).replace(/\s+/g, '')
+        };
       }
     }
+    // Initialize with default configured Gmail App Password so verification emails always work
+    const dir = path.dirname(SMTP_SETTINGS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(SMTP_SETTINGS_FILE, JSON.stringify(DEFAULT_SMTP_SETTINGS, null, 2), 'utf-8');
+    return { ...DEFAULT_SMTP_SETTINGS };
   } catch (err) {
     console.error('Error reading smtp_settings.json:', err);
+    return { ...DEFAULT_SMTP_SETTINGS };
   }
-  return null;
 }
 
 export function saveSmtpSettingsFile(data: Partial<SmtpSettingsData>): boolean {
@@ -66,14 +86,7 @@ export function saveSmtpSettingsFile(data: Partial<SmtpSettingsData>): boolean {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    const existing = loadSmtpSettingsFile() || {
-      host: 'smtp.gmail.com',
-      port: 587,
-      user: '',
-      pass: '',
-      from: '',
-      secure: false
-    };
+    const existing = loadSmtpSettingsFile() || { ...DEFAULT_SMTP_SETTINGS };
     const merged = { ...existing, ...data };
     if (merged.pass) {
       // Strip all whitespace from App Passwords
@@ -331,22 +344,22 @@ export async function resolveIpv4Host(hostname: string, forceFresh = false): Pro
   let resolvedIps: string[] = [];
 
   try {
-    const addresses = await dns.promises.resolve4(targetHost);
-    if (addresses && addresses.length > 0) {
-      resolvedIps = addresses.filter(addr => net.isIPv4(addr));
+    const lookup = await dns.promises.lookup(targetHost, { family: 4, all: true });
+    if (Array.isArray(lookup) && lookup.length > 0) {
+      resolvedIps = lookup.map(l => l.address).filter(addr => net.isIPv4(addr));
     }
   } catch (err: any) {
-    console.warn(`[SMTP DNS] resolve4 failed for ${targetHost}:`, err?.message);
+    console.warn(`[SMTP DNS] dns.lookup failed for ${targetHost}:`, err?.message);
   }
 
   if (resolvedIps.length === 0) {
     try {
-      const lookup = await dns.promises.lookup(targetHost, { family: 4, all: true });
-      if (Array.isArray(lookup) && lookup.length > 0) {
-        resolvedIps = lookup.map(l => l.address).filter(addr => net.isIPv4(addr));
+      const addresses = await dns.promises.resolve4(targetHost);
+      if (addresses && addresses.length > 0) {
+        resolvedIps = addresses.filter(addr => net.isIPv4(addr));
       }
     } catch (err: any) {
-      console.warn(`[SMTP DNS] dns.lookup failed for ${targetHost}:`, err?.message);
+      console.warn(`[SMTP DNS] resolve4 failed for ${targetHost}:`, err?.message);
     }
   }
 
@@ -400,18 +413,18 @@ export function buildTransportOptions(options: {
       minVersion: 'TLSv1.2'
     },
     servername: originalHost,
-    connectionTimeout: 4000,
-    greetingTimeout: 4000,
-    socketTimeout: 10000
+    connectionTimeout: 6000,
+    greetingTimeout: 6000,
+    socketTimeout: 12000
   } as any;
 }
 
 // Create or retrieve cached Nodemailer transporter asynchronously with IPv4 resolution
 export async function getTransporterAsync(forceFresh = false): Promise<Transporter | null> {
   const fileConfig = loadSmtpSettingsFile();
-  const host = (fileConfig?.host || process.env.SMTP_HOST || '').trim();
+  const host = (fileConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
   const rawPort = fileConfig?.port !== undefined ? fileConfig.port : process.env.SMTP_PORT;
-  const port = parseInt(String(rawPort || '465').trim(), 10);
+  const port = parseInt(String(rawPort || '587').trim(), 10);
   const user = (fileConfig?.user || process.env.SMTP_USER || '').trim();
   const rawPass = (fileConfig?.pass || process.env.SMTP_PASS || '').trim();
   const pass = rawPass.replace(/\s+/g, '');
@@ -425,7 +438,7 @@ export async function getTransporterAsync(forceFresh = false): Promise<Transport
   }
 
   const resolved = await resolveIpv4Host(host, forceFresh);
-  const currentKey = `${resolved.ip}:${port}:${user}:${pass.slice(0, 4)}:${secure}`;
+  const currentKey = `${resolved.originalHost}:${port}:${user}:${pass.slice(0, 4)}:${secure}`;
 
   if (!forceFresh && cachedTransporter && lastTransporterConfigKey === currentKey) {
     return cachedTransporter;
@@ -433,7 +446,7 @@ export async function getTransporterAsync(forceFresh = false): Promise<Transport
 
   try {
     const opts = buildTransportOptions({
-      hostOrIp: resolved.ip,
+      hostOrIp: resolved.originalHost,
       originalHost: resolved.originalHost,
       port,
       secure: secure !== undefined ? secure : (port === 465),
@@ -453,9 +466,9 @@ export async function getTransporterAsync(forceFresh = false): Promise<Transport
 // Synchronous transporter getter for legacy calls (uses cached IPv4 if available)
 export function getTransporter(): Transporter | null {
   const fileConfig = loadSmtpSettingsFile();
-  const host = (fileConfig?.host || process.env.SMTP_HOST || '').trim();
+  const host = (fileConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
   const rawPort = fileConfig?.port !== undefined ? fileConfig.port : process.env.SMTP_PORT;
-  const port = parseInt(String(rawPort || '465').trim(), 10);
+  const port = parseInt(String(rawPort || '587').trim(), 10);
   const user = (fileConfig?.user || process.env.SMTP_USER || '').trim();
   const rawPass = (fileConfig?.pass || process.env.SMTP_PASS || '').trim();
   const pass = rawPass.replace(/\s+/g, '');
@@ -470,18 +483,15 @@ export function getTransporter(): Transporter | null {
 
   const isGmail = host.toLowerCase().includes('gmail.com') || host.toLowerCase() === 'gmail';
   const effectiveHost = isGmail ? 'smtp.gmail.com' : host;
-  const ipOrHost = (cachedResolvedHost && cachedResolvedHost.key === effectiveHost) 
-    ? cachedResolvedHost.info.ip 
-    : (isGmail ? '74.125.203.108' : effectiveHost);
 
-  const currentKey = `${ipOrHost}:${port}:${user}:${pass.slice(0, 4)}:${secure}`;
+  const currentKey = `${effectiveHost}:${port}:${user}:${pass.slice(0, 4)}:${secure}`;
   if (cachedTransporter && lastTransporterConfigKey === currentKey) {
     return cachedTransporter;
   }
 
   try {
     const transportOptions = buildTransportOptions({
-      hostOrIp: ipOrHost,
+      hostOrIp: effectiveHost,
       originalHost: effectiveHost,
       port,
       secure: secure !== undefined ? secure : (port === 465),

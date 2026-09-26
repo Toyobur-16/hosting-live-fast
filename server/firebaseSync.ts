@@ -5,9 +5,9 @@
 import fs from 'fs';
 import path from 'path';
 
-let configProjectId = 'hosting-live-fast-11b13';
-let configDbId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
-let configApiKey = 'AIzaSyA08M7c1iHvXhQHeUf8kXS5cUvtJ8s_kqY';
+let configProjectId = '';
+let configDbId = '';
+let configApiKey = '';
 
 try {
   const configPath = path.join(process.cwd(), 'firebase-applet-config.json');

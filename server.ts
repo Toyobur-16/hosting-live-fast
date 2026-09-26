@@ -1706,14 +1706,44 @@ app.post('/api/auth/register', async (req, res) => {
   const cleanEmail = email.trim().toLowerCase();
   const accounts = getAccounts();
   const existing = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
   if (existing) {
+    // If the existing account is not yet verified, allow re-registering to update details and send a fresh verification code!
+    if (!existing.emailVerified && !existing.isVerified) {
+      existing.name = name.trim();
+      if (password) existing.password = password;
+      saveAccounts(accounts);
+
+      const enrichedExisting = enrichUserWithPlanAndRole(existing);
+      const tokenExisting = generateAuthToken(enrichedExisting);
+      const sessions = getSessions();
+      sessions[tokenExisting] = existing.id;
+      saveSessions(sessions);
+
+      try {
+        await createAndSendVerificationCode(cleanEmail, name.trim(), true);
+      } catch (err) {
+        console.error('Failed to send verification code for existing unverified user:', err);
+      }
+
+      return res.json({
+        success: true,
+        token: tokenExisting,
+        user: enrichedExisting,
+        requiresVerification: true,
+        message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
+      });
+    }
+
     return res.status(400).json({ error: 'এই ইমেইলে ইতোমধ্যে অ্যাকাউন্ট খোলা আছে। অনুগ্রহ করে লগইন করুন।' });
   }
 
   const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const isAdmin = accounts.length === 0 ||
+  const isAdmin =
     cleanEmail === 'mdtayburrahman1111@gmail.com' ||
     cleanEmail === 'badsharahmanbd@gmail.com' ||
+    cleanEmail === 'toyoburrahman9090@gmail.com' ||
+    cleanEmail === 'toyoburrahman526@gmail.com' ||
     cleanEmail === 'toyobur@telegram.bot';
 
   const newUser = {
@@ -1729,8 +1759,8 @@ app.post('/api/auth/register', async (req, res) => {
     planExpiresAt: null,
     balanceBdt: 0,
     balanceUsd: 0,
-    isVerified: isAdmin ? true : false,
-    emailVerified: isAdmin ? true : false,
+    isVerified: false,
+    emailVerified: false,
     avatar: '',
     googleId: '',
     createdAt: new Date().toISOString()
@@ -1739,28 +1769,28 @@ app.post('/api/auth/register', async (req, res) => {
   saveAccounts(accounts);
 
   const enriched = enrichUserWithPlanAndRole(newUser);
+  // Keep emailVerified false until OTP is verified on registration
+  enriched.emailVerified = false;
+  enriched.isVerified = false;
+
   const token = generateAuthToken(enriched);
   const sessions = getSessions();
   sessions[token] = userId;
   saveSessions(sessions);
 
-  // Automatically dispatch 6-digit verification email if not admin
-  if (!isAdmin) {
-    try {
-      await createAndSendVerificationCode(cleanEmail, name.trim());
-    } catch (err) {
-      console.error('Failed to send initial verification code:', err);
-    }
+  // Always dispatch 6-digit verification email on user registration
+  try {
+    await createAndSendVerificationCode(cleanEmail, name.trim(), true);
+  } catch (err) {
+    console.error('Failed to send initial verification code:', err);
   }
 
   res.json({
     success: true,
     token,
     user: enriched,
-    requiresVerification: !isAdmin,
-    message: isAdmin
-      ? 'স্বাগতম এডমিন!'
-      : 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
+    requiresVerification: true,
+    message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
   });
 });
 
@@ -1846,7 +1876,7 @@ app.post('/api/auth/verify-email', (req, res) => {
   });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
@@ -1857,9 +1887,11 @@ app.post('/api/auth/login', (req, res) => {
   if (!user) {
     // Quick auto-registration if doesn't exist
     const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const isAdmin = accounts.length === 0 ||
+    const isAdmin =
       cleanEmail === 'mdtayburrahman1111@gmail.com' ||
       cleanEmail === 'badsharahmanbd@gmail.com' ||
+      cleanEmail === 'toyoburrahman9090@gmail.com' ||
+      cleanEmail === 'toyoburrahman526@gmail.com' ||
       cleanEmail === 'toyobur@telegram.bot';
     user = {
       id: userId,
@@ -1882,10 +1914,6 @@ app.post('/api/auth/login', (req, res) => {
     };
     accounts.push(user);
     saveAccounts(accounts);
-
-    if (!isAdmin) {
-      createAndSendVerificationCode(cleanEmail, user.name).catch(() => {});
-    }
   } else {
     // Check password if set
     if (user.password && password && user.password !== password) {
@@ -1904,6 +1932,14 @@ app.post('/api/auth/login', (req, res) => {
   saveSessions(sessions);
 
   const requiresVerification = (user.emailVerified === false || user.isVerified === false) && user.role !== 'admin';
+
+  if (requiresVerification) {
+    try {
+      await createAndSendVerificationCode(cleanEmail, user.name, true);
+    } catch (err) {
+      console.error('Failed to send login verification code:', err);
+    }
+  }
 
   res.json({
     success: true,

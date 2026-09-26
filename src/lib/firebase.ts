@@ -26,13 +26,13 @@ import firebaseAppletConfig from '../../firebase-applet-config.json';
 
 // Default config from user's Firebase project
 export const firebaseConfig = {
-  apiKey: firebaseAppletConfig.apiKey || "AIzaSyA08M7c1iHvXhQHeUf8kXS5cUvtJ8s_kqY",
-  authDomain: firebaseAppletConfig.authDomain || "hosting-live-fast-11b13.firebaseapp.com",
-  projectId: firebaseAppletConfig.projectId || "hosting-live-fast-11b13",
-  storageBucket: firebaseAppletConfig.storageBucket || "hosting-live-fast-11b13.firebasestorage.app",
-  messagingSenderId: firebaseAppletConfig.messagingSenderId || "880032238370",
-  appId: firebaseAppletConfig.appId || "1:880032238370:web:c0510582bebc2ce71c737b",
-  measurementId: firebaseAppletConfig.measurementId || "G-K2NFZE486M"
+  apiKey: firebaseAppletConfig.apiKey || "",
+  authDomain: firebaseAppletConfig.authDomain || "",
+  projectId: firebaseAppletConfig.projectId || "",
+  storageBucket: firebaseAppletConfig.storageBucket || "",
+  messagingSenderId: firebaseAppletConfig.messagingSenderId || "",
+  appId: firebaseAppletConfig.appId || "",
+  measurementId: firebaseAppletConfig.measurementId || ""
 };
 
 // Initialize app single-instance

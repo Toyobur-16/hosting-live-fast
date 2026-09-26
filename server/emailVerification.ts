@@ -57,8 +57,9 @@ function hashCode(email: string, code: string): string {
  */
 export async function createAndSendVerificationCode(
   email: string,
-  userName?: string
-): Promise<{ success: boolean; error?: string; remainingSeconds?: number }> {
+  userName?: string,
+  forceSend = false
+): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean }> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
     return { success: false, error: 'সঠিক ইমেইল ঠিকানা প্রদান করুন (Invalid email format)' };
@@ -68,9 +69,9 @@ export async function createAndSendVerificationCode(
   const existing = verifications[cleanEmail];
   const now = Date.now();
 
-  // Enforce 60-second cooldown between resend requests
-  if (existing && existing.lastSentAt && now - existing.lastSentAt < 60000) {
-    const remainingSeconds = Math.ceil((60000 - (now - existing.lastSentAt)) / 1000);
+  // Enforce 30-second cooldown between manual resend requests (unless forceSend is true)
+  if (!forceSend && existing && existing.lastSentAt && now - existing.lastSentAt < 30000) {
+    const remainingSeconds = Math.ceil((30000 - (now - existing.lastSentAt)) / 1000);
     return {
       success: false,
       error: `অনুগ্রহ করে ${remainingSeconds} সেকেন্ড অপেক্ষা করে পুনরায় চেষ্টা করুন (Cooldown active)`,
@@ -98,11 +99,12 @@ export async function createAndSendVerificationCode(
     const emailResult = await sendVerificationEmail(cleanEmail, code, userName);
     if (!emailResult.success && !emailResult.simulated) {
       console.warn(`[VERIFICATION EMAIL WARNING] Failed to deliver real SMTP email to ${cleanEmail}: ${emailResult.error}`);
+      return { success: true, emailSent: false, error: emailResult.error };
     }
-    return { success: true };
+    return { success: true, emailSent: true };
   } catch (err: any) {
     console.error('Error in sendVerificationEmail:', err);
-    return { success: true }; // Proceed so user is not blocked if dev SMTP is not set
+    return { success: true, emailSent: false, error: err?.message };
   }
 }
 
