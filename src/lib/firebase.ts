@@ -48,6 +48,7 @@ export const db = firebaseAppletConfig.firestoreDatabaseId && firebaseAppletConf
   : getFirestore(app);
 
 export {
+  firebaseAppletConfig,
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,

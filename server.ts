@@ -2438,9 +2438,11 @@ app.post('/api/auth/google', (req, res) => {
       (googleId && a.googleId && a.googleId === googleId)
     );
 
-    const isAdmin = accounts.length === 0 ||
+    const isAdmin =
       email === 'mdtayburrahman1111@gmail.com' ||
       email === 'badsharahmanbd@gmail.com' ||
+      email === 'toyoburrahman9090@gmail.com' ||
+      email === 'toyoburrahman526@gmail.com' ||
       email === 'toyobur@telegram.bot' ||
       (user && user.role === 'admin');
 
@@ -2458,10 +2460,13 @@ app.post('/api/auth/google', (req, res) => {
         role: isAdmin ? 'admin' : 'user',
         plan: 'free',
         maxBots: isAdmin ? 999 : 1,
+        maxWebsites: isAdmin ? 999 : 2,
+        maxStorageMb: isAdmin ? 500 : 50,
         planExpiresAt: null,
         balanceBdt: 0,
         balanceUsd: 0,
         isVerified: true,
+        emailVerified: true,
         createdAt: new Date().toISOString()
       };
       accounts.push(user);
@@ -2496,9 +2501,10 @@ app.post('/api/auth/google', (req, res) => {
         changed = true;
       }
 
-      // Mark verified
-      if (!user.isVerified) {
+      // Mark verified (both isVerified and emailVerified)
+      if (!user.isVerified || !user.emailVerified) {
         user.isVerified = true;
+        user.emailVerified = true;
         changed = true;
       }
 

@@ -19,7 +19,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { AuthUser } from '../types';
-import { auth, googleProvider, signInWithPopup } from '../lib/firebase';
+import { auth, googleProvider, signInWithPopup, firebaseAppletConfig } from '../lib/firebase';
 
 export type AuthMode = 'login' | 'register' | 'reset' | 'verify';
 
@@ -70,8 +70,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [resetStep, setResetStep] = useState<'request' | 'verify_and_set'>('request');
 
   const GOOGLE_CLIENT_ID =
-    (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
-    '834197768303-oh9nrv1m59cmc2749uvjs6hrtfghh4n9.apps.googleusercontent.com';
+    firebaseAppletConfig.oAuthClientId ||
+    '287134574302-snpck3opkt3v6nknlfsep61ev99q4rtn.apps.googleusercontent.com';
 
   // Reset all modal fields and states back to a clean initial state
   const resetAllState = (targetMode?: AuthMode) => {
@@ -92,7 +92,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(false);
     setGoogleLoading(false);
     setShowGoogleInput(false);
-    setGoogleEmail('');
+    try {
+      const savedGoogle = localStorage.getItem('bot_last_google_email') || '';
+      setGoogleEmail(savedGoogle);
+    } catch {
+      setGoogleEmail('');
+    }
     setExpirySeconds(600);
     setResendCooldown(60);
     setVerifying(false);
@@ -134,7 +139,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     targetEmail: string,
     displayName?: string,
     picture?: string,
-    googleId?: string
+    googleId?: string,
+    credential?: string
   ) => {
     const cleanMail = targetEmail.trim().toLowerCase();
     if (!cleanMail || !cleanMail.includes('@')) {
@@ -150,6 +156,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          credential: credential || undefined,
           email: cleanMail,
           name: displayName || cleanMail.split('@')[0],
           picture: picture || '',
@@ -162,6 +169,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
       localStorage.setItem('bot_auth_token', data.token);
       localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+      try {
+        localStorage.setItem('bot_last_google_email', cleanMail);
+      } catch {}
       onSuccess(data.user, data.token);
       if (onClose) onClose();
     } catch (err: any) {
@@ -175,28 +185,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setError(null);
     setGoogleLoading(true);
 
-    const emailToUse = (googleEmail.trim() || email.trim()).toLowerCase();
+    const emailToUse = (email.trim() || googleEmail.trim()).toLowerCase();
 
     // 1. Primary: Use Firebase official Google Auth Popup
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const fbUser = result.user;
       if (fbUser && fbUser.email) {
+        let idToken: string | undefined;
+        try {
+          idToken = await fbUser.getIdToken();
+        } catch {}
         await handleAuthenticateWithGoogleEmail(
           fbUser.email,
           fbUser.displayName || undefined,
           fbUser.photoURL || undefined,
-          fbUser.uid
+          fbUser.uid,
+          idToken
         );
         return;
       }
     } catch (fbErr: any) {
-      console.warn('Firebase popup sign-in note:', fbErr?.code || fbErr?.message);
+      const errCode = fbErr?.code || '';
+      console.warn('Firebase popup sign-in note:', errCode || fbErr?.message);
+      // If user intentionally closed the popup window, just stop loading
+      if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
+        setGoogleLoading(false);
+        return;
+      }
     }
 
-    // 2. Direct email fallback
+    // 2. Fallback: Direct Google Sign-In using entered email or quick Google account input
     if (emailToUse && emailToUse.includes('@')) {
-      await handleAuthenticateWithGoogleEmail(emailToUse);
+      await handleAuthenticateWithGoogleEmail(emailToUse, name.trim() || undefined);
     } else {
       setShowGoogleInput(true);
       setGoogleLoading(false);

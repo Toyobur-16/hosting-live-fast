@@ -239,7 +239,9 @@ export default function App() {
     currentUser && (
       currentUser.role === 'admin' ||
       currentUser.email?.toLowerCase().trim() === 'toyoburrahman9090@gmail.com' ||
+      currentUser.email?.toLowerCase().trim() === 'toyoburrahman526@gmail.com' ||
       currentUser.email?.toLowerCase().trim() === 'mdtayburrahman1111@gmail.com' ||
+      currentUser.email?.toLowerCase().trim() === 'badsharahmanbd@gmail.com' ||
       currentUser.email?.toLowerCase().trim() === 'toyobur@telegram.bot'
     )
   );
