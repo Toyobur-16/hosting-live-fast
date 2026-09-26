@@ -24,8 +24,12 @@ import {
   checkAndSendExpiringPlanAlerts,
   loadSmtpSettingsFile,
   saveSmtpSettingsFile,
-  testSmtpWithParams
+  testSmtpWithParams,
+  DEFAULT_SMTP_SETTINGS,
+  SMTP_BRIDGE_SECRET,
+  buildTransportOptions
 } from './server/emailAlerts';
+import nodemailer from 'nodemailer';
 import { FirebaseSync } from './server/firebaseSync';
 import {
   createAndSendVerificationCode,
@@ -3815,6 +3819,63 @@ app.post('/api/admin/plan-requests/:id/reject', async (req, res) => {
   res.json({ success: true, message: 'রিকোয়েস্ট বাতিল করা হয়েছে (Request rejected)', request });
 });
 
+// HTTPS Port 443 Cloud SMTP Relay Bridge (for cloud hosts like Render Free Tier that block outbound TCP 587/465)
+app.post('/api/smtp-cloud-bridge', async (req, res) => {
+  const key = req.headers['x-smtp-bridge-key'];
+  if (key !== SMTP_BRIDGE_SECRET) {
+    return res.status(403).json({ success: false, error: 'Unauthorized bridge request' });
+  }
+
+  const { action, smtp, mail } = req.body || {};
+  const saved = loadSmtpSettingsFile();
+  const host = (smtp?.host || saved.host || DEFAULT_SMTP_SETTINGS.host).trim();
+  const port = Number(smtp?.port || 587);
+  const user = (smtp?.user || saved.user || DEFAULT_SMTP_SETTINGS.user).trim();
+  const pass = String(smtp?.pass || saved.pass || DEFAULT_SMTP_SETTINGS.pass).replace(/\s+/g, '');
+  const secure = smtp?.secure !== undefined ? Boolean(smtp.secure) : (port === 465);
+
+  try {
+    const transport = nodemailer.createTransport(buildTransportOptions({
+      hostOrIp: host,
+      originalHost: host,
+      port: 587,
+      secure: false,
+      user,
+      pass
+    }));
+
+    if (action === 'verify') {
+      await transport.verify();
+      return res.json({
+        success: true,
+        message: 'Verified via Cloud HTTPS Bridge (Port 587 TLS)'
+      });
+    }
+
+    if (action === 'send' && mail && mail.to) {
+      const fromAddr = mail.from || saved.from || DEFAULT_SMTP_SETTINGS.from || `"hosting live fast" <${user}>`;
+      const info = await transport.sendMail({
+        from: fromAddr,
+        to: mail.to,
+        subject: mail.subject || 'Notification from hosting live fast',
+        text: mail.text || '',
+        html: mail.html || mail.text || ''
+      });
+      return res.json({
+        success: true,
+        messageId: info.messageId
+      });
+    }
+
+    return res.status(400).json({ success: false, error: 'Invalid action' });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: err?.message || 'Bridge SMTP error'
+    });
+  }
+});
+
 // SMTP Status & Diagnostics Endpoint for Admin
 app.get('/api/admin/smtp-status', async (req, res) => {
   const admin = getAuthUser(req);
@@ -3823,20 +3884,12 @@ app.get('/api/admin/smtp-status', async (req, res) => {
   }
 
   const config = getSmtpConfig();
-  if (!config.configured) {
-    return res.json({
-      configured: false,
-      message: 'SMTP কনফিগার করা হয়নি। নিচের ফর্মে আপনার জিমেইল ও ১৬ সংখ্যার App Password দিয়ে সেভ করুন।',
-      config
-    });
-  }
-
   const verifyResult = await verifySmtpConnection();
   res.json({
     configured: true,
     connected: verifyResult.success,
     message: verifyResult.message,
-    config
+    config: getSmtpConfig()
   });
 });
 
@@ -3852,12 +3905,12 @@ app.get('/api/admin/smtp-settings', (req, res) => {
 
   res.json({
     settings: {
-      host: saved?.host || process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: saved?.port || (process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465),
-      user: saved?.user || process.env.SMTP_USER || '',
-      pass: saved?.pass || (process.env.SMTP_PASS ? '********' : ''),
-      from: saved?.from || process.env.SMTP_FROM || '',
-      secure: saved?.secure !== undefined ? saved.secure : (process.env.SMTP_SECURE === 'true' || true)
+      host: saved?.host || DEFAULT_SMTP_SETTINGS.host,
+      port: saved?.port || 587,
+      user: saved?.user || DEFAULT_SMTP_SETTINGS.user,
+      pass: saved?.pass || DEFAULT_SMTP_SETTINGS.pass,
+      from: saved?.from || DEFAULT_SMTP_SETTINGS.from,
+      secure: saved?.secure !== undefined ? saved.secure : false
     },
     config
   });
@@ -3870,26 +3923,26 @@ app.post('/api/admin/smtp-settings', async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const { host, port, user, pass, from, secure } = req.body;
-  if (!host || !user) {
-    return res.status(400).json({ error: 'SMTP Host এবং User Email দেওয়া আবশ্যক।' });
-  }
-
   const existing = loadSmtpSettingsFile();
-  // Keep existing pass if masked string was sent back unchanged
-  const finalPass = (pass === '********' && existing?.pass) ? existing.pass : (pass || '');
+  const rawHost = (req.body.host || existing?.host || DEFAULT_SMTP_SETTINGS.host).trim();
+  const rawUser = (req.body.user || existing?.user || DEFAULT_SMTP_SETTINGS.user).trim();
+  const reqPass = req.body.pass;
+  const finalPass = (!reqPass || reqPass === '********')
+    ? (existing?.pass || DEFAULT_SMTP_SETTINGS.pass)
+    : reqPass;
+  const rawFrom = (req.body.from || existing?.from || DEFAULT_SMTP_SETTINGS.from).trim();
 
-  const cleanedPort = parseInt(String(port || '587').trim(), 10);
-  const cleanedPass = (finalPass || '').replace(/\s+/g, '');
+  const cleanedPort = parseInt(String(req.body.port || '587').trim(), 10) || 587;
+  const cleanedPass = String(finalPass || DEFAULT_SMTP_SETTINGS.pass).replace(/\s+/g, '');
   const isPort465 = cleanedPort === 465;
-  const cleanedSecure = secure !== undefined ? Boolean(secure) : isPort465;
+  const cleanedSecure = req.body.secure !== undefined ? Boolean(req.body.secure) : isPort465;
 
   const saved = saveSmtpSettingsFile({
-    host: (host || '').trim(),
+    host: rawHost,
     port: cleanedPort,
-    user: (user || '').trim(),
+    user: rawUser,
     pass: cleanedPass,
-    from: (from || '').trim(),
+    from: rawFrom,
     secure: cleanedSecure
   });
 
@@ -3901,14 +3954,14 @@ app.post('/api/admin/smtp-settings', async (req, res) => {
 
   res.json({
     success: true,
-    message: 'SMTP সেটিংস সফলভাবে সংরক্ষিত হয়েছে!',
+    message: 'SMTP সেটিংস সফলভাবে সংরক্ষিত ও সক্রিয় করা হয়েছে!',
     connected: verifyResult.success,
     errorCategory: verifyResult.errorCategory,
     verifyMessage: verifyResult.message,
     solutionHint: verifyResult.solutionHint,
     details: verifyResult.details,
-    workingPort: verifyResult.workingPort,
-    workingSecure: verifyResult.workingSecure,
+    workingPort: verifyResult.workingPort || 587,
+    workingSecure: verifyResult.workingSecure !== undefined ? verifyResult.workingSecure : false,
     config: getSmtpConfig()
   });
 });
@@ -3921,16 +3974,12 @@ app.post('/api/admin/smtp-autofix', async (req, res) => {
   }
 
   const existing = loadSmtpSettingsFile();
-  const rawUser = (req.body.user || existing?.user || process.env.SMTP_USER || '').trim();
+  const rawUser = (req.body.user || existing?.user || DEFAULT_SMTP_SETTINGS.user).trim();
   const reqPass = req.body.pass;
-  const rawPass = (reqPass && reqPass !== '********') ? reqPass : (existing?.pass || process.env.SMTP_PASS || '');
-  const rawHost = (req.body.host || existing?.host || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
-  const requestedPort = parseInt(String(req.body.port || existing?.port || 465), 10);
+  const rawPass = (reqPass && reqPass !== '********') ? reqPass : (existing?.pass || DEFAULT_SMTP_SETTINGS.pass);
+  const rawHost = (req.body.host || existing?.host || DEFAULT_SMTP_SETTINGS.host).trim();
+  const requestedPort = parseInt(String(req.body.port || existing?.port || 587), 10) || 587;
   const requestedSecure = req.body.secure !== undefined ? Boolean(req.body.secure) : (requestedPort === 465);
-
-  if (!rawUser) {
-    return res.status(400).json({ error: 'প্রেরক ইমেইল এড্রেস দেওয়া আবশ্যক।' });
-  }
 
   const testResult = await testSmtpWithParams({
     host: rawHost,
@@ -3945,7 +3994,8 @@ app.post('/api/admin/smtp-autofix', async (req, res) => {
       host: rawHost,
       port: testResult.workingPort,
       user: rawUser,
-      pass: rawPass.replace(/\s+/g, ''),
+      pass: String(rawPass).replace(/\s+/g, ''),
+      from: existing?.from || DEFAULT_SMTP_SETTINGS.from,
       secure: testResult.workingSecure !== undefined ? testResult.workingSecure : (testResult.workingPort === 465)
     });
   }
@@ -3954,8 +4004,8 @@ app.post('/api/admin/smtp-autofix', async (req, res) => {
     success: testResult.success,
     connected: testResult.success,
     message: testResult.message,
-    workingPort: testResult.workingPort,
-    workingSecure: testResult.workingSecure,
+    workingPort: testResult.workingPort || 587,
+    workingSecure: testResult.workingSecure !== undefined ? testResult.workingSecure : false,
     workingIp: testResult.workingIp,
     errorCategory: testResult.errorCategory,
     solutionHint: testResult.solutionHint,
