@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User accounts collection: anyone can read public bot/site info, but users can only edit their own profile
+    match /accounts/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && (request.auth.uid == userId || request.auth.token.email == 'mdtayburrahman1111@gmail.com' || request.auth.token.email == 'badsharahmanbd@gmail.com');
+    }
+
+    // Default allow read for public site collections, write authenticated
+    match /{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "hosting live fast",
+  "description": "24/7 cloud hosting platform for Telegram bots with interactive accordion FAQ & knowledge base, custom hosting plans, Binance USDT deposit system, user authentication, isolated bot workspaces, live console, and private admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
