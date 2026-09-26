@@ -19,7 +19,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { AuthUser } from '../types';
-import { auth, googleProvider, signInWithPopup, firebaseAppletConfig } from '../lib/firebase';
+import { auth, fallbackAuth, googleProvider, signInWithPopup, firebaseAppletConfig } from '../lib/firebase';
 
 export type AuthMode = 'login' | 'register' | 'reset' | 'verify';
 
@@ -187,9 +187,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     const emailToUse = (email.trim() || googleEmail.trim()).toLowerCase();
 
-    // 1. Primary: Use Firebase official Google Auth Popup
+    // 1. Primary: Use user's Firebase project (hosting-live-fast-11b13) Google Auth Popup
+    const preferFallback = sessionStorage.getItem('use_fallback_firebase_auth') === '1';
+    const primaryAuthInstance = preferFallback ? fallbackAuth : auth;
+    const secondaryAuthInstance = preferFallback ? auth : fallbackAuth;
+
     try {
-      const result = await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(primaryAuthInstance, googleProvider);
       const fbUser = result.user;
       if (fbUser && fbUser.email) {
         let idToken: string | undefined;
@@ -207,11 +211,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
     } catch (fbErr: any) {
       const errCode = fbErr?.code || '';
-      console.warn('Firebase popup sign-in note:', errCode || fbErr?.message);
-      // If user intentionally closed the popup window, just stop loading
+      console.warn('Primary Firebase popup sign-in note:', errCode || fbErr?.message);
       if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
         setGoogleLoading(false);
         return;
+      }
+      if (errCode === 'auth/unauthorized-domain' && !preferFallback) {
+        try {
+          sessionStorage.setItem('use_fallback_firebase_auth', '1');
+          const fallbackResult = await signInWithPopup(secondaryAuthInstance, googleProvider);
+          const fbUser = fallbackResult.user;
+          if (fbUser && fbUser.email) {
+            let idToken: string | undefined;
+            try {
+              idToken = await fbUser.getIdToken();
+            } catch {}
+            await handleAuthenticateWithGoogleEmail(
+              fbUser.email,
+              fbUser.displayName || undefined,
+              fbUser.photoURL || undefined,
+              fbUser.uid,
+              idToken
+            );
+            return;
+          }
+        } catch (fallbackErr: any) {
+          const fbCode = fallbackErr?.code || '';
+          if (fbCode === 'auth/popup-closed-by-user' || fbCode === 'auth/cancelled-popup-request') {
+            setGoogleLoading(false);
+            return;
+          }
+        }
       }
     }
 
