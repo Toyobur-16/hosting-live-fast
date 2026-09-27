@@ -47,10 +47,10 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
 
   // Ad Watching Modal State
   const DEFAULT_VIDEO_ADS = [
+    'https://www.w3schools.com/html/mov_bbb.mp4',
+    'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
     'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4'
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4'
   ];
 
   const [isWatchingAd, setIsWatchingAd] = useState(false);
@@ -58,7 +58,7 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
   const [watchProgress, setWatchProgress] = useState(0);
   const [adDurationSeconds, setAdDurationSeconds] = useState(15);
   const [remainingAdTime, setRemainingAdTime] = useState(15);
-  const [adMuted, setAdMuted] = useState(false);
+  const [adMuted, setAdMuted] = useState(true);
   const [isClaiming, setIsClaiming] = useState(false);
   const [adCompletedReady, setAdCompletedReady] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
@@ -97,10 +97,10 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
         if (data.stats.adRedirectUrl) {
           setActiveRedirectUrl(data.stats.adRedirectUrl);
         }
-        // Only show countdown timer after all 20 ads are completed
+        // Strictly only show 24h countdown after all 20 ads are completed (never a 30s cooldown after 1 ad)
         if (data.stats.remainingToday <= 0 && data.stats.nextAvailableAt) {
           const diff = Math.ceil((data.stats.nextAvailableAt - Date.now()) / 1000);
-          setCooldownTime(diff > 0 ? diff : 0);
+          setCooldownTime(diff > 60 ? diff : 0);
         } else {
           setCooldownTime(0);
         }
@@ -180,7 +180,7 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       return;
     }
 
-    if (cooldownTime > 0 || (stats && stats.remainingToday <= 0)) {
+    if (stats && stats.remainingToday <= 0 && cooldownTime > 0) {
       setError(
         lang === 'bn'
           ? `আপনার ২০টি বিজ্ঞাপন দেখা শেষ হয়েছে! পরবর্তী ২০টি বিজ্ঞাপন দেখতে অপেক্ষা করুন (${formatCooldownTime(cooldownTime)})।`
@@ -188,6 +188,18 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       );
       return;
     }
+
+    // Open Video Ad Player IMMEDIATELY (0.00s delay) so user sees the video ad right away!
+    const fallbackVideo =
+      DEFAULT_VIDEO_ADS[Math.floor(Math.random() * DEFAULT_VIDEO_ADS.length)];
+    setActiveVideoUrl((stats?.videoUrl && stats.videoUrl.trim()) || fallbackVideo);
+    setAdDurationSeconds(15);
+    setRemainingAdTime(15);
+    setWatchProgress(0);
+    setVideoPlaying(false);
+    setAdCompletedReady(false);
+    setCurrentSessionId('starting');
+    setIsWatchingAd(true);
 
     try {
       const token = localStorage.getItem('bot_auth_token');
@@ -201,34 +213,24 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       const data = await res.json();
 
       if (!res.ok || !data.success) {
+        setIsWatchingAd(false);
+        setCurrentSessionId(null);
         throw new Error(data.error || 'Failed to start ad session');
       }
 
       setCurrentSessionId(data.sessionId);
-      const duration = data.minDurationSeconds || 15;
-      setAdDurationSeconds(duration);
-      setRemainingAdTime(duration);
-      const fallbackVideo =
-        DEFAULT_VIDEO_ADS[Math.floor(Math.random() * DEFAULT_VIDEO_ADS.length)];
-      const nextVideoUrl =
-        (data.videoUrl && data.videoUrl.trim()) ||
-        (stats?.videoUrl && stats.videoUrl.trim()) ||
-        fallbackVideo;
-      setActiveVideoUrl(nextVideoUrl);
       if (data.adRedirectUrl || stats?.adRedirectUrl) {
         setActiveRedirectUrl(data.adRedirectUrl || stats?.adRedirectUrl || '');
       }
-      setVideoPlaying(false);
-      setWatchProgress(0);
-      setAdCompletedReady(false);
-      setIsWatchingAd(true);
     } catch (err: any) {
+      setIsWatchingAd(false);
+      setCurrentSessionId(null);
       setError(err.message || 'Error starting ad');
     }
   };
 
   const handleClaimReward = async () => {
-    if (!currentSessionId || isClaiming) return;
+    if (!currentSessionId || currentSessionId === 'starting' || isClaiming) return;
     setIsClaiming(true);
     setError(null);
 
@@ -262,9 +264,10 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
 
       if (data.stats) {
         setStats(data.stats);
+        // Never trigger a 30s cooldown after 1 ad! Only start 24h timer when all 20 ads are completed.
         if (data.stats.remainingToday <= 0 && data.stats.nextAvailableAt) {
           const diff = Math.ceil((data.stats.nextAvailableAt - Date.now()) / 1000);
-          setCooldownTime(diff > 0 ? diff : 0);
+          setCooldownTime(diff > 60 ? diff : 0);
         } else {
           setCooldownTime(0);
         }
@@ -525,8 +528,77 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
                 />
               </div>
 
-              {/* Pure Video Player Display Container */}
+              {/* Pure Video Player Display Container (Instant 0.00s Video Playback - Never Stuck Loading) */}
               <div className="aspect-video w-full rounded-2xl bg-black border border-cyan-500/30 relative overflow-hidden shadow-2xl mb-5">
+                {/* Instant HD Live Commercial Broadcast Layer (Plays immediately from 0.00s while or alongside MP4 stream) */}
+                <div className="absolute inset-0 bg-gradient-to-br from-[#06122e] via-[#0c234a] to-[#040d1e] flex flex-col justify-between p-5 overflow-hidden select-none">
+                  {/* Animated moving background light beams */}
+                  <div
+                    className="absolute -top-12 -left-12 w-56 h-56 rounded-full bg-cyan-500/25 blur-2xl transition-transform duration-1000"
+                    style={{ transform: `translate(${watchProgress * 1.5}px, ${ (15 - remainingAdTime) * 4 }px)` }}
+                  />
+                  <div
+                    className="absolute -bottom-12 -right-12 w-56 h-56 rounded-full bg-emerald-500/25 blur-2xl transition-transform duration-1000"
+                    style={{ transform: `translate(-${watchProgress * 1.5}px, -${ (15 - remainingAdTime) * 3 }px)` }}
+                  />
+
+                  {/* Dynamic Multi-Scene Video Commercial Content (Changes scene every 5 seconds) */}
+                  <div className="relative z-10 my-auto flex flex-col items-center text-center px-3">
+                    {remainingAdTime > 10 ? (
+                      <>
+                        <div className="px-3 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-[10px] font-black text-cyan-300 uppercase tracking-widest mb-2 animate-bounce">
+                          SCENE 1/3 • ULTRA CLOUD HOSTING
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-black text-white tracking-tight drop-shadow">
+                          ⚡ 24/7 Non-Stop Telegram Bot Server
+                        </h3>
+                        <p className="text-xs text-cyan-100/90 mt-1 max-w-xs">
+                          High-speed Python & Node.js cloud containers with automatic crash recovery & live console.
+                        </p>
+                      </>
+                    ) : remainingAdTime > 5 ? (
+                      <>
+                        <div className="px-3 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-2 animate-bounce">
+                          SCENE 2/3 • INSTANT STATIC WEBSITES
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-black text-emerald-300 tracking-tight drop-shadow">
+                          🌐 Deploy HTML5 & Mini Apps in 1 Click
+                        </h3>
+                        <p className="text-xs text-slate-200 mt-1 max-w-xs">
+                          Upload ZIP or HTML files and get an instant live SSL subdomain in seconds!
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="px-3 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-[10px] font-black text-amber-300 uppercase tracking-widest mb-2 animate-bounce">
+                          SCENE 3/3 • EARN & UPGRADE FREE
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-black text-amber-300 tracking-tight drop-shadow">
+                          💰 Watch 20 Ads Daily & Get Free Plans!
+                        </h3>
+                        <p className="text-xs text-slate-200 mt-1 max-w-xs">
+                          Instant USD wallet rewards credited directly to your account balance!
+                        </p>
+                      </>
+                    )}
+
+                    {/* Animated Live Audio/Video Equalizer Bars */}
+                    <div className="flex items-end gap-1 h-6 mt-3">
+                      {[40, 85, 60, 100, 50, 90, 70, 95, 55, 80, 65, 90].map((h, idx) => (
+                        <span
+                          key={idx}
+                          className="w-1.5 rounded-full bg-gradient-to-t from-cyan-400 to-emerald-300 animate-pulse"
+                          style={{
+                            height: `${((h + remainingAdTime * 13 * (idx + 1)) % 75) + 25}%`,
+                            animationDelay: `${idx * 90}ms`
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* HTML5 MP4 Video Stream (Plays seamlessly on top when buffered) */}
                 <video
                   ref={videoRef}
                   key={activeVideoUrl || DEFAULT_VIDEO_ADS[0]}
@@ -535,28 +607,27 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
                   playsInline
                   muted={adMuted}
                   loop
+                  preload="auto"
                   onPlaying={() => setVideoPlaying(true)}
-                  onLoadedMetadata={(e) => {
-                    const vid = e.currentTarget;
-                    vid.play().catch(() => {
-                      setAdMuted(true);
-                      vid.muted = true;
-                      vid.play().catch(() => {});
-                    });
+                  onLoadedData={(e) => {
+                    setVideoPlaying(true);
+                    e.currentTarget.play().catch(() => {});
                   }}
                   onError={() => {
                     if (activeVideoUrl !== DEFAULT_VIDEO_ADS[0]) {
                       setActiveVideoUrl(DEFAULT_VIDEO_ADS[0]);
                     }
                   }}
-                  className="w-full h-full object-cover"
+                  className={`relative z-5 w-full h-full object-cover transition-opacity duration-300 ${
+                    videoPlaying ? 'opacity-100' : 'opacity-0'
+                  }`}
                 />
 
                 {/* Top-left Ad Badge */}
-                <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-sm border border-white/15 text-[11px] font-bold text-amber-300">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <div className="absolute top-3 left-3 z-20 flex items-center gap-2 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-sm border border-white/15 text-[11px] font-bold text-amber-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                   <span>
-                    VIDEO AD •{' '}
+                    LIVE VIDEO AD •{' '}
                     {remainingAdTime > 0
                       ? `0:${remainingAdTime < 10 ? `0${remainingAdTime}` : remainingAdTime}`
                       : 'COMPLETED'}
@@ -574,7 +645,7 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
                       videoRef.current.play().catch(() => {});
                     }
                   }}
-                  className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/70 hover:bg-black/90 backdrop-blur-sm border border-white/15 text-[11px] font-bold text-white cursor-pointer transition"
+                  className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/75 hover:bg-black/90 backdrop-blur-sm border border-white/15 text-[11px] font-bold text-white cursor-pointer transition"
                 >
                   {adMuted ? (
                     <>
@@ -589,18 +660,8 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
                   )}
                 </button>
 
-                {/* Loading indicator only while video buffers first frame */}
-                {!videoPlaying && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-5 pointer-events-none">
-                    <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mb-2" />
-                    <span className="text-xs font-semibold text-cyan-200">
-                      {lang === 'bn' ? 'ভিডিও বিজ্ঞাপন চলছে...' : 'Playing Video Ad...'}
-                    </span>
-                  </div>
-                )}
-
                 {/* Bottom Status Bar Over Video (No Direct Links Here) */}
-                <div className="absolute bottom-0 inset-x-0 z-10 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-4 pt-5 pb-2.5 flex items-center justify-between">
+                <div className="absolute bottom-0 inset-x-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-4 pt-5 pb-2.5 flex items-center justify-between">
                   <p className="text-[11px] font-bold text-white flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
                     <span>
@@ -609,8 +670,8 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
                           ? '✅ ভিডিও বিজ্ঞাপন দেখা সম্পন্ন! এখন রিওয়ার্ড ক্লেইম করুন'
                           : '✅ Video Ad Completed! Claim your reward below'
                         : lang === 'bn'
-                          ? `⏱ অনুগ্রহ করে আরো ${remainingAdTime} সেকেন্ড ভিডিওটি দেখুন`
-                          : `⏱ Watch video for ${remainingAdTime}s more`}
+                          ? `⏱ ভিডিও চলছে... আরো ${remainingAdTime} সেকেন্ড দেখুন`
+                          : `⏱ Video playing... Watch ${remainingAdTime}s more`}
                     </span>
                   </p>
                   <span className="text-[11px] font-mono font-bold text-emerald-400">

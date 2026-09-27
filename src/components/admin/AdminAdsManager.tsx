@@ -76,7 +76,7 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
     adScriptHtml: '<script src="https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js"></script>\n<script src="https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js"></script>',
     rewardAmountUsd: 0.01,
     dailyLimit: 20,
-    cooldownSeconds: 30,
+    cooldownSeconds: 0,
     testMode: false
   });
   const [loading, setLoading] = useState(false);
@@ -423,18 +423,23 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
             {/* Cooldown Seconds */}
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                {lang === 'bn' ? 'কুলডাউন সময় (Cooldown Seconds)' : 'Cooldown Between Ads (Seconds)'}
+                {lang === 'bn' ? 'প্রতি অ্যাডের বিরতি (0 = বিরতিহীন ২০টি অ্যাড)' : 'Cooldown Between Ads (0 = No wait until 20 ads)'}
               </label>
               <input
                 type="number"
-                min="5"
+                min="0"
                 max="600"
-                value={settings.cooldownSeconds}
-                onChange={(e) => setSettings({ ...settings, cooldownSeconds: parseInt(e.target.value) || 30 })}
+                value={settings.cooldownSeconds ?? 0}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  setSettings({ ...settings, cooldownSeconds: isNaN(val) ? 0 : Math.max(0, val) });
+                }}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-bold focus:border-sky-500 focus:outline-none"
               />
-              <p className="text-[11px] text-slate-500 mt-1">
-                {lang === 'bn' ? 'একটি অ্যাড দেখার পর পরবর্তী অ্যাড দেখার বিরতি' : 'Mandatory delay before the next ad session can start'}
+              <p className="text-[11px] text-emerald-400 mt-1">
+                {lang === 'bn'
+                  ? '✓ 0 সেকেন্ড দেওয়া আছে: ইউজার পরপর ২০টি অ্যাড দেখার পর অটোমেটিক ২৪ ঘণ্টার টাইমার চালু হবে।'
+                  : '✓ Set to 0s: Users watch 20 ads back-to-back, then a 24-hour timer starts.'}
               </p>
             </div>
           </div>

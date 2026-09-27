@@ -30,10 +30,10 @@ export interface AdRewardLog {
 }
 
 const DEFAULT_VIDEO_ADS_POOL = [
+  'https://www.w3schools.com/html/mov_bbb.mp4',
+  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4'
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4'
 ];
 
 export function getRewardAdSettings(): RewardAdSettings {
@@ -55,7 +55,7 @@ export function getRewardAdSettings(): RewardAdSettings {
   try {
     if (fs.existsSync(AD_SETTINGS_FILE)) {
       const data = JSON.parse(fs.readFileSync(AD_SETTINGS_FILE, 'utf-8'));
-      const merged = { ...defaultSettings, ...data };
+      const merged = { ...defaultSettings, ...data, cooldownSeconds: 0 };
       if (!merged.videoUrl || !merged.videoUrl.trim()) {
         merged.videoUrl = DEFAULT_VIDEO_ADS_POOL[0];
       }
