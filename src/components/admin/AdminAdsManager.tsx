@@ -67,11 +67,13 @@ const RECOMMENDED_AD_NETWORKS = [
 export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' }) => {
   const [settings, setSettings] = useState<RewardAdSettings>({
     enabled: true,
-    adProvider: 'admob',
+    adProvider: 'adsterra',
     appId: 'ca-app-pub-2943337025131771~1508810719',
-    adUnitId: 'ca-app-pub-2943337025131771/5261362626',
+    adUnitId: '31534338',
+    adsterraWebsiteId: '6080422',
     videoUrl: '',
-    adRedirectUrl: '',
+    adRedirectUrl: 'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8',
+    adScriptHtml: '<script src="https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js"></script>\n<script src="https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js"></script>',
     rewardAmountUsd: 0.01,
     dailyLimit: 20,
     cooldownSeconds: 30,
@@ -289,31 +291,52 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
               </p>
             </div>
 
-            {/* Ad Unit ID (AdMob Ad Unit ID with /) */}
+            {/* Ad Unit ID / Adsterra Website ID */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-bold text-slate-300">
                   {lang === 'bn'
-                    ? 'অ্যাড ইউনিট আইডি (AdMob Ads ID / Zone ID)'
-                    : 'Ad Unit ID / Zone ID'}
+                    ? 'অ্যাডস্টেরা ওয়েবসাইট / অ্যাড ইউনিট আইডি (Adsterra / Zone ID)'
+                    : 'Adsterra Website ID / Ad Unit ID'}
                 </label>
-                {settings.adUnitId && /^ca-app-pub-\d{16}\/\d{10}$/.test(settings.adUnitId.trim()) && (
+                {settings.adUnitId && (/^\d{5,10}$/.test(settings.adUnitId.trim()) || /^ca-app-pub-\d{16}\/\d{10}$/.test(settings.adUnitId.trim())) && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    ✓ Valid Ads ID (/)
+                    ✓ Valid ID ({settings.adUnitId.trim()})
                   </span>
                 )}
               </div>
               <input
                 type="text"
                 value={settings.adUnitId || ''}
-                onChange={(e) => setSettings({ ...settings, adUnitId: e.target.value })}
-                placeholder="ca-app-pub-2943337025131771/5261362626"
+                onChange={(e) => setSettings({ ...settings, adUnitId: e.target.value, adsterraWebsiteId: e.target.value })}
+                placeholder="6080422 or ca-app-pub-2943337025131771/5261362626"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-mono focus:border-sky-500 focus:outline-none"
               />
               <p className="text-[11px] text-slate-500 mt-1">
                 {lang === 'bn'
-                  ? 'AdMob এর Ad Unit ID (মাঝখানে / চিহ্ন থাকে, যেমন: ca-app-pub-2943337025131771/5261362626)'
-                  : 'Your Rewarded Ad Unit ID containing the / separator.'}
+                  ? 'আপনার Adsterra Website/Zone ID (6080422) অথবা AdMob Unit ID দিন।'
+                  : 'Your Adsterra Website/Zone ID (e.g. 6080422) or AdMob Ad Unit ID.'}
+              </p>
+            </div>
+
+            {/* Adsterra / Network GET CODE Script Box */}
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                {lang === 'bn'
+                  ? 'Adsterra (GET CODE) স্ক্রিপ্ট বা VAST কোড (ঐচ্ছিক)'
+                  : 'Adsterra GET CODE Script / VAST Tag (Optional)'}
+              </label>
+              <textarea
+                rows={2}
+                value={settings.adScriptHtml || ''}
+                onChange={(e) => setSettings({ ...settings, adScriptHtml: e.target.value })}
+                placeholder="<script type='text/javascript' src='//...'></script> অথবা Direct Link"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-mono focus:border-sky-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                {lang === 'bn'
+                  ? 'Adsterra-তে আপনার ওয়েবসাইট (ID: 6080422) Approved হওয়ার পর GET CODE বাটনে চাপ দিয়ে পাওয়া কোড বা লিংক এখানে পেস্ট করতে পারেন।'
+                  : 'Once your Adsterra site (ID: 6080422) is approved, click GET CODE and paste the script or link here.'}
               </p>
             </div>
 

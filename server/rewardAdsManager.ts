@@ -35,9 +35,12 @@ export function getRewardAdSettings(): RewardAdSettings {
     rewardAmountUsd: 0.01,
     dailyLimit: 20,
     cooldownSeconds: 30,
-    adProvider: 'admob',
+    adProvider: 'adsterra',
     appId: process.env.ADMOB_APP_ID || 'ca-app-pub-2943337025131771~1508810719',
-    adUnitId: process.env.REWARDED_AD_UNIT_ID || 'ca-app-pub-2943337025131771/5261362626',
+    adUnitId: process.env.REWARDED_AD_UNIT_ID || '31534338',
+    adsterraWebsiteId: '6080422',
+    adRedirectUrl: 'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8',
+    adScriptHtml: '<script src="https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js"></script>\n<script src="https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js"></script>',
     testMode: false
   };
 
@@ -138,6 +141,7 @@ export function getUserRewardStats(userId: string, currentBalanceUsd = 0): AdRew
     adUnitId: settings.adUnitId,
     videoUrl: settings.videoUrl,
     adRedirectUrl: settings.adRedirectUrl,
+    adScriptHtml: settings.adScriptHtml,
     minDurationSeconds: settings.minDurationSeconds || 15
   };
 }
@@ -153,6 +157,7 @@ export function startAdSession(userId: string): {
   nextAvailableSeconds?: number;
   videoUrl?: string;
   adRedirectUrl?: string;
+  adScriptHtml?: string;
   adProvider?: string;
   appId?: string;
   adUnitId?: string;
@@ -202,6 +207,7 @@ export function startAdSession(userId: string): {
     rewardAmount: settings.rewardAmountUsd,
     videoUrl: settings.videoUrl,
     adRedirectUrl: settings.adRedirectUrl,
+    adScriptHtml: settings.adScriptHtml,
     adProvider: settings.adProvider,
     appId: settings.appId,
     adUnitId: settings.adUnitId

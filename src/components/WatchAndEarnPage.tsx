@@ -55,7 +55,33 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
   const [isClaiming, setIsClaiming] = useState(false);
   const [adCompletedReady, setAdCompletedReady] = useState(false);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string>('');
-  const [activeRedirectUrl, setActiveRedirectUrl] = useState<string>('');
+  const [activeRedirectUrl, setActiveRedirectUrl] = useState<string>(
+    'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8'
+  );
+  const [activeAdScriptHtml, setActiveAdScriptHtml] = useState<string>(
+    '<script src="https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js"></script>\n<script src="https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js"></script>'
+  );
+
+  // Dynamically inject Adsterra / Custom Ad Scripts into the DOM so impressions count
+  const injectAdScripts = (scriptHtml?: string) => {
+    const html = scriptHtml || activeAdScriptHtml;
+    if (!html) return;
+    const srcMatches = Array.from(html.matchAll(/src=["']([^"']+)["']/gi));
+    srcMatches.forEach((match) => {
+      const srcUrl = match[1];
+      if (!srcUrl) return;
+      // Remove old script tag if re-triggering on watch start
+      const existing = document.querySelector(`script[src="${srcUrl}"]`);
+      if (existing) {
+        existing.remove();
+      }
+      const scriptEl = document.createElement('script');
+      scriptEl.src = srcUrl;
+      scriptEl.async = true;
+      scriptEl.setAttribute('data-adsterra-injected', 'true');
+      document.body.appendChild(scriptEl);
+    });
+  };
 
   const fetchStats = async () => {
     if (!user) return;
@@ -68,6 +94,13 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       const data = await res.json();
       if (data.success && data.stats) {
         setStats(data.stats);
+        if (data.stats.adRedirectUrl) {
+          setActiveRedirectUrl(data.stats.adRedirectUrl);
+        }
+        if (data.stats.adScriptHtml) {
+          setActiveAdScriptHtml(data.stats.adScriptHtml);
+          injectAdScripts(data.stats.adScriptHtml);
+        }
         if (data.stats.nextAvailableAt) {
           const diff = Math.ceil((data.stats.nextAvailableAt - Date.now()) / 1000);
           setCooldownTime(diff > 0 ? diff : 0);
@@ -83,6 +116,7 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
   };
 
   useEffect(() => {
+    injectAdScripts();
     fetchStats();
   }, [user]);
 
@@ -179,7 +213,17 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       setAdDurationSeconds(duration);
       setRemainingAdTime(duration);
       setActiveVideoUrl(data.videoUrl || stats?.videoUrl || '');
-      setActiveRedirectUrl(data.adRedirectUrl || stats?.adRedirectUrl || '');
+      setActiveRedirectUrl(
+        data.adRedirectUrl ||
+          stats?.adRedirectUrl ||
+          'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8'
+      );
+      if (data.adScriptHtml || stats?.adScriptHtml) {
+        setActiveAdScriptHtml(data.adScriptHtml || stats?.adScriptHtml || '');
+        injectAdScripts(data.adScriptHtml || stats?.adScriptHtml);
+      } else {
+        injectAdScripts();
+      }
       setWatchProgress(0);
       setAdCompletedReady(false);
       setIsWatchingAd(true);

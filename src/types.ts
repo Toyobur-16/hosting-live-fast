@@ -161,6 +161,7 @@ export interface RewardAdSettings {
     | 'custom';
   appId?: string;
   adUnitId?: string;
+  adsterraWebsiteId?: string;
   videoUrl?: string;
   adRedirectUrl?: string;
   adScriptHtml?: string;
@@ -182,6 +183,8 @@ export interface AdRewardStats {
   adProvider?: string;
   appId?: string;
   adUnitId?: string;
+  adsterraWebsiteId?: string;
+  adScriptHtml?: string;
   videoUrl?: string;
   adRedirectUrl?: string;
   minDurationSeconds?: number;
