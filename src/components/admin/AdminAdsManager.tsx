@@ -6,24 +6,75 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  Coins,
-  ShieldCheck,
-  Clock,
-  Layers,
-  HelpCircle,
-  Sliders
+  ExternalLink,
+  Globe,
+  Link2,
+  Video
 } from 'lucide-react';
 import { RewardAdSettings } from '../../types';
+
+const RECOMMENDED_AD_NETWORKS = [
+  {
+    id: 'monetag',
+    name: 'Monetag (PropellerAds)',
+    url: 'https://monetag.com',
+    badge: 'Instant Approval • Top Web/MiniApp',
+    descBn: 'ওয়েবসাইট ও টেলিগ্রাম মিনি অ্যাপের জন্য সেরা। Rewarded Interstitial ও Direct Link সাপোর্ট করে। পেমেন্ট: USDT, PayPal, Payoneer।',
+    descEn: 'Best for websites & Telegram Mini Apps. Supports Rewarded Interstitial & Direct Links. Payouts: USDT, PayPal.'
+  },
+  {
+    id: 'adsterra',
+    name: 'Adsterra Network',
+    url: 'https://adsterra.com',
+    badge: 'VAST Video & Direct Link • High CPM',
+    descBn: '১ মিনিটে অটো অ্যাপ্রুভাল। VAST Video Ads, Social Bar এবং Direct Link দিয়ে সহজেই আয় করা যায়। পেমেন্ট: USDT (TRC20/BEP20), Binance।',
+    descEn: '1-minute auto approval. Supports VAST Video Ads, Social Bar & Direct Links. Payouts via USDT & Binance.'
+  },
+  {
+    id: 'adsgram',
+    name: 'Adsgram.ai (Telegram Video Ads)',
+    url: 'https://adsgram.ai',
+    badge: 'Best for Telegram Bot & Mini App',
+    descBn: 'বিশেষভাবে টেলিগ্রাম বট এবং মিনি অ্যাপে ১৫ সেকেন্ডের Rewarded Video Ad দেখানোর জন্য তৈরি। পেমেন্ট: TON / USDT।',
+    descEn: 'Built specifically for rewarded video ads in Telegram Bots & Mini Apps. Payouts in TON / USDT.'
+  },
+  {
+    id: 'hilltopads',
+    name: 'HilltopAds',
+    url: 'https://hilltopads.com',
+    badge: 'VAST Video Player • Weekly Payout',
+    descBn: 'সরাসরি Video VAST Tag ও Direct Link পাওয়া যায়। কোনো মিনিমাম ট্রাফিক ছাড়াই অ্যাকাউন্ট অনুমোদন হয়। পেমেন্ট: USDT, Bitcoin, PayPal।',
+    descEn: 'Provides VAST Video Tags & Direct Links with fast approval. Weekly payouts in USDT, BTC, PayPal.'
+  },
+  {
+    id: 'richads',
+    name: 'RichAds',
+    url: 'https://richads.com',
+    badge: 'High Paying Telegram & Web Ads',
+    descBn: 'টেলিগ্রাম মিনি অ্যাপ ও ওয়েব ট্রাফিকের জন্য উচ্চ রেটের ভিডিও এবং পুশ অ্যাড নেটওয়ার্ক।',
+    descEn: 'High CPM video and embedded ads for Telegram Mini Apps and web traffic.'
+  },
+  {
+    id: 'admob',
+    name: 'Google AdMob / AdSense',
+    url: 'https://admob.google.com',
+    badge: 'Official Google Network',
+    descBn: 'গুগলের অফিসিয়াল Rewarded Video Ad নেটওয়ার্ক। সর্বোচ্চ বিশ্বস্ততা এবং ব্যাংক ট্রান্সফার সুবিধা।',
+    descEn: 'Google official Rewarded Video network with bank wire payouts.'
+  }
+];
 
 export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' }) => {
   const [settings, setSettings] = useState<RewardAdSettings>({
     enabled: true,
-    adProvider: 'admob',
+    adProvider: 'monetag',
     adUnitId: 'ca-app-pub-3940256099942544/5224354917',
-    rewardAmountUsd: 0.005,
+    videoUrl: '',
+    adRedirectUrl: '',
+    rewardAmountUsd: 0.01,
     dailyLimit: 20,
     cooldownSeconds: 30,
-    testMode: true
+    testMode: false
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -169,11 +220,16 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
                 onChange={(e) => setSettings({ ...settings, adProvider: e.target.value as any })}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-medium focus:border-sky-500 focus:outline-none"
               >
-                <option value="admob">Google AdMob / Rewarded Ads</option>
+                <option value="monetag">Monetag (PropellerAds) — Web & MiniApp</option>
+                <option value="adsterra">Adsterra — VAST Video & Direct Link</option>
+                <option value="adsgram">Adsgram.ai — Telegram Rewarded Video</option>
+                <option value="hilltopads">HilltopAds — Video VAST & Direct Link</option>
+                <option value="richads">RichAds — Telegram & Web Video Ads</option>
+                <option value="admob">Google AdMob / AdSense Rewarded</option>
                 <option value="unity">Unity Ads Rewarded Video</option>
                 <option value="applovin">AppLovin MAX Rewarded</option>
-                <option value="google_ad_manager">Google Ad Manager (GAM)</option>
-                <option value="custom">Custom Web SDK Provider</option>
+                <option value="google_ad_manager">Google Ad Manager (GAM / IMA)</option>
+                <option value="custom_network">Custom Direct Video / Sponsor Ad</option>
               </select>
             </div>
 
@@ -187,7 +243,7 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
                   <input
                     type="radio"
                     name="testMode"
-                    checked={settings.testMode}
+                    checked={Boolean(settings.testMode)}
                     onChange={() => setSettings({ ...settings, testMode: true })}
                     className="accent-pink-500"
                   />
@@ -209,19 +265,61 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
             {/* Ad Unit ID */}
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                {lang === 'bn' ? 'অ্যাড ইউনিট আইডি (Ad Unit ID / Placement ID)' : 'Ad Unit ID / Placement ID'}
+                {lang === 'bn'
+                  ? 'অ্যাড ইউনিট / জোন আইডি (Zone ID / Block ID / Placement ID)'
+                  : 'Ad Unit ID / Zone ID / Block ID'}
               </label>
               <input
                 type="text"
-                value={settings.adUnitId}
+                value={settings.adUnitId || ''}
                 onChange={(e) => setSettings({ ...settings, adUnitId: e.target.value })}
-                placeholder="ca-app-pub-3940256099942544/5224354917"
+                placeholder="e.g. Monetag Zone ID, Adsgram Block ID (int-1234), or AdMob Unit ID"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-mono focus:border-sky-500 focus:outline-none"
               />
               <p className="text-[11px] text-slate-500 mt-1">
                 {lang === 'bn'
-                  ? 'আপনার AdMob বা অ্যাড নেটওয়ার্ক থেকে পাওয়া Rewarded Video Ad Unit ID দিন।'
-                  : 'Enter the Rewarded Ad Unit ID from your official advertising dashboard.'}
+                  ? 'আপনার Monetag, Adsterra, Adsgram বা AdMob থেকে পাওয়া Zone ID / Placement ID দিন।'
+                  : 'Enter the Zone ID, Block ID, or Placement ID from your ad network dashboard.'}
+              </p>
+            </div>
+
+            {/* Direct Video URL (MP4 / WebM / Embed) */}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                <Video className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{lang === 'bn' ? 'ভিডিও লিংক (Direct MP4 / Embed URL - ঐচ্ছিক)' : 'Direct Video MP4 / Embed URL (Optional)'}</span>
+              </label>
+              <input
+                type="text"
+                value={settings.videoUrl || ''}
+                onChange={(e) => setSettings({ ...settings, videoUrl: e.target.value })}
+                placeholder="https://example.com/promo-video.mp4"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-mono focus:border-sky-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                {lang === 'bn'
+                  ? 'সরাসরি কোনো MP4 ভিডিও বা প্রমোশনাল ভিডিও দেখাতে চাইলে এখানে লিংক দিন।'
+                  : 'Optional direct MP4 video URL to play inside the Watch & Earn player.'}
+              </p>
+            </div>
+
+            {/* Sponsor Direct Link / SmartLink URL */}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{lang === 'bn' ? 'স্পন্সর ডিরেক্ট লিংক (Adsterra / Monetag Direct Link)' : 'Sponsor Direct Link / SmartLink URL'}</span>
+              </label>
+              <input
+                type="text"
+                value={settings.adRedirectUrl || ''}
+                onChange={(e) => setSettings({ ...settings, adRedirectUrl: e.target.value })}
+                placeholder="https://..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-mono focus:border-sky-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                {lang === 'bn'
+                  ? 'Adsterra বা Monetag এর Direct Link এখানে দিলে ইউজাররা অ্যাড দেখার সময় স্পন্সর পেজ ভিজিট করতে পারবে।'
+                  : 'Paste your Adsterra or Monetag Direct Link / SmartLink here for extra CPM revenue.'}
               </p>
             </div>
 
@@ -296,6 +394,86 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
           </div>
         </div>
       </form>
+
+      {/* Recommended Video Ad Networks Directory */}
+      <div className="p-5 rounded-2xl bg-[#090f1c] border border-[#16253d] space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Globe className="w-5 h-5 text-cyan-400" />
+            <div>
+              <h4 className="text-sm font-bold text-white">
+                {lang === 'bn'
+                  ? '🌟 সেরা ভিডিও অ্যাড সাইটসমূহ (Top Video Ad Networks)'
+                  : '🌟 Recommended Video Ad Networks'}
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                {lang === 'bn'
+                  ? 'যেকোনো সাইটে ফ্রি অ্যাকাউন্ট খুলে অ্যাড ইউনিট বা Direct Link নিয়ে উপরে বসিয়ে দিন (USDT / Binance পেমেন্ট সাপোর্টেড)'
+                  : 'Sign up on any of these networks to get your Zone ID, VAST Video URL, or Direct Link.'}
+              </p>
+            </div>
+          </div>
+          <Sparkles className="w-4 h-4 text-pink-400" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {RECOMMENDED_AD_NETWORKS.map((net) => {
+            const isSelected = settings.adProvider === net.id;
+            return (
+              <div
+                key={net.id}
+                className={`p-3.5 rounded-xl border transition flex flex-col justify-between gap-2.5 ${
+                  isSelected
+                    ? 'bg-pink-500/10 border-pink-500/40'
+                    : 'bg-[#0d1526] border-[#1b2b48] hover:border-slate-700'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-bold text-white">{net.name}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                      {net.badge}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {lang === 'bn' ? net.descBn : net.descEn}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, adProvider: net.id as any })}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition ${
+                      isSelected
+                        ? 'bg-pink-500 text-white'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {isSelected
+                      ? lang === 'bn'
+                        ? '✓ নির্বাচিত'
+                        : '✓ Selected'
+                      : lang === 'bn'
+                      ? 'সিলেক্ট করুন'
+                      : 'Select Network'}
+                  </button>
+
+                  <a
+                    href={net.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                  >
+                    <span>{lang === 'bn' ? 'সাইটে যান' : 'Visit Site'}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };

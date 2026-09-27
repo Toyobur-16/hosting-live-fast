@@ -146,8 +146,24 @@ export interface RewardAdSettings {
   rewardAmountUsd: number;
   dailyLimit: number;
   cooldownSeconds: number;
-  adProvider: 'custom_network' | 'admob' | 'adsense' | 'unity' | 'applovin';
+  adProvider:
+    | 'monetag'
+    | 'adsterra'
+    | 'adsgram'
+    | 'hilltopads'
+    | 'richads'
+    | 'admob'
+    | 'adsense'
+    | 'unity'
+    | 'applovin'
+    | 'google_ad_manager'
+    | 'custom_network'
+    | 'custom';
   adUnitId?: string;
+  videoUrl?: string;
+  adRedirectUrl?: string;
+  adScriptHtml?: string;
+  minDurationSeconds?: number;
   testMode?: boolean;
 }
 
@@ -162,6 +178,11 @@ export interface AdRewardStats {
   cooldownSeconds: number;
   rewardPerAd: number;
   adsEnabled: boolean;
+  adProvider?: string;
+  adUnitId?: string;
+  videoUrl?: string;
+  adRedirectUrl?: string;
+  minDurationSeconds?: number;
 }
 
 export interface HostedWebsite {

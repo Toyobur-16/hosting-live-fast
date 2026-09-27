@@ -130,7 +130,12 @@ export function getUserRewardStats(userId: string, currentBalanceUsd = 0): AdRew
     nextAvailableAt,
     cooldownSeconds: settings.cooldownSeconds,
     rewardPerAd: settings.rewardAmountUsd,
-    adsEnabled: settings.enabled
+    adsEnabled: settings.enabled,
+    adProvider: settings.adProvider,
+    adUnitId: settings.adUnitId,
+    videoUrl: settings.videoUrl,
+    adRedirectUrl: settings.adRedirectUrl,
+    minDurationSeconds: settings.minDurationSeconds || 15
   };
 }
 
@@ -143,6 +148,10 @@ export function startAdSession(userId: string): {
   minDurationSeconds?: number;
   rewardAmount?: number;
   nextAvailableSeconds?: number;
+  videoUrl?: string;
+  adRedirectUrl?: string;
+  adProvider?: string;
+  adUnitId?: string;
   error?: string;
 } {
   const settings = getRewardAdSettings();
@@ -185,8 +194,12 @@ export function startAdSession(userId: string): {
   return {
     success: true,
     sessionId,
-    minDurationSeconds: 15, // minimum watch duration
-    rewardAmount: settings.rewardAmountUsd
+    minDurationSeconds: settings.minDurationSeconds || 15, // minimum watch duration
+    rewardAmount: settings.rewardAmountUsd,
+    videoUrl: settings.videoUrl,
+    adRedirectUrl: settings.adRedirectUrl,
+    adProvider: settings.adProvider,
+    adUnitId: settings.adUnitId
   };
 }
 

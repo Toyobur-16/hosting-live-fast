@@ -54,6 +54,8 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
   const [adMuted, setAdMuted] = useState(true);
   const [isClaiming, setIsClaiming] = useState(false);
   const [adCompletedReady, setAdCompletedReady] = useState(false);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string>('');
+  const [activeRedirectUrl, setActiveRedirectUrl] = useState<string>('');
 
   const fetchStats = async () => {
     if (!user) return;
@@ -176,6 +178,8 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       const duration = data.minDurationSeconds || 15;
       setAdDurationSeconds(duration);
       setRemainingAdTime(duration);
+      setActiveVideoUrl(data.videoUrl || stats?.videoUrl || '');
+      setActiveRedirectUrl(data.adRedirectUrl || stats?.adRedirectUrl || '');
       setWatchProgress(0);
       setAdCompletedReady(false);
       setIsWatchingAd(true);
@@ -446,22 +450,46 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
 
               {/* Video Player Display Container */}
               <div className="aspect-video w-full rounded-2xl bg-gradient-to-br from-[#050b18] via-[#09152e] to-[#040813] border border-slate-800 flex flex-col items-center justify-center relative overflow-hidden p-6 text-center shadow-inner mb-6">
-                <div className="w-16 h-16 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 flex items-center justify-center mb-3">
-                  <Film className="w-8 h-8 animate-pulse" />
-                </div>
-                <h3 className="text-base font-bold text-white mb-1">
-                  hosting live fast Cloud Partners
-                </h3>
-                <p className="text-xs text-slate-400 max-w-xs">
-                  {lang === 'bn'
-                    ? '২৪/৭ ক্লাউড টেলিগ্রাম বট ও স্ট্যাটিক ওয়েবসাইট হোস্টিং স্পন্সরড ভিডিও চলছে...'
-                    : '24/7 Cloud Telegram Bot & Website Hosting sponsored ad running...'}
-                </p>
+                {activeVideoUrl ? (
+                  <video
+                    src={activeVideoUrl}
+                    autoPlay
+                    playsInline
+                    muted={adMuted}
+                    loop
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : null}
+                <div className="relative z-10 flex flex-col items-center justify-center bg-black/45 backdrop-blur-[2px] p-4 rounded-2xl">
+                  <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 flex items-center justify-center mb-2.5">
+                    <Film className="w-7 h-7 animate-pulse" />
+                  </div>
+                  <h3 className="text-base font-bold text-white mb-1">
+                    hosting live fast Cloud Partners
+                  </h3>
+                  <p className="text-xs text-slate-300 max-w-xs">
+                    {lang === 'bn'
+                      ? '২৪/৭ ক্লাউড টেলিগ্রাম বট ও স্ট্যাটিক ওয়েবসাইট হোস্টিং স্পন্সরড ভিডিও চলছে...'
+                      : '24/7 Cloud Telegram Bot & Website Hosting sponsored ad running...'}
+                  </p>
 
-                <div className="mt-4 px-3 py-1 rounded-lg bg-black/50 border border-slate-700/80 text-[11px] font-mono text-cyan-300">
-                  {adCompletedReady
-                    ? (lang === 'bn' ? '✅ বিজ্ঞাপন দেখা সম্পন্ন হয়েছে!' : '✅ Ad Complete! Ready to Claim')
-                    : (lang === 'bn' ? `⏱ অনুগ্রহ করে আরো ${remainingAdTime} সেকেন্ড দেখুন` : `⏱ Please watch for ${remainingAdTime} more seconds`)}
+                  {activeRedirectUrl && (
+                    <a
+                      href={activeRedirectUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-xs font-bold text-cyan-200 flex items-center gap-1.5 transition"
+                    >
+                      <span>{lang === 'bn' ? '🔗 স্পন্সর অফারটি দেখুন' : '🔗 Visit Sponsor Offer'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+
+                  <div className="mt-3 px-3 py-1 rounded-lg bg-black/70 border border-slate-700/80 text-[11px] font-mono text-cyan-300">
+                    {adCompletedReady
+                      ? (lang === 'bn' ? '✅ বিজ্ঞাপন দেখা সম্পন্ন হয়েছে!' : '✅ Ad Complete! Ready to Claim')
+                      : (lang === 'bn' ? `⏱ অনুগ্রহ করে আরো ${remainingAdTime} সেকেন্ড দেখুন` : `⏱ Please watch for ${remainingAdTime} more seconds`)}
+                  </div>
                 </div>
               </div>
 
