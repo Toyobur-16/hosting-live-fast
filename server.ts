@@ -36,7 +36,10 @@ import {
   createAndSendVerificationCode,
   verifyEmailCode,
   createAndSendPasswordResetCode,
-  verifyPasswordResetCode
+  verifyPasswordResetCode,
+  checkFirebaseEmailVerificationStatus,
+  verifyPasswordWithFirebaseAuth,
+  getPendingRegistration
 } from './server/emailVerification';
 import { modifyUserWallet, getTransactions as getWalletTransactions, getUserTransactions } from './server/walletManager';
 import {
@@ -1740,9 +1743,37 @@ app.post('/api/auth/register', async (req, res) => {
 
   if (existingIdx !== -1) {
     const existing = accounts[existingIdx];
-    // If the existing account is already verified, ask them to login
+    // If the existing account is already verified:
+    // - If password matches, log them right in seamlessly without error
+    // - Otherwise, send a 6-digit OTP code so they can verify ownership without a red error
     if (existing.emailVerified && existing.isVerified) {
-      return res.status(400).json({ error: 'এই ইমেইলে ইতোমধ্যে অ্যাকাউন্ট খোলা আছে। অনুগ্রহ করে লগইন করুন।' });
+      if (password && existing.password && existing.password === password) {
+        const enriched = enrichUserWithPlanAndRole(existing);
+        const token = generateAuthToken(enriched);
+        const sessions = getSessions();
+        sessions[token] = existing.id;
+        saveSessions(sessions);
+        return res.json({
+          success: true,
+          requiresVerification: false,
+          token,
+          user: enriched,
+          message: 'আপনার অ্যাকাউন্টে সফলভাবে লগইন হয়েছে।'
+        });
+      }
+      try {
+        await createAndSendVerificationCode(cleanEmail, existing.name || name.trim(), true, {
+          name: existing.name || name.trim(),
+          email: cleanEmail,
+          password: password || existing.password || ''
+        });
+      } catch {}
+      return res.json({
+        success: true,
+        requiresVerification: true,
+        email: cleanEmail,
+        message: 'আপনার ইমেইলে ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। কোডটি দিয়ে ভেরিফাই করুন।'
+      });
     }
     // Clean up any previously saved unverified account & its sessions so it cannot auto-login
     const unverifiedId = existing.id;
@@ -1827,13 +1858,26 @@ app.post('/api/auth/verify-email', (req, res) => {
   }
   const cleanEmail = email.trim().toLowerCase();
   const verifyResult = verifyEmailCode(cleanEmail, code);
-
-  if (!verifyResult.success) {
-    return res.status(400).json(verifyResult);
-  }
-
   const accounts = getAccounts();
   let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
+  if (!verifyResult.success) {
+    // If already verified moments ago (e.g. via real-time Firebase link polling), complete login smoothly
+    if (user && user.emailVerified && user.isVerified && verifyResult.error?.includes('পাওয়া যায়নি')) {
+      const enriched = enrichUserWithPlanAndRole(user);
+      const token = generateAuthToken(enriched);
+      const sessions = getSessions();
+      sessions[token] = user.id;
+      saveSessions(sessions);
+      return res.json({
+        success: true,
+        message: '🎉 আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে! অ্যাকাউন্ট সক্রিয় করা হয়েছে।',
+        token,
+        user: enriched
+      });
+    }
+    return res.status(400).json(verifyResult);
+  }
 
   if (!user) {
     // Create the verified user account now that 6-digit OTP has been verified
@@ -1901,6 +1945,87 @@ app.post('/api/auth/verify-email', (req, res) => {
   });
 });
 
+// Real-time check if user verified their email via Google Firebase Auth link (HTTPS Port 443, Unlimited)
+app.post('/api/auth/check-verification-status', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ verified: false, error: 'ইমেইল এড্রেস আবশ্যক' });
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const fbStatus = await checkFirebaseEmailVerificationStatus(cleanEmail);
+
+  if (!fbStatus.verified) {
+    return res.json({ success: true, verified: false });
+  }
+
+  const accounts = getAccounts();
+  let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
+  if (!user) {
+    const pending = fbStatus.pendingRegistration;
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const isAdmin =
+      cleanEmail === 'mdtayburrahman1111@gmail.com' ||
+      cleanEmail === 'badsharahmanbd@gmail.com' ||
+      cleanEmail === 'toyoburrahman9090@gmail.com' ||
+      cleanEmail === 'toyoburrahman526@gmail.com' ||
+      cleanEmail === 'toyobur@telegram.bot';
+
+    user = {
+      id: userId,
+      name: (pending?.name || cleanEmail.split('@')[0]).trim(),
+      email: cleanEmail,
+      password: pending?.password || '',
+      role: isAdmin ? 'admin' : 'user',
+      plan: 'free',
+      maxBots: isAdmin ? 999 : 1,
+      maxWebsites: isAdmin ? 999 : 2,
+      maxStorageMb: isAdmin ? 500 : 50,
+      planExpiresAt: null,
+      balanceBdt: 0,
+      balanceUsd: 0,
+      isVerified: true,
+      emailVerified: true,
+      avatar: '',
+      googleId: '',
+      createdAt: new Date().toISOString()
+    };
+    accounts.push(user);
+    saveAccounts(accounts);
+  } else {
+    if (fbStatus.pendingRegistration?.name) {
+      user.name = fbStatus.pendingRegistration.name.trim();
+    }
+    if (fbStatus.pendingRegistration?.password) {
+      user.password = fbStatus.pendingRegistration.password;
+    }
+    user.emailVerified = true;
+    user.isVerified = true;
+    saveAccounts(accounts);
+  }
+
+  const enriched = enrichUserWithPlanAndRole(user);
+  enriched.emailVerified = true;
+  enriched.isVerified = true;
+
+  const token = generateAuthToken(enriched);
+  const sessions = getSessions();
+  sessions[token] = user.id;
+  saveSessions(sessions);
+
+  try {
+    FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+  } catch {}
+
+  return res.json({
+    success: true,
+    verified: true,
+    message: '🎉 আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে! অ্যাকাউন্ট সক্রিয় করা হয়েছে।',
+    token,
+    user: enriched
+  });
+});
+
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email) {
@@ -1911,14 +2036,37 @@ app.post('/api/auth/login', async (req, res) => {
   let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
 
   if (!user) {
+    // Check if user has a pending registration waiting for email OTP verification
+    const pendingReg = getPendingRegistration(cleanEmail);
+    if (pendingReg) {
+      try {
+        await createAndSendVerificationCode(cleanEmail, pendingReg.name, true, {
+          name: pendingReg.name,
+          email: cleanEmail,
+          password: password || pendingReg.password || ''
+        });
+      } catch {}
+      return res.json({
+        success: true,
+        requiresVerification: true,
+        email: cleanEmail,
+        message: 'আপনার রেজিস্ট্রেশনটি ভেরিফিকেশনের অপেক্ষায় আছে। আপনার ইমেইলে পাঠানো ৬ সংখ্যার কোড দিয়ে ভেরিফাই করুন।'
+      });
+    }
     return res.status(404).json({
       error: 'এই ইমেইলে কোনো ভেরিফাইড অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে প্রথমে রেজিস্ট্রেশন করুন অথবা Google দিয়ে লগইন করুন।'
     });
   }
 
-  // Check password if set
+  // Check password if set (also check Firebase Auth in case user reset password via Firebase link)
   if (user.password && password && user.password !== password) {
-    return res.status(401).json({ error: 'ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন অথবা পাসওয়ার্ড রিসেট করুন।' });
+    const validInFirebase = await verifyPasswordWithFirebaseAuth(cleanEmail, password);
+    if (validInFirebase) {
+      user.password = password;
+      saveAccounts(accounts);
+    } else {
+      return res.status(401).json({ error: 'ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন অথবা পাসওয়ার্ড রিসেট করুন।' });
+    }
   }
   if (user.password && !password) {
     return res.status(401).json({ error: 'অনুগ্রহ করে আপনার পাসওয়ার্ড প্রদান করুন।' });
@@ -2383,7 +2531,7 @@ app.post('/api/admin/users/:id/adjust-wallet', (req, res) => {
 app.get('/api/auth/me', (req, res) => {
   const user = getAuthUser(req);
   if (!user) {
-    return res.status(401).json({ authenticated: false, error: 'Unauthorized' });
+    return res.status(200).json({ authenticated: false, user: null });
   }
   res.json({ authenticated: true, user });
 });

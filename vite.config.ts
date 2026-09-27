@@ -65,8 +65,22 @@ function aistudioMediaPlugin(): Plugin {
 // LINT.ThenChange(//depot/google3/java/com/google/alkali/boq/makersuite/applet_dev_service/templates/initializers/react_theme/vite.config.ts:aistudio_media_plugin)
 
 export default defineConfig(() => {
+  const tailwindDarkVariantPlugin: Plugin = {
+    name: 'vite-plugin-tailwind-dark-variant',
+    enforce: 'pre',
+    transform(code, id) {
+      if (id.endsWith('src/index.css')) {
+        return code.replace(
+          '@import "tailwindcss";',
+          '@import "tailwindcss";\n@custom-variant dark (&:where(.dark, .dark *));'
+        );
+      }
+      return null;
+    },
+  };
+
   return {
-    plugins: [react(), tailwindcss(), aistudioMediaPlugin()],
+    plugins: [tailwindDarkVariantPlugin, react(), tailwindcss(), aistudioMediaPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

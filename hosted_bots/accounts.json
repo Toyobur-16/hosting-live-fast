@@ -1,0 +1,21 @@
+[
+  {
+    "id": "user_1790464567898_no6m",
+    "name": "Fast",
+    "email": "mdtayburrahman0161@gmail.com",
+    "password": "123456",
+    "role": "user",
+    "plan": "free",
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "planExpiresAt": null,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "isVerified": true,
+    "emailVerified": true,
+    "avatar": "",
+    "googleId": "",
+    "createdAt": "2026-09-26T23:16:07.898Z"
+  }
+]

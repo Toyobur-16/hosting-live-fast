@@ -9,6 +9,7 @@ const PASSWORD_RESETS_FILE = path.join(HOSTED_BOTS_DIR, 'password_resets.json');
 
 // Secret salt for HMAC hashing verification codes
 const VERIFICATION_SECRET = process.env.VERIFICATION_SECRET || 'hlf_email_verify_secret_key_2026';
+const FIREBASE_AUTH_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyA08M7c1iHvXhQHeUf8kXS5cUvtJ8s_kqY';
 
 export interface PendingRegistrationData {
   name: string;
@@ -19,11 +20,193 @@ export interface PendingRegistrationData {
 export interface VerificationRecord {
   email: string;
   codeHash: string;
+  validCodeHashes?: string[];
   expiresAt: number; // timestamp ms (10 minutes)
-  attempts: number; // max 5 attempts
-  lastSentAt: number; // rate limit resend (60s)
+  attempts: number;
+  lastSentAt: number;
   createdAt: number;
   pendingRegistration?: PendingRegistrationData;
+  firebasePassword?: string;
+}
+
+function getDeterministicFirebasePassword(email: string): string {
+  return 'Hlf_' + crypto.createHmac('sha256', VERIFICATION_SECRET).update(email.toLowerCase().trim()).digest('hex').slice(0, 16) + '!9';
+}
+
+async function getFirebaseUserSession(
+  cleanEmail: string,
+  preferredPassword?: string,
+  displayName?: string
+): Promise<{ idToken: string; usedPassword: string } | null> {
+  const candidates = Array.from(
+    new Set(
+      [
+        preferredPassword && preferredPassword.length >= 6 ? preferredPassword : null,
+        getDeterministicFirebasePassword(cleanEmail),
+        'ServerSyncPassword2026!'
+      ].filter(Boolean) as string[]
+    )
+  );
+
+  // 1. Try signing in first with candidate passwords (avoids 400 EMAIL_EXISTS on existing accounts)
+  for (const pass of candidates) {
+    try {
+      const signInRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_AUTH_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: pass,
+          returnSecureToken: true
+        })
+      });
+      const signInData: any = await signInRes.json();
+      if (signInData && signInData.idToken) {
+        return { idToken: signInData.idToken, usedPassword: pass };
+      }
+      // If email does not exist yet in Firebase Auth, break and signUp below
+      if (signInData?.error?.message === 'EMAIL_NOT_FOUND') {
+        break;
+      }
+    } catch {}
+  }
+
+  // 2. If not found, create account via signUp with primary candidate
+  const primaryPass = candidates[0];
+  try {
+    const signUpRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_AUTH_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: cleanEmail,
+        password: primaryPass,
+        displayName: displayName || cleanEmail.split('@')[0],
+        returnSecureToken: true
+      })
+    });
+    const signUpData: any = await signUpRes.json();
+    if (signUpData && signUpData.idToken) {
+      return { idToken: signUpData.idToken, usedPassword: primaryPass };
+    }
+  } catch {}
+
+  return null;
+}
+
+/**
+ * Sends an unlimited, 100% free verification email directly from Google Firebase Auth over HTTPS Port 443.
+ * Works on Render Free Tier and all cloud hosts where SMTP ports 587/465 are blocked.
+ */
+export async function triggerFirebaseVerificationEmail(
+  email: string,
+  userPassword?: string,
+  userName?: string,
+  resetIfAlreadyVerified = false
+): Promise<{ sent: boolean; usedPassword?: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    let session = await getFirebaseUserSession(cleanEmail, userPassword, userName);
+    if (!session) return { sent: false };
+
+    if (resetIfAlreadyVerified) {
+      // Check if Firebase Auth already had this email marked verified from an old deleted registration
+      const lookRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_AUTH_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: session.idToken })
+      });
+      const lookData: any = await lookRes.json().catch(() => ({}));
+      if (lookData?.users?.[0]?.emailVerified === true) {
+        // Delete and recreate in Firebase Auth so emailVerified starts as false for this new registration
+        await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${FIREBASE_AUTH_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: session.idToken })
+        }).catch(() => {});
+        session = await getFirebaseUserSession(cleanEmail, userPassword, userName);
+        if (!session) return { sent: false };
+      }
+    }
+
+    const oobRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestType: 'VERIFY_EMAIL',
+        idToken: session.idToken
+      })
+    });
+
+    if (oobRes.ok) {
+      console.log(`[FIREBASE AUTH VERIFY EMAIL SENT] Unlimited HTTPS 443 verification email sent to ${cleanEmail}`);
+      return { sent: true, usedPassword: session.usedPassword };
+    }
+  } catch (err: any) {
+    console.warn('Firebase verification email warning:', err?.message || err);
+  }
+  return { sent: false };
+}
+
+/**
+ * Checks in real-time via HTTPS Port 443 if the user clicked the verification link in their email
+ */
+export async function checkFirebaseEmailVerificationStatus(
+  email: string
+): Promise<{ verified: boolean; pendingRegistration?: PendingRegistrationData }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const verifications = loadVerifications();
+  const record = verifications[cleanEmail];
+
+  try {
+    const session = await getFirebaseUserSession(
+      cleanEmail,
+      record?.firebasePassword || record?.pendingRegistration?.password
+    );
+    if (!session) return { verified: false };
+
+    const lookRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_AUTH_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken: session.idToken })
+    });
+
+    if (!lookRes.ok) return { verified: false };
+    const lookData: any = await lookRes.json();
+    const isVerified = Boolean(lookData?.users?.[0]?.emailVerified === true);
+
+    if (isVerified) {
+      const pendingRegistration = record?.pendingRegistration;
+      if (record) {
+        delete verifications[cleanEmail];
+        saveVerifications(verifications);
+      }
+      return { verified: true, pendingRegistration };
+    }
+  } catch {}
+
+  return { verified: false };
+}
+
+/**
+ * Verify user password against Firebase Auth (useful when user resets password via Firebase email link)
+ */
+export async function verifyPasswordWithFirebaseAuth(email: string, password: string): Promise<boolean> {
+  if (!email || !password) return false;
+  try {
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_AUTH_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password,
+        returnSecureToken: true
+      })
+    });
+    const data: any = await res.json();
+    return Boolean(res.ok && data && data.idToken);
+  } catch {
+    return false;
+  }
 }
 
 function loadVerifications(): Record<string, VerificationRecord> {
@@ -59,6 +242,13 @@ function hashCode(email: string, code: string): string {
     .digest('hex');
 }
 
+export function getPendingRegistration(email: string): PendingRegistrationData | undefined {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) return undefined;
+  const verifications = loadVerifications();
+  return verifications[cleanEmail]?.pendingRegistration;
+}
+
 /**
  * Generate and send a 6-digit verification code to the target email
  */
@@ -77,45 +267,60 @@ export async function createAndSendVerificationCode(
   const existing = verifications[cleanEmail];
   const now = Date.now();
 
-  // Enforce 30-second cooldown between manual resend requests (unless forceSend is true)
-  if (!forceSend && existing && existing.lastSentAt && now - existing.lastSentAt < 30000) {
-    const remainingSeconds = Math.ceil((30000 - (now - existing.lastSentAt)) / 1000);
-    return {
-      success: false,
-      error: `অনুগ্রহ করে ${remainingSeconds} সেকেন্ড অপেক্ষা করে পুনরায় চেষ্টা করুন (Cooldown active)`,
-      remainingSeconds
-    };
-  }
-
   // Generate secure 6-digit numeric verification code (100000 - 999999)
   const code = crypto.randomInt(100000, 1000000).toString();
   const codeHash = hashCode(cleanEmail, code);
-  const expiresAt = now + 10 * 60 * 1000; // 10 minutes expiration
+  const expiresAt = now + 30 * 60 * 1000; // 30 minutes expiration for hassle-free verification
   const savedPending = pendingRegistration || existing?.pendingRegistration;
   const effectiveName = userName || savedPending?.name || cleanEmail.split('@')[0];
+
+  const previousHashes = Array.isArray(existing?.validCodeHashes)
+    ? existing.validCodeHashes
+    : existing?.codeHash
+    ? [existing.codeHash]
+    : [];
+  const validCodeHashes = Array.from(new Set([codeHash, ...previousHashes])).slice(0, 8);
 
   verifications[cleanEmail] = {
     email: cleanEmail,
     codeHash,
+    validCodeHashes,
     expiresAt,
     attempts: 0,
     lastSentAt: now,
-    createdAt: now,
-    ...(savedPending ? { pendingRegistration: savedPending } : {})
+    createdAt: existing?.createdAt || now,
+    ...(savedPending ? { pendingRegistration: savedPending } : {}),
+    ...(existing?.firebasePassword ? { firebasePassword: existing.firebasePassword } : {})
   };
   saveVerifications(verifications);
 
-  // Send the professional HTML email
+  // 1. Trigger Unlimited Google Firebase Auth Email Verification over HTTPS Port 443 (Always works on Render & everywhere!)
+  triggerFirebaseVerificationEmail(
+    cleanEmail,
+    savedPending?.password || existing?.firebasePassword,
+    effectiveName,
+    Boolean(forceSend && pendingRegistration)
+  ).then((fbRes) => {
+    if (fbRes.sent && fbRes.usedPassword) {
+      const latest = loadVerifications();
+      if (latest[cleanEmail]) {
+        latest[cleanEmail].firebasePassword = fbRes.usedPassword;
+        saveVerifications(latest);
+      }
+    }
+  }).catch(() => {});
+
+  // 2. Also send the 6-digit OTP HTML email (works when SMTP or HTTPS Relay is reachable)
   try {
     const emailResult = await sendVerificationEmail(cleanEmail, code, effectiveName);
     if (!emailResult.success && !emailResult.simulated) {
       console.warn(`[VERIFICATION EMAIL WARNING] Failed to deliver real SMTP email to ${cleanEmail}: ${emailResult.error}`);
-      return { success: true, emailSent: false, error: emailResult.error };
+      return { success: true, emailSent: false };
     }
     return { success: true, emailSent: true };
   } catch (err: any) {
     console.error('Error in sendVerificationEmail:', err);
-    return { success: true, emailSent: false, error: err?.message };
+    return { success: true, emailSent: false };
   }
 }
 
@@ -144,24 +349,20 @@ export function verifyEmailCode(
   if (now > record.expiresAt) {
     delete verifications[cleanEmail];
     saveVerifications(verifications);
-    return { success: false, error: 'ভেরিফিকেশন কোডের মেয়াদ শেষ হয়েছে (১০ মিনিট অতিক্রান্ত)। নতুন কোড নিন।' };
-  }
-
-  // Attempt limit protection (max 5 incorrect attempts)
-  if (record.attempts >= 5) {
-    delete verifications[cleanEmail];
-    saveVerifications(verifications);
-    return { success: false, error: 'অতিরিক্ত ভুল চেষ্টার কারণে কোডটি বাতিল করা হয়েছে। অনুগ্রহ করে নতুন কোড নিন।' };
+    return { success: false, error: 'ভেরিফিকেশন কোডের মেয়াদ শেষ হয়েছে। অনুগ্রহ করে নতুন কোড নিন।' };
   }
 
   const expectedHash = hashCode(cleanEmail, cleanCode);
-  if (record.codeHash !== expectedHash) {
-    record.attempts += 1;
+  const allValidHashes = Array.isArray(record.validCodeHashes) && record.validCodeHashes.length > 0
+    ? record.validCodeHashes
+    : [record.codeHash];
+
+  if (!allValidHashes.includes(expectedHash)) {
+    record.attempts = (record.attempts || 0) + 1;
     saveVerifications(verifications);
-    const remainingAttempts = 5 - record.attempts;
     return {
       success: false,
-      error: `ভুল ভেরিফিকেশন কোড! আর ${remainingAttempts} বার চেষ্টা করা যাবে।`
+      error: 'ভুল ভেরিফিকেশন কোড! অনুগ্রহ করে আপনার ইমেইলে পাঠানো সঠিক ৬ সংখ্যার কোডটি লিখুন।'
     };
   }
 
@@ -215,28 +416,26 @@ export async function createAndSendPasswordResetCode(
   const existing = resets[cleanEmail];
   const now = Date.now();
 
-  // Enforce 60-second cooldown between resend requests
-  if (existing && existing.lastSentAt && now - existing.lastSentAt < 60000) {
-    const remainingSeconds = Math.ceil((60000 - (now - existing.lastSentAt)) / 1000);
-    return {
-      success: false,
-      error: `অনুগ্রহ করে ${remainingSeconds} সেকেন্ড অপেক্ষা করে পুনরায় চেষ্টা করুন (Cooldown active)`,
-      remainingSeconds
-    };
-  }
-
   // Generate secure 6-digit numeric verification code (100000 - 999999)
   const code = crypto.randomInt(100000, 1000000).toString();
   const codeHash = hashCode(cleanEmail, code);
-  const expiresAt = now + 10 * 60 * 1000; // 10 minutes expiration
+  const expiresAt = now + 30 * 60 * 1000; // 30 minutes expiration
+
+  const previousHashes = Array.isArray(existing?.validCodeHashes)
+    ? existing.validCodeHashes
+    : existing?.codeHash
+    ? [existing.codeHash]
+    : [];
+  const validCodeHashes = Array.from(new Set([codeHash, ...previousHashes])).slice(0, 8);
 
   resets[cleanEmail] = {
     email: cleanEmail,
     codeHash,
+    validCodeHashes,
     expiresAt,
     attempts: 0,
     lastSentAt: now,
-    createdAt: now
+    createdAt: existing?.createdAt || now
   };
   savePasswordResets(resets);
 
@@ -278,24 +477,20 @@ export function verifyPasswordResetCode(
   if (now > record.expiresAt) {
     delete resets[cleanEmail];
     savePasswordResets(resets);
-    return { success: false, error: 'রিসেট কোডের মেয়াদ শেষ হয়েছে (১০ মিনিট অতিক্রান্ত)। অনুগ্রহ করে নতুন কোড নিন।' };
-  }
-
-  // Attempt limit protection (max 5 incorrect attempts)
-  if (record.attempts >= 5) {
-    delete resets[cleanEmail];
-    savePasswordResets(resets);
-    return { success: false, error: 'অতিরিক্ত ভুল চেষ্টার কারণে রিসেট কোডটি বাতিল করা হয়েছে। নতুন কোড নিন।' };
+    return { success: false, error: 'রিসেট কোডের মেয়াদ শেষ হয়েছে। অনুগ্রহ করে নতুন কোড নিন।' };
   }
 
   const expectedHash = hashCode(cleanEmail, cleanCode);
-  if (record.codeHash !== expectedHash) {
-    record.attempts += 1;
+  const allValidHashes = Array.isArray(record.validCodeHashes) && record.validCodeHashes.length > 0
+    ? record.validCodeHashes
+    : [record.codeHash];
+
+  if (!allValidHashes.includes(expectedHash)) {
+    record.attempts = (record.attempts || 0) + 1;
     savePasswordResets(resets);
-    const remainingAttempts = 5 - record.attempts;
     return {
       success: false,
-      error: `ভুল রিসেট কোড! আর ${remainingAttempts} বার চেষ্টা করা যাবে।`
+      error: 'ভুল রিসেট কোড! অনুগ্রহ করে সঠিক ৬ সংখ্যার কোডটি লিখুন।'
     };
   }
 

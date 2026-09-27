@@ -100,6 +100,10 @@ export interface FreeTrialSettings {
   durationDays: number;
   maxBots: number;
   maxWebsites?: number;
+  nameBn?: string;
+  nameEn?: string;
+  featuresBn?: string[];
+  featuresEn?: string[];
   titleBn?: string;
   titleEn?: string;
   descriptionBn?: string;
@@ -144,6 +148,7 @@ export interface RewardAdSettings {
   cooldownSeconds: number;
   adProvider: 'custom_network' | 'admob' | 'adsense' | 'unity' | 'applovin';
   adUnitId?: string;
+  testMode?: boolean;
 }
 
 export interface AdRewardStats {

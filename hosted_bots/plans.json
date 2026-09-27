@@ -1,0 +1,120 @@
+[
+  {
+    "id": "free",
+    "nameBn": "ফ্রি ট্রায়াল প্লান",
+    "nameEn": "Free Starter",
+    "durationDays": 0,
+    "maxBots": 1,
+    "priceBdt": 0,
+    "priceUsd": 0,
+    "popular": false,
+    "featuresBn": [
+      "১টি টেলিগ্রাম বট লাইভ হোস্টিং",
+      "২৪/৭ ক্লাউড রানটাইম ওয়াচডগ",
+      "লাইভ টার্মিনাল কনসোল ও রিয়েল-টাইম লগ",
+      "অটোমেটিক ডাটাবেজ ব্যাকআপ ও ব্যালেন্স সুরক্ষা"
+    ],
+    "featuresEn": [
+      "1 Telegram Bot Live Hosting",
+      "24/7 Cloud Runtime Watchdog",
+      "Live Terminal Console & Real-time Logs",
+      "Automatic Database Backup & Balance Safety"
+    ]
+  },
+  {
+    "id": "1_month",
+    "nameBn": "১ মাস প্লান",
+    "nameEn": "1 Month Plan",
+    "durationDays": 30,
+    "maxBots": 3,
+    "priceBdt": 150,
+    "priceUsd": 1.5,
+    "popular": false,
+    "featuresBn": [
+      "৩টি টেলিগ্রাম বট একসাথে লাইভ",
+      "১ মাস (৩০ দিন) সার্বক্ষণিক লাইভ হোস্টিং",
+      "হাই-স্পিড প্রায়োরিটি রানটাইম সিপিইউ",
+      "ব্যালেন্স ও ডাটাবেজ অটো-প্রোটেকশন",
+      "পাইপ (Pip) লাইব্রেরি প্যাকেজ ম্যানেজার"
+    ],
+    "featuresEn": [
+      "3 Telegram Bots Concurrent Live",
+      "1 Month (30 Days) Continuous Hosting",
+      "High-speed Priority CPU Runtime",
+      "Balance & Database Auto-Protection",
+      "Python Pip Library Package Manager"
+    ]
+  },
+  {
+    "id": "3_months",
+    "nameBn": "৩ মাস প্রিমিয়াম",
+    "nameEn": "3 Months Plan",
+    "durationDays": 90,
+    "maxBots": 5,
+    "priceBdt": 400,
+    "priceUsd": 4,
+    "popular": true,
+    "featuresBn": [
+      "৫টি টেলিগ্রাম বট লাইভ হোস্টিং",
+      "৩ মাস (৯০ দিন) প্রিমিয়াম ক্লাউড সার্ভার",
+      "ইনস্ট্যান্ট রিস্টার্ট ও অটো-হিলিং ওয়াচডগ",
+      "ফুল ফাইল এডিটর ও ডাটাবেজ সিঙ্ক",
+      "প্রাইভেট ভিআইপি সাপোর্ট"
+    ],
+    "featuresEn": [
+      "5 Telegram Bots Live Hosting",
+      "3 Months (90 Days) Premium Cloud Server",
+      "Instant Restart & Auto-Healing Watchdog",
+      "Full File Editor & Database Sync",
+      "Private VIP Support"
+    ]
+  },
+  {
+    "id": "6_months",
+    "nameBn": "৬ মাস বিজনেস",
+    "nameEn": "6 Months Plan",
+    "durationDays": 180,
+    "maxBots": 10,
+    "priceBdt": 750,
+    "priceUsd": 7.5,
+    "popular": false,
+    "featuresBn": [
+      "১০টি টেলিগ্রাম বট লাইভ হোস্টিং",
+      "৬ মাস (১৮০ দিন) হাই-পারফরম্যান্স ক্লাউড",
+      "আনলিমিটেড ডাটাবেজ স্ন্যাপশট ও রিস্টোর",
+      "এসএমএস ও ওটিপি গেটওয়ে সাপোর্ট",
+      "ভিআইপি প্রায়োরিটি প্রসেস"
+    ],
+    "featuresEn": [
+      "10 Telegram Bots Live Hosting",
+      "6 Months (180 Days) High-Performance Cloud",
+      "Unlimited Database Snapshots & Restore",
+      "SMS & OTP Gateway Support",
+      "VIP Priority Process"
+    ]
+  },
+  {
+    "id": "1_year",
+    "nameBn": "১ বছর আনলিমিটেড",
+    "nameEn": "1 Year Plan",
+    "durationDays": 365,
+    "maxBots": 999,
+    "priceBdt": 1400,
+    "priceUsd": 14,
+    "popular": false,
+    "featuresBn": [
+      "আনলিমিটেড টেলিগ্রাম বট লাইভ হোস্টিং",
+      "১ বছর (৩৬৫ দিন) ডেডিকেটেড ভিআইপি ক্লাউড",
+      "লাইফটাইম ডাটা ও ব্যালেন্স সুরক্ষা গ্যারান্টি",
+      "সর্বোচ্চ ব্যান্ডউইথ ও ব্যাকগ্রাউন্ড পারফরম্যান্স",
+      "২৪/৭ এডমিন ডিরেক্ট সাপোর্ট ও হেল্প"
+    ],
+    "featuresEn": [
+      "Unlimited Telegram Bots Live Hosting",
+      "1 Year (365 Days) Dedicated VIP Cloud",
+      "Lifetime Data & Balance Safety Guarantee",
+      "Maximum Bandwidth & Background Performance",
+      "24/7 Direct Admin Support & Assistance"
+    ]
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "durationDays": 30,
+  "maxBots": 1,
+  "nameBn": "১ মাস ফ্রি ট্রায়াল (নতুন ইউজার স্পেশাল)",
+  "nameEn": "1 Month Free Trial (New User Special)",
+  "featuresBn": [
+    "১টি টেলিগ্রাম বট ২৪/৭ সার্বক্ষণিক লাইভ হোস্টিং",
+    "১ মাস (৩০ দিন) সম্পূর্ণ ফ্রি লাইভ অ্যাক্সেস",
+    "অটো-রিস্টার্ট ও ক্র্যাশ প্রোটেকশন ওয়াচডগ",
+    "লাইভ কনসোল ও রিয়েল-টাইম লগস",
+    "ফাইল এডিটর ও ডাটাবেজ ব্যাকআপ"
+  ],
+  "featuresEn": [
+    "1 Telegram Bot 24/7 Live Hosting",
+    "1 Month (30 Days) Completely Free Live Access",
+    "Auto-Restart & Crash Protection Watchdog",
+    "Live Console & Real-time Logs",
+    "File Editor & Database Backup"
+  ]
+}

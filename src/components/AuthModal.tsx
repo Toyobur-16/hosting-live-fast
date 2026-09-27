@@ -133,6 +133,44 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     return () => clearInterval(interval);
   }, [isTimerActive, resendCooldown]);
 
+  // Automatic Real-Time Polling for Unlimited Google Firebase Email Verification Link (every 3 seconds)
+  useEffect(() => {
+    if (!isOpen || mode !== 'verify' || !email.trim()) return;
+    let cancelled = false;
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch('/api/auth/check-verification-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim().toLowerCase() })
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (data && data.verified && data.token && data.user && !cancelled) {
+          localStorage.setItem('bot_auth_token', data.token);
+          localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+          setSuccessMessage(
+            data.message ||
+              (lang === 'bn'
+                ? '🎉 আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে! অ্যাকাউন্ট সক্রিয় করা হয়েছে।'
+                : 'Email verified successfully!')
+          );
+          onSuccess(data.user, data.token);
+          setTimeout(() => {
+            if (onClose) onClose();
+          }, 600);
+        }
+      } catch {}
+    };
+
+    const interval = setInterval(pollStatus, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isOpen, mode, email, lang]);
+
   if (!isOpen) return null;
 
   const handleAuthenticateWithGoogleEmail = async (
@@ -255,45 +293,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   // 6-digit Code Input Handlers
-  const handleDigitChange = (index: number, value: string) => {
-    const cleanVal = value.replace(/[^0-9]/g, '');
-
-    // Handle full paste
-    if (cleanVal.length > 1) {
-      const pasted = cleanVal.slice(0, 6).split('');
-      const newDigits = [...digits];
-      pasted.forEach((d, i) => {
-        newDigits[i] = d;
-      });
-      setDigits(newDigits);
-      const nextIdx = Math.min(5, pasted.length);
-      digitInputRefs.current[nextIdx]?.focus();
-      return;
-    }
-
-    const newDigits = [...digits];
-    newDigits[index] = cleanVal;
-    setDigits(newDigits);
-
-    // Auto-advance to next box
-    if (cleanVal && index < 5) {
-      digitInputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !digits[index] && index > 0) {
-      digitInputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleVerifyEmail = async () => {
-    const fullCode = digits.join('');
-    if (fullCode.length !== 6) {
-      setError(lang === 'bn' ? '৬ সংখ্যার সম্পূর্ণ কোডটি লিখুন' : 'Please enter the full 6-digit code');
-      return;
-    }
-
+  const submitSixDigitCode = async (codeToVerify: string) => {
+    if (verifying || codeToVerify.length !== 6) return;
     setVerifying(true);
     setError(null);
     setSuccessMessage(null);
@@ -304,7 +305,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
-          code: fullCode
+          code: codeToVerify
         })
       });
       const data = await res.json();
@@ -319,12 +320,101 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onSuccess(data.user, data.token);
       setTimeout(() => {
         if (onClose) onClose();
-      }, 800);
+      }, 600);
     } catch (err: any) {
       setError(err.message || 'Verification failed');
     } finally {
       setVerifying(false);
     }
+  };
+
+  const handleDigitChange = (index: number, value: string) => {
+    setError(null);
+    const cleanVal = value.replace(/[^0-9]/g, '');
+
+    // Handle full paste
+    if (cleanVal.length > 1) {
+      const pasted = cleanVal.slice(0, 6).split('');
+      const newDigits = [...digits];
+      pasted.forEach((d, i) => {
+        newDigits[i] = d;
+      });
+      setDigits(newDigits);
+      const nextIdx = Math.min(5, pasted.length);
+      digitInputRefs.current[nextIdx]?.focus();
+      const joined = newDigits.join('');
+      if (joined.length === 6 && mode === 'verify') {
+        submitSixDigitCode(joined);
+      }
+      return;
+    }
+
+    const newDigits = [...digits];
+    newDigits[index] = cleanVal;
+    setDigits(newDigits);
+
+    // Auto-advance to next box
+    if (cleanVal && index < 5) {
+      digitInputRefs.current[index + 1]?.focus();
+    }
+
+    const joined = newDigits.join('');
+    if (joined.length === 6 && mode === 'verify') {
+      submitSixDigitCode(joined);
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      digitInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleCheckFirebaseVerificationNow = async () => {
+    if (!email.trim() || verifying) return;
+    setVerifying(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/check-verification-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() })
+      });
+      const data = await res.json();
+      if (data && data.verified && data.token && data.user) {
+        localStorage.setItem('bot_auth_token', data.token);
+        localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+        setSuccessMessage(
+          data.message ||
+            (lang === 'bn'
+              ? '🎉 আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে! অ্যাকাউন্ট সক্রিয় করা হয়েছে।'
+              : 'Email verified successfully!')
+        );
+        onSuccess(data.user, data.token);
+        setTimeout(() => {
+          if (onClose) onClose();
+        }, 600);
+      } else {
+        setSuccessMessage(
+          lang === 'bn'
+            ? 'আপনার জিমেইল ইনবক্স বা Spam ফোল্ডারে পাঠানো ৬ সংখ্যার কোডটি উপরের ঘরে বসান অথবা ইমেইলের ভেরিফাই লিংকে ক্লিক করুন।'
+            : 'Please enter the 6-digit code sent to your email inbox/spam folder above, or click the verification link in your email.'
+        );
+        digitInputRefs.current[0]?.focus();
+      }
+    } catch {
+      digitInputRefs.current[0]?.focus();
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleVerifyEmail = async () => {
+    const fullCode = digits.join('');
+    if (fullCode.length !== 6) {
+      return handleCheckFirebaseVerificationNow();
+    }
+    return submitSixDigitCode(fullCode);
   };
 
   const handleResendCode = async () => {
@@ -347,12 +437,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         throw new Error(data.error || 'Failed to resend code');
       }
 
-      setResendCooldown(60);
+      setResendCooldown(15);
       setExpirySeconds(600);
       setDigits(['', '', '', '', '', '']);
       setSuccessMessage(
         lang === 'bn'
-          ? (isReset ? 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।' : 'নতুন ৬ সংখ্যার কোড আপনার ইমেইলে পাঠানো হয়েছে।')
+          ? (isReset ? 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।' : 'নতুন ৬ সংখ্যার কোড ও ভেরিফিকেশন মেইল আপনার ইমেইলে পাঠানো হয়েছে।')
           : 'A new 6-digit code has been sent to your email.'
       );
       digitInputRefs.current[0]?.focus();
@@ -427,8 +517,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setResendCooldown(60);
           setSuccessMessage(
             lang === 'bn'
-              ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করলে রেজিস্ট্রেশন সম্পন্ন হবে।'
-              : 'We have sent a 6-digit verification code to your email. Verify the code to complete registration.'
+              ? 'আপনার ইমেইলে ভেরিফিকেশন লিংক ও কোড পাঠানো হয়েছে! ইমেইলে গিয়ে লিংকে ক্লিক করলেই অটোমেটিক একাউন্ট চালু হবে (অথবা ৬ সংখ্যার কোড দিন)।'
+              : 'Verification link & code sent to your email! Click the link in your email or enter the 6-digit code.'
           );
           setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
@@ -595,8 +685,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </h2>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                 {lang === 'bn'
-                  ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
-                  : 'We have sent a 6-digit verification code to your email.'}
+                  ? 'আপনার জিমেইলে ভেরিফিকেশন মেইল পাঠানো হয়েছে (Inbox অথবা Spam ফোল্ডার চেক করুন)। লিংকে ক্লিক করলেই অটোমেটিক ভেরিফাই হবে অথবা ৬ সংখ্যার কোড দিন।'
+                  : 'We sent a verification email to your inbox (check Inbox or Spam). Click the link to auto-verify or enter the 6-digit code.'}
               </p>
 
               {/* Target Email Box */}
@@ -670,20 +760,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
             </div>
 
-            {/* Verify Button */}
+            {/* Verify Button (works for both 6-digit OTP and 1-click Email Link verification check) */}
             <button
               type="button"
-              disabled={verifying || digits.join('').length !== 6}
+              disabled={verifying}
               onClick={handleVerifyEmail}
               className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-400 hover:opacity-95 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mb-3"
             >
               {verifying ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                  <span>{lang === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Verifying Code...'}</span>
+                  <span>{lang === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Verifying...'}</span>
                 </>
+              ) : digits.join('').length === 6 ? (
+                <span>{lang === 'bn' ? 'কোড ভেরিফাই ও অ্যাকাউন্ট সক্রিয় করুন' : 'Verify Code & Activate Account'}</span>
               ) : (
-                <span>{lang === 'bn' ? 'ভেরিফাই ও অ্যাকাউন্ট সক্রিয় করুন' : 'Verify & Activate Account'}</span>
+                <span>{lang === 'bn' ? 'ইমেইল ভেরিফাই লিংকে ক্লিক করেছি — অ্যাক্টিভ করুন' : 'I Clicked the Email Link — Activate Account'}</span>
               )}
             </button>
 

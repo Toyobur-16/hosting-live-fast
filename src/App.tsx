@@ -228,6 +228,10 @@ export default function App() {
         }
         setCurrentUser(data.user);
         localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+      } else {
+        localStorage.removeItem('bot_auth_token');
+        localStorage.removeItem('bot_auth_user');
+        setCurrentUser(null);
       }
     } catch {}
   };

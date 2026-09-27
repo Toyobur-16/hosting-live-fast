@@ -1,0 +1,19 @@
+{
+  "binanceUid": "922593999",
+  "binancePayId": "922593999",
+  "binanceId": "922593999",
+  "binanceEnabled": true,
+  "binancePayApiEnabled": true,
+  "binancePayApiKey": "",
+  "binancePaySecretKey": "",
+  "binancePayMerchantId": "",
+  "bkashNumber": "01614572747",
+  "bkashEnabled": true,
+  "bkashLogoUrl": "",
+  "nagadNumber": "01304104492",
+  "nagadEnabled": true,
+  "nagadLogoUrl": "",
+  "customMethods": [],
+  "instructionsBn": "বাইন্যান্স (Binance Pay / UID) দিয়ে নির্ধারিত ডলার পাঠিয়ে আপনার Transaction ID / Order ID এবং আপনার প্রেরক আইডি নিচে লিখে সাবমিট করুন। এডমিন অনুমোদন করলেই সাথে সাথে আপনার ওয়ালেটে ব্যালেন্স জমা হবে।",
+  "instructionsEn": "Send USDT via Binance Pay / UID, then submit your Binance Transaction ID / Order ID below. Once approved by admin, your balance is credited instantly."
+}

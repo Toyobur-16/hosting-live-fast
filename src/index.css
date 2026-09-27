@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
-
 /* Crucial: Prevent any SVG or Lucide icon from shrinking or being crushed in flex containers */
 svg {
   flex-shrink: 0;
