@@ -41,14 +41,14 @@ export function getRewardAdSettings(): RewardAdSettings {
     enabled: true,
     rewardAmountUsd: 0.01,
     dailyLimit: 20,
-    cooldownSeconds: 30,
+    cooldownSeconds: 0,
     adProvider: 'adsterra',
     appId: process.env.ADMOB_APP_ID || 'ca-app-pub-2943337025131771~1508810719',
     adUnitId: process.env.REWARDED_AD_UNIT_ID || '31534338',
     adsterraWebsiteId: '6080422',
     videoUrl: DEFAULT_VIDEO_ADS_POOL[0],
     adRedirectUrl: 'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8',
-    adScriptHtml: '<script src="https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js"></script>\n<script src="https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js"></script>',
+    adScriptHtml: '',
     testMode: false
   };
 
@@ -111,41 +111,84 @@ function getUtcDateKey(): string {
 }
 
 /**
- * Get user's reward statistics for today and all time
+ * Get user's reward statistics for today and all time.
+ * Users can watch `dailyLimit` (20) ads back-to-back with 0 cooldown between ads 1..19.
+ * Once the 20th ad is completed, a 24-hour countdown starts before the next 20 ads unlock.
  */
 export function getUserRewardStats(userId: string, currentBalanceUsd = 0): AdRewardStats {
   const settings = getRewardAdSettings();
   const logs = getRewardLogs();
-  const dateKey = getUtcDateKey();
+  const dailyLimit = settings.dailyLimit || 20;
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  const nowMs = Date.now();
 
   const userLogs = logs.filter((l) => l.userId === userId);
-  const todayLogs = userLogs.filter((l) => l.dateKey === dateKey);
 
-  const adsWatchedToday = todayLogs.length;
-  const remainingToday = Math.max(0, settings.dailyLimit - adsWatchedToday);
-  const todayEarningsUsd = parseFloat(todayLogs.reduce((acc, curr) => acc + (curr.rewardAmount || 0), 0).toFixed(4));
-  const totalEarningsUsd = parseFloat(userLogs.reduce((acc, curr) => acc + (curr.rewardAmount || 0), 0).toFixed(4));
+  // Walk chronological logs (oldest -> newest) to track 20-ad batches and 24-hour lockouts
+  const chronologicalLogs = [...userLogs].reverse();
+  let batchCount = 0;
+  let batchLockedUntil = 0;
+  let currentBatchLogs: AdRewardLog[] = [];
 
-  // Check last completed ad for cooldown calculation
-  let nextAvailableAt: number | undefined = undefined;
-  if (userLogs.length > 0) {
-    const lastTimestamp = new Date(userLogs[0].timestamp).getTime();
-    const cooldownMs = settings.cooldownSeconds * 1000;
-    const readyAt = lastTimestamp + cooldownMs;
-    if (Date.now() < readyAt) {
-      nextAvailableAt = readyAt;
+  for (const log of chronologicalLogs) {
+    const logTime = new Date(log.timestamp).getTime();
+    if (isNaN(logTime)) continue;
+
+    if (batchLockedUntil > 0 && logTime >= batchLockedUntil) {
+      batchCount = 0;
+      batchLockedUntil = 0;
+      currentBatchLogs = [];
+    }
+
+    batchCount += 1;
+    currentBatchLogs.push(log);
+
+    if (batchCount >= dailyLimit) {
+      // 20th ad completed! Start 24-hour countdown from this 20th ad
+      batchLockedUntil = logTime + TWENTY_FOUR_HOURS_MS;
     }
   }
 
+  let adsWatchedToday = 0;
+  let remainingToday = dailyLimit;
+  let nextAvailableAt: number | undefined = undefined;
+
+  if (batchLockedUntil > 0) {
+    if (nowMs < batchLockedUntil) {
+      // Still within the 24-hour cooldown after completing 20 ads
+      adsWatchedToday = dailyLimit;
+      remainingToday = 0;
+      nextAvailableAt = batchLockedUntil;
+    } else {
+      // 24 hours have passed since the 20th ad! Reset for a fresh 20-ad batch
+      adsWatchedToday = 0;
+      remainingToday = dailyLimit;
+      nextAvailableAt = undefined;
+      currentBatchLogs = [];
+    }
+  } else {
+    // Watching ads 1..19: NO cooldown between individual ads!
+    adsWatchedToday = batchCount;
+    remainingToday = Math.max(0, dailyLimit - batchCount);
+    nextAvailableAt = undefined;
+  }
+
+  const todayEarningsUsd = parseFloat(
+    currentBatchLogs.reduce((acc, curr) => acc + (curr.rewardAmount || 0), 0).toFixed(4)
+  );
+  const totalEarningsUsd = parseFloat(
+    userLogs.reduce((acc, curr) => acc + (curr.rewardAmount || 0), 0).toFixed(4)
+  );
+
   return {
     adsWatchedToday,
-    dailyLimit: settings.dailyLimit,
+    dailyLimit,
     remainingToday,
     todayEarningsUsd,
     totalEarningsUsd,
     walletBalanceUsd: currentBalanceUsd,
     nextAvailableAt,
-    cooldownSeconds: settings.cooldownSeconds,
+    cooldownSeconds: 0,
     rewardPerAd: settings.rewardAmountUsd,
     adsEnabled: settings.enabled,
     adProvider: settings.adProvider,
@@ -181,19 +224,21 @@ export function startAdSession(userId: string): {
   }
 
   const stats = getUserRewardStats(userId);
-  if (stats.remainingToday <= 0) {
-    return {
-      success: false,
-      error: `আজকের দৈনিক লিমিট (${settings.dailyLimit}টি বিজ্ঞাপন) শেষ হয়েছে! আগামীকাল আবার আসুন।`
-    };
-  }
-
   if (stats.nextAvailableAt && Date.now() < stats.nextAvailableAt) {
     const waitSec = Math.ceil((stats.nextAvailableAt - Date.now()) / 1000);
+    const hours = Math.floor(waitSec / 3600);
+    const minutes = Math.floor((waitSec % 3600) / 60);
     return {
       success: false,
       nextAvailableSeconds: waitSec,
-      error: `অনুগ্রহ করে ${waitSec} সেকেন্ড অপেক্ষা করুন (কুলডাউন চলছে)`
+      error: `আপনার ২০টি বিজ্ঞাপন দেখা সম্পন্ন হয়েছে! পরবর্তী ২০টি বিজ্ঞাপন দেখতে ${hours} ঘণ্টা ${minutes} মিনিট অপেক্ষা করুন।`
+    };
+  }
+
+  if (stats.remainingToday <= 0) {
+    return {
+      success: false,
+      error: `আজকের ${settings.dailyLimit}টি বিজ্ঞাপন দেখা শেষ হয়েছে! ২৪ ঘণ্টা পর আবার ২০টি বিজ্ঞাপন দেখতে পারবেন।`
     };
   }
 

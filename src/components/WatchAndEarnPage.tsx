@@ -66,30 +66,21 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
   const [activeRedirectUrl, setActiveRedirectUrl] = useState<string>(
     'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8'
   );
-  const [activeAdScriptHtml, setActiveAdScriptHtml] = useState<string>(
-    '<script src="https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js"></script>\n<script src="https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js"></script>'
-  );
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Dynamically inject Adsterra / Custom Ad Scripts into the DOM so impressions count
-  const injectAdScripts = (scriptHtml?: string) => {
-    const html = scriptHtml || activeAdScriptHtml;
-    if (!html) return;
-    const srcMatches = Array.from(html.matchAll(/src=["']([^"']+)["']/gi));
-    srcMatches.forEach((match) => {
-      const srcUrl = match[1];
-      if (!srcUrl) return;
-      // Remove old script tag if re-triggering on watch start
-      const existing = document.querySelector(`script[src="${srcUrl}"]`);
-      if (existing) {
-        existing.remove();
-      }
-      const scriptEl = document.createElement('script');
-      scriptEl.src = srcUrl;
-      scriptEl.async = true;
-      scriptEl.setAttribute('data-adsterra-injected', 'true');
-      document.body.appendChild(scriptEl);
-    });
+  const formatCooldownTime = (totalSec: number) => {
+    const hrs = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    if (hrs > 0) {
+      return lang === 'bn'
+        ? `${hrs} ঘণ্টা ${mins} মি. ${secs} সে.`
+        : `${hrs}h ${mins}m ${secs}s`;
+    }
+    if (mins > 0) {
+      return lang === 'bn' ? `${mins} মি. ${secs} সে.` : `${mins}m ${secs}s`;
+    }
+    return `${secs}s`;
   };
 
   const fetchStats = async () => {
@@ -106,11 +97,8 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
         if (data.stats.adRedirectUrl) {
           setActiveRedirectUrl(data.stats.adRedirectUrl);
         }
-        if (data.stats.adScriptHtml) {
-          setActiveAdScriptHtml(data.stats.adScriptHtml);
-          injectAdScripts(data.stats.adScriptHtml);
-        }
-        if (data.stats.nextAvailableAt) {
+        // Only show countdown timer after all 20 ads are completed
+        if (data.stats.remainingToday <= 0 && data.stats.nextAvailableAt) {
           const diff = Math.ceil((data.stats.nextAvailableAt - Date.now()) / 1000);
           setCooldownTime(diff > 0 ? diff : 0);
         } else {
@@ -125,17 +113,21 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
   };
 
   useEffect(() => {
-    injectAdScripts();
+    // Ensure no popunder scripts hijack the Watch Video Ad button click
+    document
+      .querySelectorAll('script[data-adsterra-injected], script[src*="profitableratecpmnetwork.com"]')
+      .forEach((el) => el.remove());
     fetchStats();
   }, [user]);
 
-  // Cooldown countdown tick
+  // 24-hour cooldown countdown tick (only active after 20 ads are watched)
   useEffect(() => {
     if (cooldownTime <= 0) return;
     const interval = setInterval(() => {
       setCooldownTime((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
+          fetchStats();
           return 0;
         }
         return prev - 1;
@@ -166,7 +158,11 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
     return () => clearInterval(timer);
   }, [isWatchingAd, adCompletedReady, adDurationSeconds]);
 
-  const handleStartWatchAd = async () => {
+  const handleStartWatchAd = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setError(null);
     setSuccessMsg(null);
 
@@ -184,20 +180,11 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       return;
     }
 
-    if (cooldownTime > 0) {
+    if (cooldownTime > 0 || (stats && stats.remainingToday <= 0)) {
       setError(
         lang === 'bn'
-          ? `অনুগ্রহ করে ${cooldownTime} সেকেন্ড অপেক্ষা করুন।`
-          : `Please wait ${cooldownTime} seconds cooldown.`
-      );
-      return;
-    }
-
-    if (stats && stats.remainingToday <= 0) {
-      setError(
-        lang === 'bn'
-          ? 'আজকের দৈনিক লিমিট পূর্ণ হয়েছে! আগামীকাল আবার আসুন।'
-          : 'Daily ad limit reached! Come back tomorrow.'
+          ? `আপনার ২০টি বিজ্ঞাপন দেখা শেষ হয়েছে! পরবর্তী ২০টি বিজ্ঞাপন দেখতে অপেক্ষা করুন (${formatCooldownTime(cooldownTime)})।`
+          : `20 ads completed! Next 20 ads unlock in ${formatCooldownTime(cooldownTime)}.`
       );
       return;
     }
@@ -228,16 +215,8 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
         (stats?.videoUrl && stats.videoUrl.trim()) ||
         fallbackVideo;
       setActiveVideoUrl(nextVideoUrl);
-      setActiveRedirectUrl(
-        data.adRedirectUrl ||
-          stats?.adRedirectUrl ||
-          'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8'
-      );
-      if (data.adScriptHtml || stats?.adScriptHtml) {
-        setActiveAdScriptHtml(data.adScriptHtml || stats?.adScriptHtml || '');
-        injectAdScripts(data.adScriptHtml || stats?.adScriptHtml);
-      } else {
-        injectAdScripts();
+      if (data.adRedirectUrl || stats?.adRedirectUrl) {
+        setActiveRedirectUrl(data.adRedirectUrl || stats?.adRedirectUrl || '');
       }
       setVideoPlaying(false);
       setWatchProgress(0);
@@ -270,17 +249,24 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       }
 
       setIsWatchingAd(false);
+      const remainingAfter = data.stats?.remainingToday ?? 0;
       setSuccessMsg(
         lang === 'bn'
-          ? `🎉 অভিনন্দন! $${data.rewardEarned || 0.01} USD সফলভাবে আপনার ওয়ালেটে যোগ হয়েছে!`
-          : `🎉 Success! $${data.rewardEarned || 0.01} USD credited to your wallet!`
+          ? remainingAfter > 0
+            ? `🎉 অভিনন্দন! $${data.rewardEarned || 0.01} USD আপনার ওয়ালেটে যোগ হয়েছে! এখনই পরের ভিডিও অ্যাডটি দেখতে পারেন (${remainingAfter}টি বাকি)।`
+            : `🎉 অভিনন্দন! আপনার আজকের ২০টি বিজ্ঞাপন দেখা সম্পূর্ণ হয়েছে। ২৪ ঘণ্টা পর আবার ২০টি বিজ্ঞাপন দেখতে পারবেন!`
+          : remainingAfter > 0
+            ? `🎉 Success! $${data.rewardEarned || 0.01} USD credited! You can immediately watch the next video ad (${remainingAfter} left).`
+            : `🎉 All 20 ads completed! You can watch 20 more ads after 24 hours.`
       );
 
       if (data.stats) {
         setStats(data.stats);
-        if (data.stats.nextAvailableAt) {
+        if (data.stats.remainingToday <= 0 && data.stats.nextAvailableAt) {
           const diff = Math.ceil((data.stats.nextAvailableAt - Date.now()) / 1000);
           setCooldownTime(diff > 0 ? diff : 0);
+        } else {
+          setCooldownTime(0);
         }
       }
 
@@ -426,34 +412,57 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
               : 'Click the button below to watch a 15-second rewarded video and receive $0.01 USD immediately.'}
           </p>
 
-          <button
-            onClick={handleStartWatchAd}
-            disabled={cooldownTime > 0 || (stats && stats.remainingToday <= 0)}
-            className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 active:scale-[0.98] text-slate-950 font-black text-base rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-3 mx-auto cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {cooldownTime > 0 ? (
-              <>
-                <Clock className="w-5 h-5 animate-spin" />
-                <span>
-                  {lang === 'bn' ? `কুলডাউন চলছে (${cooldownTime}s)` : `Cooldown Active (${cooldownTime}s)`}
-                </span>
-              </>
-            ) : stats && stats.remainingToday <= 0 ? (
-              <>
-                <CheckCircle2 className="w-5 h-5 text-slate-900" />
-                <span>{lang === 'bn' ? 'আজকের লিমিট পূর্ণ' : 'Daily Limit Reached'}</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-5 h-5 fill-current" />
-                <span>{lang === 'bn' ? 'ভিডিও বিজ্ঞাপন দেখুন (+$০.০১)' : 'Watch Video Ad (+$0.01 USD)'}</span>
-              </>
-            )}
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5">
+            <button
+              type="button"
+              onClick={handleStartWatchAd}
+              disabled={cooldownTime > 0 || (stats !== null && stats.remainingToday <= 0)}
+              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 active:scale-[0.98] text-slate-950 font-black text-base rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {cooldownTime > 0 || (stats && stats.remainingToday <= 0) ? (
+                <>
+                  <Clock className="w-5 h-5 animate-spin" />
+                  <span>
+                    {lang === 'bn'
+                      ? `২৪ ঘণ্টার টাইমার চলছে (${formatCooldownTime(cooldownTime)})`
+                      : `24h Cooldown (${formatCooldownTime(cooldownTime)})`}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5 fill-current" />
+                  <span>{lang === 'bn' ? 'Watch Video Ad (+$0.01 USD)' : 'Watch Video Ad (+$0.01 USD)'}</span>
+                </>
+              )}
+            </button>
 
-          {cooldownTime > 0 && (
-            <p className="text-xs text-amber-400 mt-3 font-medium">
-              ⏱ {lang === 'bn' ? `পরবর্তী বিজ্ঞাপন দেখার জন্য ${cooldownTime} সেকেন্ড বাকি` : `${cooldownTime} seconds remaining until next ad`}
+            {activeRedirectUrl && (
+              <a
+                href={activeRedirectUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto px-6 py-4 bg-[#111c33] hover:bg-[#162441] border border-amber-500/40 text-amber-300 font-bold text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>{lang === 'bn' ? '🔗 স্পন্সর ডাইরেক্ট অ্যাড লিংক' : '🔗 Visit Sponsor Direct Link'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            )}
+          </div>
+
+          {cooldownTime > 0 ? (
+            <p className="text-xs text-amber-400 mt-3 font-semibold">
+              ⏱{' '}
+              {lang === 'bn'
+                ? `আপনার ২০টি বিজ্ঞাপন দেখা শেষ হয়েছে! পরবর্তী ২০টি বিজ্ঞাপন চালু হবে: ${formatCooldownTime(cooldownTime)} পর`
+                : `20 ads completed! Next 20 ads unlock in: ${formatCooldownTime(cooldownTime)}`}
+            </p>
+          ) : (
+            <p className="text-xs text-emerald-400/90 mt-3 font-medium">
+              ✨{' '}
+              {lang === 'bn'
+                ? `কোনো বিরতি ছাড়াই পরপর ২০টি ভিডিও বিজ্ঞাপন দেখতে পারবেন (${remainingToday}টি বাকি) — ২০টি শেষ হলে ২৪ ঘণ্টার টাইমার শুরু হবে`
+                : `Watch 20 video ads back-to-back with no wait (${remainingToday} left) — 24h timer starts after 20 ads`}
             </p>
           )}
 
@@ -474,7 +483,7 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
         </div>
       </div>
 
-      {/* Rewarded Video Ad Modal */}
+      {/* Rewarded Video Ad Modal (Pure Video Ad - No Direct Link Redirects) */}
       <AnimatePresence>
         {isWatchingAd && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
@@ -489,7 +498,15 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setAdMuted(!adMuted)}
+                    type="button"
+                    onClick={() => {
+                      const nextMuted = !adMuted;
+                      setAdMuted(nextMuted);
+                      if (videoRef.current) {
+                        videoRef.current.muted = nextMuted;
+                        videoRef.current.play().catch(() => {});
+                      }
+                    }}
                     className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
                   >
                     {adMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
@@ -501,15 +518,15 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-6">
+              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-5">
                 <div
                   className="bg-gradient-to-r from-cyan-400 to-emerald-400 h-full transition-all duration-1000 ease-linear"
                   style={{ width: `${watchProgress}%` }}
                 />
               </div>
 
-              {/* Video Player Display Container */}
-              <div className="aspect-video w-full rounded-2xl bg-black border border-cyan-500/30 relative overflow-hidden shadow-2xl mb-4">
+              {/* Pure Video Player Display Container */}
+              <div className="aspect-video w-full rounded-2xl bg-black border border-cyan-500/30 relative overflow-hidden shadow-2xl mb-5">
                 <video
                   ref={videoRef}
                   key={activeVideoUrl || DEFAULT_VIDEO_ADS[0]}
@@ -538,7 +555,12 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
                 {/* Top-left Ad Badge */}
                 <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-sm border border-white/15 text-[11px] font-bold text-amber-300">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                  <span>AD • {remainingAdTime > 0 ? `0:${remainingAdTime < 10 ? `0${remainingAdTime}` : remainingAdTime}` : 'COMPLETED'}</span>
+                  <span>
+                    VIDEO AD •{' '}
+                    {remainingAdTime > 0
+                      ? `0:${remainingAdTime < 10 ? `0${remainingAdTime}` : remainingAdTime}`
+                      : 'COMPLETED'}
+                  </span>
                 </div>
 
                 {/* Top-right Sound Toggle */}
@@ -572,61 +594,29 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-5 pointer-events-none">
                     <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mb-2" />
                     <span className="text-xs font-semibold text-cyan-200">
-                      {lang === 'bn' ? 'ভিডিও বিজ্ঞাপন লোড হচ্ছে...' : 'Loading Video Ad...'}
+                      {lang === 'bn' ? 'ভিডিও বিজ্ঞাপন চলছে...' : 'Playing Video Ad...'}
                     </span>
                   </div>
                 )}
 
-                {/* Sleek Bottom Sponsor Bar Over Video (Does not block video center) */}
-                <div className="absolute bottom-0 inset-x-0 z-10 bg-gradient-to-t from-black/95 via-black/70 to-transparent px-4 pt-6 pb-3 flex items-center justify-between gap-2">
-                  <div className="text-left">
-                    <p className="text-[11px] font-bold text-white flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>
-                        {adCompletedReady
-                          ? (lang === 'bn' ? '✅ বিজ্ঞাপন দেখা সম্পন্ন!' : '✅ Ad Completed!')
-                          : (lang === 'bn' ? `⏱ আরো ${remainingAdTime} সেকেন্ড দেখুন` : `⏱ Watch ${remainingAdTime}s more`)}
-                      </span>
-                    </p>
-                  </div>
-
-                  {activeRedirectUrl && (
-                    <a
-                      href={activeRedirectUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shadow-lg shadow-cyan-500/30 transition shrink-0"
-                    >
-                      <span>{lang === 'bn' ? '🔗 অফার দেখুন' : '🔗 Visit Sponsor'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              {/* Live Adsterra Ad Banner & Script Container */}
-              <div className="mb-4 rounded-2xl bg-[#070d19] border border-slate-800/90 p-2.5 flex flex-col items-center justify-center overflow-hidden">
-                <div className="w-full flex items-center justify-between text-[10px] text-slate-400 px-1 mb-1">
-                  <span className="font-mono uppercase tracking-wider text-cyan-400">
-                    ⚡ Sponsored Adsterra Network (#31534338)
+                {/* Bottom Status Bar Over Video (No Direct Links Here) */}
+                <div className="absolute bottom-0 inset-x-0 z-10 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-4 pt-5 pb-2.5 flex items-center justify-between">
+                  <p className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>
+                      {adCompletedReady
+                        ? lang === 'bn'
+                          ? '✅ ভিডিও বিজ্ঞাপন দেখা সম্পন্ন! এখন রিওয়ার্ড ক্লেইম করুন'
+                          : '✅ Video Ad Completed! Claim your reward below'
+                        : lang === 'bn'
+                          ? `⏱ অনুগ্রহ করে আরো ${remainingAdTime} সেকেন্ড ভিডিওটি দেখুন`
+                          : `⏱ Watch video for ${remainingAdTime}s more`}
+                    </span>
+                  </p>
+                  <span className="text-[11px] font-mono font-bold text-emerald-400">
+                    +$0.01 USD
                   </span>
-                  {activeRedirectUrl && (
-                    <a
-                      href={activeRedirectUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-amber-400 hover:underline font-semibold"
-                    >
-                      {lang === 'bn' ? 'স্পন্সর লিংক খুলুন ↗' : 'Open Sponsor Link ↗'}
-                    </a>
-                  )}
                 </div>
-                <iframe
-                  title="Sponsored Ad Unit"
-                  className="w-full h-16 rounded-xl border border-slate-800/60 bg-[#050912]"
-                  sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
-                  srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:4px;background:#050912;color:#cbd5e1;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:48px;overflow:hidden;}a{color:#38bdf8;text-decoration:none;font-size:12px;font-weight:bold;padding:6px 14px;border-radius:8px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);}</style></head><body><a href="${activeRedirectUrl}" target="_blank" rel="noopener noreferrer">🔥 Click Here to View Special Sponsored Offer & Earn Bonus ↗</a>${activeAdScriptHtml || ''}</body></html>`}
-                />
               </div>
 
               {/* Claim Action Button */}

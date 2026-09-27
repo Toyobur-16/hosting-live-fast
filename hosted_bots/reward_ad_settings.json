@@ -6,9 +6,9 @@
   "adsterraWebsiteId": "6080422",
   "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
   "adRedirectUrl": "https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8",
-  "adScriptHtml": "<script src=\"https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js\"></script>\n<script src=\"https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js\"></script>",
+  "adScriptHtml": "",
   "rewardAmountUsd": 0.01,
   "dailyLimit": 20,
-  "cooldownSeconds": 30,
+  "cooldownSeconds": 0,
   "testMode": false
 }
