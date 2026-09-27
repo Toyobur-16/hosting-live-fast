@@ -29,6 +29,13 @@ export interface AdRewardLog {
   sessionId: string;
 }
 
+const DEFAULT_VIDEO_ADS_POOL = [
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4'
+];
+
 export function getRewardAdSettings(): RewardAdSettings {
   const defaultSettings: RewardAdSettings = {
     enabled: true,
@@ -39,6 +46,7 @@ export function getRewardAdSettings(): RewardAdSettings {
     appId: process.env.ADMOB_APP_ID || 'ca-app-pub-2943337025131771~1508810719',
     adUnitId: process.env.REWARDED_AD_UNIT_ID || '31534338',
     adsterraWebsiteId: '6080422',
+    videoUrl: DEFAULT_VIDEO_ADS_POOL[0],
     adRedirectUrl: 'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8',
     adScriptHtml: '<script src="https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js"></script>\n<script src="https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js"></script>',
     testMode: false
@@ -47,7 +55,11 @@ export function getRewardAdSettings(): RewardAdSettings {
   try {
     if (fs.existsSync(AD_SETTINGS_FILE)) {
       const data = JSON.parse(fs.readFileSync(AD_SETTINGS_FILE, 'utf-8'));
-      return { ...defaultSettings, ...data };
+      const merged = { ...defaultSettings, ...data };
+      if (!merged.videoUrl || !merged.videoUrl.trim()) {
+        merged.videoUrl = DEFAULT_VIDEO_ADS_POOL[0];
+      }
+      return merged;
     }
   } catch (err) {
     console.error('Error loading reward_ad_settings.json:', err);
@@ -200,12 +212,19 @@ export function startAdSession(userId: string): {
     activeSessions.delete(sessionId);
   }, 10 * 60 * 1000);
 
+  const randomPoolVideo =
+    DEFAULT_VIDEO_ADS_POOL[Math.floor(Math.random() * DEFAULT_VIDEO_ADS_POOL.length)];
+  const chosenVideoUrl =
+    settings.videoUrl && !DEFAULT_VIDEO_ADS_POOL.includes(settings.videoUrl)
+      ? settings.videoUrl
+      : randomPoolVideo;
+
   return {
     success: true,
     sessionId,
     minDurationSeconds: settings.minDurationSeconds || 15, // minimum watch duration
     rewardAmount: settings.rewardAmountUsd,
-    videoUrl: settings.videoUrl,
+    videoUrl: chosenVideoUrl,
     adRedirectUrl: settings.adRedirectUrl,
     adScriptHtml: settings.adScriptHtml,
     adProvider: settings.adProvider,

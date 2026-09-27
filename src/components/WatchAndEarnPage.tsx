@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Film,
   Play,
@@ -46,21 +46,30 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Ad Watching Modal State
+  const DEFAULT_VIDEO_ADS = [
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4'
+  ];
+
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [watchProgress, setWatchProgress] = useState(0);
   const [adDurationSeconds, setAdDurationSeconds] = useState(15);
   const [remainingAdTime, setRemainingAdTime] = useState(15);
-  const [adMuted, setAdMuted] = useState(true);
+  const [adMuted, setAdMuted] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [adCompletedReady, setAdCompletedReady] = useState(false);
-  const [activeVideoUrl, setActiveVideoUrl] = useState<string>('');
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string>(DEFAULT_VIDEO_ADS[0]);
   const [activeRedirectUrl, setActiveRedirectUrl] = useState<string>(
     'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8'
   );
   const [activeAdScriptHtml, setActiveAdScriptHtml] = useState<string>(
     '<script src="https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js"></script>\n<script src="https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js"></script>'
   );
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Dynamically inject Adsterra / Custom Ad Scripts into the DOM so impressions count
   const injectAdScripts = (scriptHtml?: string) => {
@@ -212,7 +221,13 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       const duration = data.minDurationSeconds || 15;
       setAdDurationSeconds(duration);
       setRemainingAdTime(duration);
-      setActiveVideoUrl(data.videoUrl || stats?.videoUrl || '');
+      const fallbackVideo =
+        DEFAULT_VIDEO_ADS[Math.floor(Math.random() * DEFAULT_VIDEO_ADS.length)];
+      const nextVideoUrl =
+        (data.videoUrl && data.videoUrl.trim()) ||
+        (stats?.videoUrl && stats.videoUrl.trim()) ||
+        fallbackVideo;
+      setActiveVideoUrl(nextVideoUrl);
       setActiveRedirectUrl(
         data.adRedirectUrl ||
           stats?.adRedirectUrl ||
@@ -224,6 +239,7 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
       } else {
         injectAdScripts();
       }
+      setVideoPlaying(false);
       setWatchProgress(0);
       setAdCompletedReady(false);
       setIsWatchingAd(true);
@@ -493,48 +509,124 @@ export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
               </div>
 
               {/* Video Player Display Container */}
-              <div className="aspect-video w-full rounded-2xl bg-gradient-to-br from-[#050b18] via-[#09152e] to-[#040813] border border-slate-800 flex flex-col items-center justify-center relative overflow-hidden p-6 text-center shadow-inner mb-6">
-                {activeVideoUrl ? (
-                  <video
-                    src={activeVideoUrl}
-                    autoPlay
-                    playsInline
-                    muted={adMuted}
-                    loop
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                ) : null}
-                <div className="relative z-10 flex flex-col items-center justify-center bg-black/45 backdrop-blur-[2px] p-4 rounded-2xl">
-                  <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 flex items-center justify-center mb-2.5">
-                    <Film className="w-7 h-7 animate-pulse" />
+              <div className="aspect-video w-full rounded-2xl bg-black border border-cyan-500/30 relative overflow-hidden shadow-2xl mb-4">
+                <video
+                  ref={videoRef}
+                  key={activeVideoUrl || DEFAULT_VIDEO_ADS[0]}
+                  src={activeVideoUrl || DEFAULT_VIDEO_ADS[0]}
+                  autoPlay
+                  playsInline
+                  muted={adMuted}
+                  loop
+                  onPlaying={() => setVideoPlaying(true)}
+                  onLoadedMetadata={(e) => {
+                    const vid = e.currentTarget;
+                    vid.play().catch(() => {
+                      setAdMuted(true);
+                      vid.muted = true;
+                      vid.play().catch(() => {});
+                    });
+                  }}
+                  onError={() => {
+                    if (activeVideoUrl !== DEFAULT_VIDEO_ADS[0]) {
+                      setActiveVideoUrl(DEFAULT_VIDEO_ADS[0]);
+                    }
+                  }}
+                  className="w-full h-full object-cover"
+                />
+
+                {/* Top-left Ad Badge */}
+                <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-sm border border-white/15 text-[11px] font-bold text-amber-300">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                  <span>AD • {remainingAdTime > 0 ? `0:${remainingAdTime < 10 ? `0${remainingAdTime}` : remainingAdTime}` : 'COMPLETED'}</span>
+                </div>
+
+                {/* Top-right Sound Toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextMuted = !adMuted;
+                    setAdMuted(nextMuted);
+                    if (videoRef.current) {
+                      videoRef.current.muted = nextMuted;
+                      videoRef.current.play().catch(() => {});
+                    }
+                  }}
+                  className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/70 hover:bg-black/90 backdrop-blur-sm border border-white/15 text-[11px] font-bold text-white cursor-pointer transition"
+                >
+                  {adMuted ? (
+                    <>
+                      <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                      <span>{lang === 'bn' ? 'সাউন্ড চালু করুন' : 'Tap for Sound'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{lang === 'bn' ? 'সাউন্ড চালু' : 'Sound On'}</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Loading indicator only while video buffers first frame */}
+                {!videoPlaying && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-5 pointer-events-none">
+                    <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mb-2" />
+                    <span className="text-xs font-semibold text-cyan-200">
+                      {lang === 'bn' ? 'ভিডিও বিজ্ঞাপন লোড হচ্ছে...' : 'Loading Video Ad...'}
+                    </span>
                   </div>
-                  <h3 className="text-base font-bold text-white mb-1">
-                    hosting live fast Cloud Partners
-                  </h3>
-                  <p className="text-xs text-slate-300 max-w-xs">
-                    {lang === 'bn'
-                      ? '২৪/৭ ক্লাউড টেলিগ্রাম বট ও স্ট্যাটিক ওয়েবসাইট হোস্টিং স্পন্সরড ভিডিও চলছে...'
-                      : '24/7 Cloud Telegram Bot & Website Hosting sponsored ad running...'}
-                  </p>
+                )}
+
+                {/* Sleek Bottom Sponsor Bar Over Video (Does not block video center) */}
+                <div className="absolute bottom-0 inset-x-0 z-10 bg-gradient-to-t from-black/95 via-black/70 to-transparent px-4 pt-6 pb-3 flex items-center justify-between gap-2">
+                  <div className="text-left">
+                    <p className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>
+                        {adCompletedReady
+                          ? (lang === 'bn' ? '✅ বিজ্ঞাপন দেখা সম্পন্ন!' : '✅ Ad Completed!')
+                          : (lang === 'bn' ? `⏱ আরো ${remainingAdTime} সেকেন্ড দেখুন` : `⏱ Watch ${remainingAdTime}s more`)}
+                      </span>
+                    </p>
+                  </div>
 
                   {activeRedirectUrl && (
                     <a
                       href={activeRedirectUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-3 px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-xs font-bold text-cyan-200 flex items-center gap-1.5 transition"
+                      className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shadow-lg shadow-cyan-500/30 transition shrink-0"
                     >
-                      <span>{lang === 'bn' ? '🔗 স্পন্সর অফারটি দেখুন' : '🔗 Visit Sponsor Offer'}</span>
+                      <span>{lang === 'bn' ? '🔗 অফার দেখুন' : '🔗 Visit Sponsor'}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </a>
                   )}
-
-                  <div className="mt-3 px-3 py-1 rounded-lg bg-black/70 border border-slate-700/80 text-[11px] font-mono text-cyan-300">
-                    {adCompletedReady
-                      ? (lang === 'bn' ? '✅ বিজ্ঞাপন দেখা সম্পন্ন হয়েছে!' : '✅ Ad Complete! Ready to Claim')
-                      : (lang === 'bn' ? `⏱ অনুগ্রহ করে আরো ${remainingAdTime} সেকেন্ড দেখুন` : `⏱ Please watch for ${remainingAdTime} more seconds`)}
-                  </div>
                 </div>
+              </div>
+
+              {/* Live Adsterra Ad Banner & Script Container */}
+              <div className="mb-4 rounded-2xl bg-[#070d19] border border-slate-800/90 p-2.5 flex flex-col items-center justify-center overflow-hidden">
+                <div className="w-full flex items-center justify-between text-[10px] text-slate-400 px-1 mb-1">
+                  <span className="font-mono uppercase tracking-wider text-cyan-400">
+                    ⚡ Sponsored Adsterra Network (#31534338)
+                  </span>
+                  {activeRedirectUrl && (
+                    <a
+                      href={activeRedirectUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-400 hover:underline font-semibold"
+                    >
+                      {lang === 'bn' ? 'স্পন্সর লিংক খুলুন ↗' : 'Open Sponsor Link ↗'}
+                    </a>
+                  )}
+                </div>
+                <iframe
+                  title="Sponsored Ad Unit"
+                  className="w-full h-16 rounded-xl border border-slate-800/60 bg-[#050912]"
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+                  srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:4px;background:#050912;color:#cbd5e1;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:48px;overflow:hidden;}a{color:#38bdf8;text-decoration:none;font-size:12px;font-weight:bold;padding:6px 14px;border-radius:8px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);}</style></head><body><a href="${activeRedirectUrl}" target="_blank" rel="noopener noreferrer">🔥 Click Here to View Special Sponsored Offer & Earn Bonus ↗</a>${activeAdScriptHtml || ''}</body></html>`}
+                />
               </div>
 
               {/* Claim Action Button */}
