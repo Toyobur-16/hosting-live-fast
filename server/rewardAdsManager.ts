@@ -34,9 +34,11 @@ export function getRewardAdSettings(): RewardAdSettings {
     enabled: true,
     rewardAmountUsd: 0.01,
     dailyLimit: 20,
-    cooldownSeconds: 45,
-    adProvider: 'custom_network',
-    adUnitId: process.env.REWARDED_AD_UNIT_ID || 'rewarded_video_cloud_unit'
+    cooldownSeconds: 30,
+    adProvider: 'admob',
+    appId: process.env.ADMOB_APP_ID || 'ca-app-pub-2943337025131771~1508810719',
+    adUnitId: process.env.REWARDED_AD_UNIT_ID || 'ca-app-pub-2943337025131771/5261362626',
+    testMode: false
   };
 
   try {
@@ -132,6 +134,7 @@ export function getUserRewardStats(userId: string, currentBalanceUsd = 0): AdRew
     rewardPerAd: settings.rewardAmountUsd,
     adsEnabled: settings.enabled,
     adProvider: settings.adProvider,
+    appId: settings.appId,
     adUnitId: settings.adUnitId,
     videoUrl: settings.videoUrl,
     adRedirectUrl: settings.adRedirectUrl,
@@ -151,6 +154,7 @@ export function startAdSession(userId: string): {
   videoUrl?: string;
   adRedirectUrl?: string;
   adProvider?: string;
+  appId?: string;
   adUnitId?: string;
   error?: string;
 } {
@@ -199,6 +203,7 @@ export function startAdSession(userId: string): {
     videoUrl: settings.videoUrl,
     adRedirectUrl: settings.adRedirectUrl,
     adProvider: settings.adProvider,
+    appId: settings.appId,
     adUnitId: settings.adUnitId
   };
 }

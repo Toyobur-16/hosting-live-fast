@@ -67,8 +67,9 @@ const RECOMMENDED_AD_NETWORKS = [
 export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' }) => {
   const [settings, setSettings] = useState<RewardAdSettings>({
     enabled: true,
-    adProvider: 'monetag',
-    adUnitId: 'ca-app-pub-3940256099942544/5224354917',
+    adProvider: 'admob',
+    appId: 'ca-app-pub-2943337025131771~1508810719',
+    adUnitId: 'ca-app-pub-2943337025131771/5261362626',
     videoUrl: '',
     adRedirectUrl: '',
     rewardAmountUsd: 0.01,
@@ -262,24 +263,57 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
               </div>
             </div>
 
-            {/* Ad Unit ID */}
-            <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                {lang === 'bn'
-                  ? 'অ্যাড ইউনিট / জোন আইডি (Zone ID / Block ID / Placement ID)'
-                  : 'Ad Unit ID / Zone ID / Block ID'}
-              </label>
+            {/* App ID (AdMob App ID with ~) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-300">
+                  {lang === 'bn' ? 'অ্যাপ আইডি (AdMob App ID)' : 'AdMob App ID'}
+                </label>
+                {settings.appId && /^ca-app-pub-\d{16}~\d{10}$/.test(settings.appId.trim()) && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    ✓ Valid App ID (~)
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
-                value={settings.adUnitId || ''}
-                onChange={(e) => setSettings({ ...settings, adUnitId: e.target.value })}
-                placeholder="e.g. Monetag Zone ID, Adsgram Block ID (int-1234), or AdMob Unit ID"
+                value={settings.appId || ''}
+                onChange={(e) => setSettings({ ...settings, appId: e.target.value })}
+                placeholder="ca-app-pub-2943337025131771~1508810719"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-mono focus:border-sky-500 focus:outline-none"
               />
               <p className="text-[11px] text-slate-500 mt-1">
                 {lang === 'bn'
-                  ? 'আপনার Monetag, Adsterra, Adsgram বা AdMob থেকে পাওয়া Zone ID / Placement ID দিন।'
-                  : 'Enter the Zone ID, Block ID, or Placement ID from your ad network dashboard.'}
+                  ? 'AdMob এর App ID (মাঝখানে ~ চিহ্ন থাকে, যেমন: ca-app-pub-2943337025131771~1508810719)'
+                  : 'Your Google AdMob App ID containing the ~ separator.'}
+              </p>
+            </div>
+
+            {/* Ad Unit ID (AdMob Ad Unit ID with /) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-300">
+                  {lang === 'bn'
+                    ? 'অ্যাড ইউনিট আইডি (AdMob Ads ID / Zone ID)'
+                    : 'Ad Unit ID / Zone ID'}
+                </label>
+                {settings.adUnitId && /^ca-app-pub-\d{16}\/\d{10}$/.test(settings.adUnitId.trim()) && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    ✓ Valid Ads ID (/)
+                  </span>
+                )}
+              </div>
+              <input
+                type="text"
+                value={settings.adUnitId || ''}
+                onChange={(e) => setSettings({ ...settings, adUnitId: e.target.value })}
+                placeholder="ca-app-pub-2943337025131771/5261362626"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-mono focus:border-sky-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                {lang === 'bn'
+                  ? 'AdMob এর Ad Unit ID (মাঝখানে / চিহ্ন থাকে, যেমন: ca-app-pub-2943337025131771/5261362626)'
+                  : 'Your Rewarded Ad Unit ID containing the / separator.'}
               </p>
             </div>
 

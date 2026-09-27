@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "adProvider": "admob",
+  "appId": "ca-app-pub-2943337025131771~1508810719",
+  "adUnitId": "ca-app-pub-2943337025131771/5261362626",
+  "videoUrl": "",
+  "adRedirectUrl": "",
+  "rewardAmountUsd": 0.01,
+  "dailyLimit": 20,
+  "cooldownSeconds": 30,
+  "testMode": false
+}

@@ -6599,6 +6599,16 @@ setInterval(async () => {
   }
 }, 30000);
 
+// Google AdMob & AdSense verification routes (app-ads.txt & ads.txt)
+app.get(['/app-ads.txt', '/ads.txt'], (req, res) => {
+  const settings = getRewardAdSettings();
+  const rawId = settings.appId || settings.adUnitId || 'ca-app-pub-2943337025131771~1508810719';
+  const match = rawId.match(/pub-\d{16}/);
+  const pubId = match ? match[0] : 'pub-2943337025131771';
+  res.type('text/plain');
+  res.send(`google.com, ${pubId}, DIRECT, f08c47fec0942fa0\n`);
+});
+
 // Robots.txt & Sitemap routes for Google Search Console & SEO crawlers
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');

@@ -159,6 +159,7 @@ export interface RewardAdSettings {
     | 'google_ad_manager'
     | 'custom_network'
     | 'custom';
+  appId?: string;
   adUnitId?: string;
   videoUrl?: string;
   adRedirectUrl?: string;
@@ -179,6 +180,7 @@ export interface AdRewardStats {
   rewardPerAd: number;
   adsEnabled: boolean;
   adProvider?: string;
+  appId?: string;
   adUnitId?: string;
   videoUrl?: string;
   adRedirectUrl?: string;
