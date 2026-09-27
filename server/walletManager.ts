@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { WalletTransaction } from '../src/types';
+import { FirebaseSync } from './firebaseSync';
 
 const HOSTED_BOTS_DIR = path.join(process.cwd(), 'hosted_bots');
 const TRANSACTIONS_FILE = path.join(HOSTED_BOTS_DIR, 'wallet_transactions.json');
@@ -44,9 +45,13 @@ function getAccounts(): any[] {
   return [];
 }
 
-function saveAccounts(accounts: any[]): void {
+function saveAccounts(accounts: any[], updatedUser?: any): void {
   try {
     fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2), 'utf-8');
+    if (updatedUser) {
+      FirebaseSync.syncAccountToCloud(updatedUser).catch(() => {});
+    }
+    FirebaseSync.scheduleMasterShardSync(accounts);
   } catch (err) {
     console.error('Error writing accounts.json:', err);
   }
@@ -85,7 +90,7 @@ export function modifyUserWallet(
   }
 
   user.balanceUsd = Math.max(0, newBalance);
-  saveAccounts(accounts);
+  saveAccounts(accounts, user);
 
   const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const transaction: WalletTransaction = {

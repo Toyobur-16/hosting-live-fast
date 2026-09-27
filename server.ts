@@ -39,6 +39,9 @@ import {
   verifyPasswordResetCode,
   checkFirebaseEmailVerificationStatus,
   verifyPasswordWithFirebaseAuth,
+  recoverUserFromFirebaseAuth,
+  checkEmailExistsInFirebaseAuth,
+  syncUserPasswordToFirebaseAuth,
   getPendingRegistration
 } from './server/emailVerification';
 import { modifyUserWallet, getTransactions as getWalletTransactions, getUserTransactions } from './server/walletManager';
@@ -639,13 +642,14 @@ function getAccounts(): any[] {
 function saveAccounts(data: any[]) {
   try {
     fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(data, null, 2) + '\n', 'utf-8');
-    // Asynchronously synchronize all accounts to Firebase Firestore for permanent cloud storage
+    // Asynchronously synchronize all accounts to Firebase Cloud Vault & Master Shards for permanent cloud storage
     if (Array.isArray(data)) {
       for (const acc of data) {
         if (acc && acc.id) {
           FirebaseSync.syncAccountToCloud(acc).catch(() => {});
         }
       }
+      FirebaseSync.scheduleMasterShardSync(data);
     }
   } catch (err) {
     console.error('Failed to save accounts:', err);
@@ -1255,7 +1259,29 @@ function getAuthUser(req: express.Request): any | null {
             isVerified: true
           };
           accounts.push(user);
-          saveAccounts(accounts);
+          try {
+            fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2) + '\n', 'utf-8');
+          } catch {}
+          if (user.email) {
+            FirebaseSync.loadSingleAccountByEmail(user.email)
+              .then((cloudUser) => {
+                if (cloudUser && cloudUser.email) {
+                  const latestAccs = getAccounts();
+                  const idx = latestAccs.findIndex((a) => a.email?.toLowerCase() === user.email.toLowerCase());
+                  if (idx !== -1) {
+                    latestAccs[idx] = {
+                      ...latestAccs[idx],
+                      ...cloudUser,
+                      password: cloudUser.password || latestAccs[idx].password || '',
+                      balanceUsd: Math.max(latestAccs[idx].balanceUsd || 0, cloudUser.balanceUsd || 0),
+                      balanceBdt: Math.max(latestAccs[idx].balanceBdt || 0, cloudUser.balanceBdt || 0)
+                    };
+                    saveAccounts(latestAccs);
+                  }
+                }
+              })
+              .catch(() => {});
+          }
           sessions[token] = user.id;
           saveSessions(sessions);
           return enrichUserWithPlanAndRole(user);
@@ -1731,7 +1757,37 @@ app.get('/site/:slug*', (req, res) => {
   return res.status(404).send('File not found');
 });
 
-// 1. Auth routes with strict 6-digit Email Verification (No account creation or login token until OTP is verified!)
+// Helper to build a default verified account record
+function buildVerifiedUserRecord(cleanEmail: string, name?: string, password?: string) {
+  const isAdmin =
+    cleanEmail === 'mdtayburrahman1111@gmail.com' ||
+    cleanEmail === 'badsharahmanbd@gmail.com' ||
+    cleanEmail === 'toyoburrahman9090@gmail.com' ||
+    cleanEmail === 'toyoburrahman526@gmail.com' ||
+    cleanEmail === 'toyobur@telegram.bot';
+
+  return {
+    id: `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    name: (name || cleanEmail.split('@')[0]).trim(),
+    email: cleanEmail,
+    password: password || '',
+    role: isAdmin ? 'admin' : 'user',
+    plan: 'free',
+    maxBots: isAdmin ? 999 : 1,
+    maxWebsites: isAdmin ? 999 : 2,
+    maxStorageMb: isAdmin ? 500 : 50,
+    planExpiresAt: null,
+    balanceBdt: 0,
+    balanceUsd: 0,
+    isVerified: true,
+    emailVerified: true,
+    avatar: '',
+    googleId: '',
+    createdAt: new Date().toISOString()
+  };
+}
+
+// 1. Auth routes with strict 6-digit Email Verification & Cloud Persistence across site updates
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email) {
@@ -1739,40 +1795,35 @@ app.post('/api/auth/register', async (req, res) => {
   }
   const cleanEmail = email.trim().toLowerCase();
   const accounts = getAccounts();
-  const existingIdx = accounts.findIndex((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  let existingIdx = accounts.findIndex((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
+  // If not found in local accounts.json (e.g. after a site update), check Firebase Cloud Vault & Firebase Auth
+  if (existingIdx === -1) {
+    const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+    if (cloudUser && cloudUser.email) {
+      accounts.push(cloudUser);
+      saveAccounts(accounts);
+      existingIdx = accounts.length - 1;
+    } else {
+      const fbRecovered = await recoverUserFromFirebaseAuth(cleanEmail, password);
+      if (fbRecovered.found && fbRecovered.emailVerified) {
+        const restored = buildVerifiedUserRecord(cleanEmail, fbRecovered.name || name.trim(), fbRecovered.passwordMatched ? password : '');
+        accounts.push(restored);
+        saveAccounts(accounts);
+        existingIdx = accounts.length - 1;
+      }
+    }
+  }
 
   if (existingIdx !== -1) {
     const existing = accounts[existingIdx];
-    // If the existing account is already verified:
-    // - If password matches, log them right in seamlessly without error
-    // - Otherwise, send a 6-digit OTP code so they can verify ownership without a red error
+    // If the existing account is already verified, inform the user that this Gmail is already registered!
     if (existing.emailVerified && existing.isVerified) {
-      if (password && existing.password && existing.password === password) {
-        const enriched = enrichUserWithPlanAndRole(existing);
-        const token = generateAuthToken(enriched);
-        const sessions = getSessions();
-        sessions[token] = existing.id;
-        saveSessions(sessions);
-        return res.json({
-          success: true,
-          requiresVerification: false,
-          token,
-          user: enriched,
-          message: 'আপনার অ্যাকাউন্টে সফলভাবে লগইন হয়েছে।'
-        });
-      }
-      try {
-        await createAndSendVerificationCode(cleanEmail, existing.name || name.trim(), true, {
-          name: existing.name || name.trim(),
-          email: cleanEmail,
-          password: password || existing.password || ''
-        });
-      } catch {}
-      return res.json({
-        success: true,
-        requiresVerification: true,
+      return res.status(409).json({
+        success: false,
+        alreadyRegistered: true,
         email: cleanEmail,
-        message: 'আপনার ইমেইলে ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। কোডটি দিয়ে ভেরিফাই করুন।'
+        error: 'এই জিমেইল দিয়ে ইতিমধ্যে রেজিস্ট্রেশন করা আছে! অনুগ্রহ করে আপনার পাসওয়ার্ড দিয়ে লগইন করুন।'
       });
     }
     // Clean up any previously saved unverified account & its sessions so it cannot auto-login
@@ -1791,7 +1842,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   // Store pending registration inside verification record and dispatch 6-digit OTP email.
-  // Account will ONLY be created in accounts.json when /api/auth/verify-email succeeds!
   try {
     await createAndSendVerificationCode(cleanEmail, name.trim(), true, {
       name: name.trim(),
@@ -1880,35 +1930,8 @@ app.post('/api/auth/verify-email', (req, res) => {
   }
 
   if (!user) {
-    // Create the verified user account now that 6-digit OTP has been verified
     const pending = verifyResult.pendingRegistration;
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const isAdmin =
-      cleanEmail === 'mdtayburrahman1111@gmail.com' ||
-      cleanEmail === 'badsharahmanbd@gmail.com' ||
-      cleanEmail === 'toyoburrahman9090@gmail.com' ||
-      cleanEmail === 'toyoburrahman526@gmail.com' ||
-      cleanEmail === 'toyobur@telegram.bot';
-
-    user = {
-      id: userId,
-      name: (pending?.name || cleanEmail.split('@')[0]).trim(),
-      email: cleanEmail,
-      password: pending?.password || '',
-      role: isAdmin ? 'admin' : 'user',
-      plan: 'free',
-      maxBots: isAdmin ? 999 : 1,
-      maxWebsites: isAdmin ? 999 : 2,
-      maxStorageMb: isAdmin ? 500 : 50,
-      planExpiresAt: null,
-      balanceBdt: 0,
-      balanceUsd: 0,
-      isVerified: true,
-      emailVerified: true,
-      avatar: '',
-      googleId: '',
-      createdAt: new Date().toISOString()
-    };
+    user = buildVerifiedUserRecord(cleanEmail, pending?.name, pending?.password);
     accounts.push(user);
     saveAccounts(accounts);
   } else {
@@ -1932,9 +1955,12 @@ app.post('/api/auth/verify-email', (req, res) => {
   sessions[token] = user.id;
   saveSessions(sessions);
 
-  // Sync to Firestore
+  // Sync to Cloud Vault & Firebase Auth permanently
   try {
     FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+    if (enriched.password) {
+      syncUserPasswordToFirebaseAuth(cleanEmail, enriched.password, enriched.name).catch(() => {});
+    }
   } catch {}
 
   res.json({
@@ -1963,33 +1989,7 @@ app.post('/api/auth/check-verification-status', async (req, res) => {
 
   if (!user) {
     const pending = fbStatus.pendingRegistration;
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const isAdmin =
-      cleanEmail === 'mdtayburrahman1111@gmail.com' ||
-      cleanEmail === 'badsharahmanbd@gmail.com' ||
-      cleanEmail === 'toyoburrahman9090@gmail.com' ||
-      cleanEmail === 'toyoburrahman526@gmail.com' ||
-      cleanEmail === 'toyobur@telegram.bot';
-
-    user = {
-      id: userId,
-      name: (pending?.name || cleanEmail.split('@')[0]).trim(),
-      email: cleanEmail,
-      password: pending?.password || '',
-      role: isAdmin ? 'admin' : 'user',
-      plan: 'free',
-      maxBots: isAdmin ? 999 : 1,
-      maxWebsites: isAdmin ? 999 : 2,
-      maxStorageMb: isAdmin ? 500 : 50,
-      planExpiresAt: null,
-      balanceBdt: 0,
-      balanceUsd: 0,
-      isVerified: true,
-      emailVerified: true,
-      avatar: '',
-      googleId: '',
-      createdAt: new Date().toISOString()
-    };
+    user = buildVerifiedUserRecord(cleanEmail, pending?.name, pending?.password);
     accounts.push(user);
     saveAccounts(accounts);
   } else {
@@ -2015,6 +2015,9 @@ app.post('/api/auth/check-verification-status', async (req, res) => {
 
   try {
     FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+    if (enriched.password) {
+      syncUserPasswordToFirebaseAuth(cleanEmail, enriched.password, enriched.name).catch(() => {});
+    }
   } catch {}
 
   return res.json({
@@ -2034,6 +2037,29 @@ app.post('/api/auth/login', async (req, res) => {
   const cleanEmail = email.trim().toLowerCase();
   const accounts = getAccounts();
   let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
+  // If not found in local accounts.json (e.g. after a site update or server restart), restore from Cloud Vault or Firebase Auth
+  if (!user) {
+    const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+    if (cloudUser && cloudUser.email) {
+      user = cloudUser;
+      accounts.push(user);
+      saveAccounts(accounts);
+    } else {
+      const fbRecovered = await recoverUserFromFirebaseAuth(cleanEmail, password);
+      if (fbRecovered.found) {
+        if (fbRecovered.passwordMatched) {
+          user = buildVerifiedUserRecord(cleanEmail, fbRecovered.name, password || '');
+          accounts.push(user);
+          saveAccounts(accounts);
+        } else {
+          return res.status(401).json({
+            error: 'ভুল পাসওয়ার্ড! এই জিমেইলে আপনার অ্যাকাউন্ট রেজিস্ট্রেশন করা আছে। অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন অথবা পাসওয়ার্ড রিসেট করুন।'
+          });
+        }
+      }
+    }
+  }
 
   if (!user) {
     // Check if user has a pending registration waiting for email OTP verification
@@ -2058,7 +2084,7 @@ app.post('/api/auth/login', async (req, res) => {
     });
   }
 
-  // Check password if set (also check Firebase Auth in case user reset password via Firebase link)
+  // Check password if set (also check Firebase Auth in case user reset password or logged in after site update)
   if (user.password && password && user.password !== password) {
     const validInFirebase = await verifyPasswordWithFirebaseAuth(cleanEmail, password);
     if (validInFirebase) {
@@ -2067,7 +2093,13 @@ app.post('/api/auth/login', async (req, res) => {
     } else {
       return res.status(401).json({ error: 'ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন অথবা পাসওয়ার্ড রিসেট করুন।' });
     }
+  } else if (!user.password && password) {
+    // Save password if user recovered from token/Firebase without local password field
+    user.password = password;
+    saveAccounts(accounts);
+    syncUserPasswordToFirebaseAuth(cleanEmail, password, user.name).catch(() => {});
   }
+
   if (user.password && !password) {
     return res.status(401).json({ error: 'অনুগ্রহ করে আপনার পাসওয়ার্ড প্রদান করুন।' });
   }
@@ -2094,6 +2126,8 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   user = enrichUserWithPlanAndRole(user);
+  FirebaseSync.syncAccountToCloud(user).catch(() => {});
+
   const token = generateAuthToken(user);
   const sessions = getSessions();
   sessions[token] = user.id;
@@ -2115,7 +2149,24 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
   const cleanEmail = email.trim().toLowerCase();
   const accounts = getAccounts();
-  const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
+  if (!user) {
+    const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+    if (cloudUser && cloudUser.email) {
+      user = cloudUser;
+      accounts.push(user);
+      saveAccounts(accounts);
+    } else {
+      const existsInFb = await checkEmailExistsInFirebaseAuth(cleanEmail);
+      if (existsInFb) {
+        user = buildVerifiedUserRecord(cleanEmail);
+        accounts.push(user);
+        saveAccounts(accounts);
+      }
+    }
+  }
+
   if (!user) {
     return res.status(404).json({ error: 'এই ইমেইল দিয়ে কোনো নিবন্ধিত অ্যাকাউন্ট পাওয়া যায়নি।' });
   }
@@ -2139,7 +2190,15 @@ app.post('/api/auth/resend-reset-code', async (req, res) => {
   }
   const cleanEmail = email.trim().toLowerCase();
   const accounts = getAccounts();
-  const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  if (!user) {
+    const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+    if (cloudUser && cloudUser.email) {
+      user = cloudUser;
+      accounts.push(user);
+      saveAccounts(accounts);
+    }
+  }
   if (!user) {
     return res.status(404).json({ error: 'অ্যাকাউন্ট খুঁজে পাওয়া যায়নি' });
   }
@@ -2156,7 +2215,7 @@ app.post('/api/auth/resend-reset-code', async (req, res) => {
 });
 
 // Verify 6-digit code and set new password
-app.post('/api/auth/reset-password', (req, res) => {
+app.post('/api/auth/reset-password', async (req, res) => {
   const { email, code, newPassword } = req.body;
   if (!email || !newPassword) {
     return res.status(400).json({ error: 'ইমেইল এবং নতুন পাসওয়ার্ড প্রদান করুন' });
@@ -2175,9 +2234,16 @@ app.post('/api/auth/reset-password', (req, res) => {
   }
 
   const accounts = getAccounts();
-  const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
   if (!user) {
-    return res.status(404).json({ error: 'এই ইমেইলে কোনো নিবন্ধিত অ্যাকাউন্ট পাওয়া যায়নি' });
+    const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+    if (cloudUser && cloudUser.email) {
+      user = cloudUser;
+      accounts.push(user);
+    } else {
+      user = buildVerifiedUserRecord(cleanEmail, undefined, newPassword);
+      accounts.push(user);
+    }
   }
 
   user.password = newPassword;
@@ -2191,9 +2257,10 @@ app.post('/api/auth/reset-password', (req, res) => {
   sessions[token] = user.id;
   saveSessions(sessions);
 
-  // Sync to Firestore if available
+  // Sync to Cloud Vault & Firebase Auth
   try {
     FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+    syncUserPasswordToFirebaseAuth(cleanEmail, newPassword, enriched.name).catch(() => {});
   } catch {}
 
   res.json({

@@ -503,6 +503,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           body: JSON.stringify({ name: name.trim(), email: cleanEmail, password })
         });
         const data = await res.json();
+        if (data.alreadyRegistered) {
+          setMode('login');
+          setError(null);
+          setSuccessMessage(
+            lang === 'bn'
+              ? '✅ এই জিমেইল দিয়ে ইতিমধ্যে রেজিস্ট্রেশন করা আছে! নিচে আপনার পাসওয়ার্ড দিয়ে সরাসরি লগইন করুন।'
+              : '✅ This email is already registered! Please sign in below with your password.'
+          );
+          setLoading(false);
+          return;
+        }
         if (!res.ok || !data.success) {
           throw new Error(data.error || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
         }

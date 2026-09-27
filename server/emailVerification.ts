@@ -209,6 +209,173 @@ export async function verifyPasswordWithFirebaseAuth(email: string, password: st
   }
 }
 
+/**
+ * Recover a registered user account from Firebase Auth when local accounts.json was reset after a site update.
+ */
+export async function recoverUserFromFirebaseAuth(
+  email: string,
+  enteredPassword?: string
+): Promise<{
+  found: boolean;
+  passwordMatched: boolean;
+  emailVerified: boolean;
+  name?: string;
+  localId?: string;
+}> {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return { found: false, passwordMatched: false, emailVerified: false };
+  }
+
+  const detPass = getDeterministicFirebasePassword(cleanEmail);
+  const candidates = Array.from(
+    new Set(
+      [
+        enteredPassword && enteredPassword.length >= 6 ? enteredPassword : null,
+        detPass,
+        'ServerSyncPassword2026!'
+      ].filter(Boolean) as string[]
+    )
+  );
+
+  for (const pass of candidates) {
+    try {
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_AUTH_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: pass,
+          returnSecureToken: true
+        })
+      });
+      const data: any = await res.json();
+      if (res.ok && data && data.idToken) {
+        let emailVerified = true;
+        let displayName = data.displayName || cleanEmail.split('@')[0];
+        try {
+          const lookRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_AUTH_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken: data.idToken })
+          });
+          const lookData: any = await lookRes.json();
+          const u = lookData?.users?.[0];
+          if (u) {
+            if (typeof u.emailVerified === 'boolean') emailVerified = u.emailVerified;
+            if (u.displayName) displayName = u.displayName;
+          }
+        } catch {}
+
+        // Sync Firebase Auth password to user's entered password if it signed in via deterministic pass
+        if (enteredPassword && enteredPassword.length >= 6 && pass !== enteredPassword) {
+          fetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_AUTH_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              idToken: data.idToken,
+              password: enteredPassword,
+              returnSecureToken: true
+            })
+          }).catch(() => {});
+        }
+
+        return {
+          found: true,
+          passwordMatched: true,
+          emailVerified,
+          name: displayName,
+          localId: data.localId
+        };
+      }
+    } catch {}
+  }
+
+  // If signInWithPassword didn't match, check if the email is already registered in Firebase Auth
+  const exists = await checkEmailExistsInFirebaseAuth(cleanEmail);
+  return {
+    found: exists,
+    passwordMatched: false,
+    emailVerified: exists
+  };
+}
+
+/**
+ * Checks if an email is already registered in Firebase Auth without leaving a stray account.
+ */
+export async function checkEmailExistsInFirebaseAuth(email: string): Promise<boolean> {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) return false;
+  try {
+    const detPass = getDeterministicFirebasePassword(cleanEmail);
+    const signInRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_AUTH_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: cleanEmail,
+        password: detPass,
+        returnSecureToken: true
+      })
+    });
+    const signInData: any = await signInRes.json();
+    if (signInRes.ok && signInData?.idToken) {
+      return true;
+    }
+
+    // Probe via signUp: if EMAIL_EXISTS, the email is definitely registered in Firebase Auth.
+    // If signUp succeeds (meaning it did NOT exist), immediately delete the temporary probe account!
+    const probeRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_AUTH_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: cleanEmail,
+        password: detPass,
+        returnSecureToken: true
+      })
+    });
+    const probeData: any = await probeRes.json();
+    if (probeData?.error?.message === 'EMAIL_EXISTS') {
+      return true;
+    }
+    if (probeData?.idToken) {
+      await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${FIREBASE_AUTH_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: probeData.idToken })
+      }).catch(() => {});
+      return false;
+    }
+  } catch {}
+  return false;
+}
+
+/**
+ * Synchronize user's password and displayName to Firebase Auth so login always works across site updates.
+ */
+export async function syncUserPasswordToFirebaseAuth(
+  email: string,
+  newPassword: string,
+  displayName?: string
+): Promise<void> {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail || !newPassword || newPassword.length < 6) return;
+  try {
+    const session = await getFirebaseUserSession(cleanEmail, newPassword, displayName);
+    if (session && session.idToken) {
+      await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_AUTH_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken: session.idToken,
+          password: newPassword,
+          ...(displayName ? { displayName } : {}),
+          returnSecureToken: true
+        })
+      });
+    }
+  } catch {}
+}
+
 function loadVerifications(): Record<string, VerificationRecord> {
   try {
     if (!fs.existsSync(HOSTED_BOTS_DIR)) {
