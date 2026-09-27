@@ -81,6 +81,7 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use('/APK_DOWNLOAD', express.static(path.join(process.cwd(), 'APK_DOWNLOAD')));
 
 const HOSTED_BOTS_DIR = path.join(process.cwd(), 'hosted_bots');
 const REGISTRY_FILE = path.join(HOSTED_BOTS_DIR, 'registry.json');
@@ -473,8 +474,10 @@ function runPipInstall(args: string, cwd?: string, timeout = 60000): void {
   }
 }
 
-// Background environment verification ensuring pip and core libraries are ready
+// Background environment verification ensuring pip and core libraries are ready when bots are hosted
 function ensurePythonBotDependencies() {
+  const reg = getRegistry();
+  if (!reg || reg.length === 0) return;
   exec('python3 -c "import httpx, telebot, telegram, aiogram, requests"', (err) => {
     if (err) {
       console.log('Installing core Python bot dependencies...');

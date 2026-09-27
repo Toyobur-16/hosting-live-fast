@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer glowing shield/server circle -->
+    <path
+        android:fillColor="#1A06B6D4"
+        android:pathData="M54,22A32,32 0 1,1 54,86A32,32 0 1,1 54,22Z" />
+    <!-- Server rack top bar -->
+    <path
+        android:fillColor="#06B6D4"
+        android:pathData="M34,34h40a4,4 0 0,1 4,4v8a4,4 0 0,1 -4,4h-40a4,4 0 0,1 -4,-4v-8a4,4 0 0,1 4,-4z" />
+    <!-- Server rack middle bar -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M34,50h40a4,4 0 0,1 4,4v8a4,4 0 0,1 -4,4h-40a4,4 0 0,1 -4,-4v-8a4,4 0 0,1 4,-4z" />
+    <!-- Lightning bolt accent -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M57,28L43,54h10l-3,26l16,-28h-10z" />
+</vector>
