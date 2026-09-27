@@ -296,20 +296,67 @@ const DEFAULT_PAYMENT_SETTINGS = {
   binanceUid: '922593999',
   binancePayId: '922593999',
   binanceId: '922593999',
+  binanceBscAddress: '0xadf20566382613a481f39f62cd50b872314db1d3',
+  binanceTrcAddress: '',
   binanceEnabled: true,
+  binanceDeleted: false,
   binancePayApiEnabled: true,
   binancePayApiKey: '',
   binancePaySecretKey: '',
   binancePayMerchantId: '',
+  cryptoNetworks: [
+    {
+      id: 'net_binance_pay',
+      name: 'Binance Pay / UID',
+      networkKey: 'binance_pay',
+      networkLabel: 'Binance Pay / UID (Instant / Zero Fee)',
+      addressOrId: '922593999',
+      memoOrTag: '',
+      instructionsBn: 'Binance Pay ID / UID তে সেন্ড করুন। পেমেন্ট শেষ হলে Binance Order ID / Trx ID দিন।',
+      enabled: true
+    },
+    {
+      id: 'net_bep20',
+      name: 'USDT (BEP-20)',
+      networkKey: 'bep20',
+      networkLabel: 'BNB Smart Chain (BEP-20)',
+      addressOrId: '0xadf20566382613a481f39f62cd50b872314db1d3',
+      memoOrTag: '',
+      instructionsBn: 'এই ঠিকানায় শুধুমাত্র USDT (BEP-20) পাঠাবেন। অন্য কোনো কয়েন পাঠাবেন না।',
+      enabled: true
+    },
+    {
+      id: 'net_trc20',
+      name: 'USDT (TRC-20)',
+      networkKey: 'trc20',
+      networkLabel: 'Tron (TRC-20)',
+      addressOrId: 'TX7aA8b9qZ4eR2p3u5v6w7x8y9z0a1b2c3',
+      memoOrTag: '',
+      instructionsBn: 'এই ঠিকানায় শুধুমাত্র USDT (TRC-20) পাঠাবেন। অন্য কোনো কয়েন পাঠাবেন না।',
+      enabled: true
+    },
+    {
+      id: 'net_polygon',
+      name: 'USDT (Polygon)',
+      networkKey: 'polygon',
+      networkLabel: 'Polygon POS (MATIC)',
+      addressOrId: '0xadf20566382613a481f39f62cd50b872314db1d3',
+      memoOrTag: '',
+      instructionsBn: 'Polygon (MATIC) নেটওয়ার্কে USDT সেন্ড করুন। ফি অত্যন্ত কম।',
+      enabled: false
+    }
+  ],
   bkashNumber: '01614572747',
   bkashEnabled: true,
+  bkashDeleted: false,
   bkashLogoUrl: '',
   nagadNumber: '01304104492',
   nagadEnabled: true,
+  nagadDeleted: false,
   nagadLogoUrl: '',
   customMethods: [],
-  instructionsBn: 'বাইন্যান্স (Binance Pay / UID) দিয়ে নির্ধারিত ডলার পাঠিয়ে আপনার Transaction ID / Order ID এবং আপনার প্রেরক আইডি নিচে লিখে সাবমিট করুন। এডমিন অনুমোদন করলেই সাথে সাথে আপনার ওয়ালেটে ব্যালেন্স জমা হবে।',
-  instructionsEn: 'Send USDT via Binance Pay / UID, then submit your Binance Transaction ID / Order ID below. Once approved by admin, your balance is credited instantly.'
+  instructionsBn: 'বাইন্যান্স (Binance Pay / UID / USDT) দিয়ে নির্ধারিত ডলার পাঠিয়ে আপনার Transaction ID / Order ID এবং আপনার প্রেরক আইডি নিচে লিখে সাবমিট করুন। এডমিন অনুমোদন করলেই সাথে সাথে আপনার ওয়ালেটে ব্যালেন্স জমা হবে।',
+  instructionsEn: 'Send USDT via Binance Pay / UID or On-chain network, then submit your Binance Transaction ID / Order ID below.'
 };
 
 if (!fs.existsSync(PAYMENT_SETTINGS_FILE)) {
@@ -342,28 +389,28 @@ if (!fs.existsSync(SITE_SETTINGS_FILE)) {
 
 const DEFAULT_BANNERS = [
   {
-    id: 'banner_1',
-    title: 'ওয়েব ফাইল কিনুন সাথে সাথে দামে',
-    titleBn: 'ওয়েব ফাইল কিনুন সাথে সাথে দামে',
-    subtitle: 'HTML5, CSS3, টেলিগ্রাম মিনি অ্যাপ এবং ফুল কোড ফাইল',
-    subtitleBn: 'HTML5, CSS3, টেলিগ্রাম মিনি অ্যাপ এবং ফুল কোড ফাইল',
-    badge: 'অল্প দামে',
-    imageUrl: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
-    link: 'market',
-    active: true,
-    order: 1
+    "id": "banner_1",
+    "title": "২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং",
+    "titleBn": "২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং",
+    "subtitle": "সুপারফাস্ট ক্লাউড সার্ভার, ইনস্ট্যান্ট অ্যাক্টিভেশন ও লাইভ টার্মিনাল কনসোল",
+    "subtitleBn": "সুপারফাস্ট ক্লাউড সার্ভার, ইনস্ট্যান্ট অ্যাক্টিভেশন ও লাইভ টার্মিনাল কনসোল",
+    "badge": "সুপারফাস্ট",
+    "imageUrl": "https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?auto=format&fit=crop&w=1200&q=80",
+    "link": "plans",
+    "active": true,
+    "order": 1
   },
   {
-    id: 'banner_2',
-    title: '২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং',
-    titleBn: '২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং',
-    subtitle: 'সুপারফাস্ট স্পিড, লাইভ কনসোল ও স্বয়ংক্রিয় অটো-রিস্টার্ট ওয়াচডগ',
-    subtitleBn: 'সুপারফাস্ট স্পিড, লাইভ কনসোল ও স্বয়ংক্রিয় অটো-রিস্টার্ট ওয়াচডগ',
-    badge: 'সাশ্রয়ী প্লান',
-    imageUrl: 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?auto=format&fit=crop&w=1200&q=80',
-    link: 'plans',
-    active: true,
-    order: 2
+    "id": "banner_2",
+    "title": "স্ট্যাটিক ওয়েবসাইট ও ওয়েব অ্যাপ হোস্টিং",
+    "titleBn": "স্ট্যাটিক ওয়েবসাইট ও ওয়েব অ্যাপ হোস্টিং",
+    "subtitle": "HTML, CSS, JS ও ফ্রন্টএন্ড কোড ফাইল সহজে হোস্ট ও পরিচালনা করুন",
+    "subtitleBn": "HTML, CSS, JS ও ফ্রন্টএন্ড কোড ফাইল সহজে হোস্ট ও পরিচালনা করুন",
+    "badge": "লাইভ হোস্টিং",
+    "imageUrl": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80",
+    "link": "websites",
+    "active": true,
+    "order": 2
   }
 ];
 

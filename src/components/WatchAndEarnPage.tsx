@@ -31,14 +31,14 @@ interface WatchAndEarnPageProps {
   lang?: 'bn' | 'en';
 }
 
-export const WatchAndEarnPage: React.FC<WatchAndEarnPageProps> = ({
+export const WatchAndEarnPage = ({
   user,
   onOpenAuthModal,
   onNavigateToWallet,
   onNavigateToPlans,
   onUserUpdated,
   lang = 'bn'
-}) => {
+}: WatchAndEarnPageProps) => {
   const [stats, setStats] = useState<AdRewardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [cooldownTime, setCooldownTime] = useState(0);

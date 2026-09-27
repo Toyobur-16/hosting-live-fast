@@ -267,38 +267,60 @@ export interface PlanRequest {
   reviewedBy?: string;
 }
 
+export interface CryptoNetworkItem {
+  id: string;
+  name: string; // e.g. "Binance Pay / UID" or "USDT (BEP-20)" or "USDT (TRC-20)"
+  networkKey: string; // 'binance_pay' | 'bep20' | 'trc20' | 'polygon' | 'solana' | 'ton' | 'erc20' | string
+  networkLabel: string; // 'BNB Smart Chain (BEP-20)' | 'Tron (TRC-20)'
+  addressOrId: string; // address or ID
+  memoOrTag?: string; // Optional deposit memo / tag
+  qrImageUrl?: string;
+  instructionsBn?: string;
+  instructionsEn?: string;
+  enabled: boolean;
+}
+
 export interface CustomDepositMethod {
   id: string;
   name: string;
   type: string;
   account: string;
+  network?: string;
   imageUrl?: string;
+  qrImageUrl?: string;
   instructions?: string;
+  currency?: 'BDT' | 'USD';
   enabled: boolean;
 }
 
 export interface PaymentSettings {
   binanceUid?: string;
   binancePayId?: string;
-  binanceId: string;
+  binanceId?: string;
   binanceBscAddress?: string;
+  binanceTrcAddress?: string;
   binanceEnabled?: boolean;
+  binanceDeleted?: boolean;
   binancePayApiEnabled?: boolean;
   binancePayApiKey?: string;
   binancePaySecretKey?: string;
   binancePayMerchantId?: string;
   hasBinanceCredentials?: boolean;
   binanceQrUrl?: string;
-  bkashNumber: string;
+  cryptoNetworks?: CryptoNetworkItem[];
+  bkashNumber?: string;
   bkashEnabled?: boolean;
   bkashQrUrl?: string;
   bkashLogoUrl?: string;
-  nagadNumber: string;
+  bkashDeleted?: boolean;
+  nagadNumber?: string;
   nagadEnabled?: boolean;
   nagadQrUrl?: string;
   nagadLogoUrl?: string;
+  nagadDeleted?: boolean;
   rocketNumber?: string;
   rocketEnabled?: boolean;
+  rocketDeleted?: boolean;
   rocketQrUrl?: string;
   customMethods?: CustomDepositMethod[];
   instructionsBn?: string;

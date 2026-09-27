@@ -15,7 +15,7 @@ interface LiveConsoleProps {
   onBackToBots?: () => void;
 }
 
-export const LiveConsole: React.FC<LiveConsoleProps> = ({
+export const LiveConsole = ({
   logs,
   onClear,
   lang,
@@ -26,7 +26,7 @@ export const LiveConsole: React.FC<LiveConsoleProps> = ({
   onRestart,
   loading = false,
   onBackToBots
-}) => {
+}: LiveConsoleProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
   const [copied, setCopied] = useState(false);

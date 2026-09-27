@@ -2,18 +2,75 @@
   "binanceUid": "922593999",
   "binancePayId": "922593999",
   "binanceId": "922593999",
+  "binanceBscAddress": "0xadf20566382613a481f39f62cd50b872314db1d3",
+  "binanceTrcAddress": "",
   "binanceEnabled": true,
+  "binanceDeleted": false,
   "binancePayApiEnabled": true,
   "binancePayApiKey": "",
   "binancePaySecretKey": "",
   "binancePayMerchantId": "",
+  "cryptoNetworks": [
+    {
+      "id": "net_binance_pay",
+      "name": "Binance Pay / UID",
+      "networkKey": "binance_pay",
+      "networkLabel": "Binance Pay / UID (Instant / Zero Fee)",
+      "addressOrId": "922593999",
+      "memoOrTag": "",
+      "instructionsBn": "Binance Pay ID / UID তে সেন্ড করুন। পেমেন্ট সম্পন্ন হলে Binance Order ID / Trx ID সাবমিট করুন।",
+      "enabled": true
+    },
+    {
+      "id": "net_bep20",
+      "name": "USDT (BEP-20)",
+      "networkKey": "bep20",
+      "networkLabel": "BNB Smart Chain (BEP-20)",
+      "addressOrId": "0xadf20566382613a481f39f62cd50b872314db1d3",
+      "memoOrTag": "",
+      "instructionsBn": "এই এড্রেসে শুধুমাত্র USDT (BEP-20) পাঠাবেন। ডিপোজিট শেষ হলে ব্লকচেইন Trx Hash দিন।",
+      "enabled": true
+    },
+    {
+      "id": "net_trc20",
+      "name": "USDT (TRC-20)",
+      "networkKey": "trc20",
+      "networkLabel": "Tron (TRC-20)",
+      "addressOrId": "TX7aA8b9qZ4eR2p3u5v6w7x8y9z0a1b2c3",
+      "memoOrTag": "",
+      "instructionsBn": "এই এড্রেসে শুধুমাত্র USDT (TRC-20) পাঠাবেন। ডিপোজিট শেষ হলে ট্রানজেকশন হ্যাশ (TxID) দিন।",
+      "enabled": true
+    },
+    {
+      "id": "net_polygon",
+      "name": "USDT (Polygon)",
+      "networkKey": "polygon",
+      "networkLabel": "Polygon POS (MATIC)",
+      "addressOrId": "0xadf20566382613a481f39f62cd50b872314db1d3",
+      "memoOrTag": "",
+      "instructionsBn": "Polygon (MATIC) নেটওয়ার্কে USDT সেন্ড করুন। ফি অত্যন্ত কম।",
+      "enabled": false
+    },
+    {
+      "id": "net_ton",
+      "name": "USDT (TON)",
+      "networkKey": "ton",
+      "networkLabel": "The Open Network (TON)",
+      "addressOrId": "EQD...ton_wallet_address",
+      "memoOrTag": "922593999",
+      "instructionsBn": "TON নেটওয়ার্কে USDT পাঠানোর সময় অবশ্যই Memo/Tag উল্লেখ করবেন।",
+      "enabled": false
+    }
+  ],
   "bkashNumber": "01614572747",
   "bkashEnabled": true,
+  "bkashDeleted": false,
   "bkashLogoUrl": "",
   "nagadNumber": "01304104492",
   "nagadEnabled": true,
+  "nagadDeleted": false,
   "nagadLogoUrl": "",
   "customMethods": [],
-  "instructionsBn": "বাইন্যান্স (Binance Pay / UID) দিয়ে নির্ধারিত ডলার পাঠিয়ে আপনার Transaction ID / Order ID এবং আপনার প্রেরক আইডি নিচে লিখে সাবমিট করুন। এডমিন অনুমোদন করলেই সাথে সাথে আপনার ওয়ালেটে ব্যালেন্স জমা হবে।",
-  "instructionsEn": "Send USDT via Binance Pay / UID, then submit your Binance Transaction ID / Order ID below. Once approved by admin, your balance is credited instantly."
+  "instructionsBn": "বাইন্যান্স (Binance Pay / UID / USDT) দিয়ে নির্ধারিত ডলার পাঠিয়ে আপনার Transaction ID / Order ID এবং আপনার প্রেরক আইডি নিচে লিখে সাবমিট করুন। এডমিন অনুমোদন করলেই সাথে সাথে আপনার ওয়ালেটে ব্যালেন্স জমা হবে।",
+  "instructionsEn": "Send USDT via Binance Pay / UID or On-chain network, then submit your Binance Transaction ID / Order ID below."
 }

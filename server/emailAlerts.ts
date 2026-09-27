@@ -22,8 +22,9 @@ export interface EmailAlertOptions {
   subject: string;
   html: string;
   text?: string;
-  type: 'deposit_approved' | 'deposit_rejected' | 'plan_expiring' | 'plan_expired' | 'plan_purchased' | 'system';
+  type: 'deposit_approved' | 'deposit_rejected' | 'plan_expiring' | 'plan_expired' | 'plan_purchased' | 'system' | 'verification' | 'password_reset';
   userId?: string;
+  skipNotification?: boolean;
 }
 
 export interface SmtpConfigInfo {
@@ -461,6 +462,20 @@ export function getUserNotifications(userId: string, userEmail?: string): any[] 
   const effectiveUserId = userId || lowerEmail;
 
   return all.filter((n) => {
+    // Strictly exclude any verification or password reset OTPs from in-app notifications (email-only)
+    if (
+      n.type === 'verification' ||
+      n.type === 'password_reset' ||
+      (n.title && (
+        n.title.includes('ভেরিফিকেশন') ||
+        n.title.includes('verification') ||
+        n.title.includes('পাসওয়ার্ড রিসেট') ||
+        n.title.includes('Password Reset')
+      ))
+    ) {
+      return false;
+    }
+
     // Check if dismissed by this user
     if (effectiveUserId && Array.isArray(n.dismissedBy) && n.dismissedBy.includes(effectiveUserId)) {
       return false;
@@ -1184,26 +1199,39 @@ export async function testSmtpWithParams(options: {
  * Delivers via SMTP if configured, and always stores an in-app persistent notification alert.
  */
 export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
-  const { to, subject, html, text, type, userId } = options;
+  const { to, subject, html, text, type, userId, skipNotification } = options;
 
-  // 1. Always store in persistent notification system
-  try {
-    const list = getStoredNotifications();
-    const newNotification = {
-      id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      userId: userId || to,
-      userEmail: to,
-      type,
-      title: subject,
-      message: text || html.replace(/<[^>]+>/g, ' ').slice(0, 300),
-      createdAt: new Date().toISOString(),
-      read: false
-    };
-    list.unshift(newNotification);
-    if (list.length > 500) list.splice(500);
-    saveStoredNotifications(list);
-  } catch (e) {
-    console.error('Notification storage error:', e);
+  // 1. Store in persistent notification system ONLY IF not an auth verification/password-reset code
+  const isAuthVerification =
+    skipNotification ||
+    type === 'verification' ||
+    type === 'password_reset' ||
+    (subject && (
+      subject.includes('ভেরিফিকেশন কোড') ||
+      subject.includes('verification code') ||
+      subject.includes('পাসওয়ার্ড রিসেট') ||
+      subject.includes('Password Reset')
+    ));
+
+  if (!isAuthVerification) {
+    try {
+      const list = getStoredNotifications();
+      const newNotification = {
+        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        userId: userId || to,
+        userEmail: to,
+        type,
+        title: subject,
+        message: text || html.replace(/<[^>]+>/g, ' ').slice(0, 300),
+        createdAt: new Date().toISOString(),
+        read: false
+      };
+      list.unshift(newNotification);
+      if (list.length > 500) list.splice(500);
+      saveStoredNotifications(list);
+    } catch (e) {
+      console.error('Notification storage error:', e);
+    }
   }
 
   // 2. Attempt real SMTP sending if configured
@@ -1750,8 +1778,9 @@ export async function sendVerificationEmail(
     subject,
     html,
     text,
-    type: 'system',
-    userId: to
+    type: 'verification',
+    userId: to,
+    skipNotification: true
   });
 }
 
@@ -1793,8 +1822,9 @@ export async function sendPasswordResetEmail(
     subject,
     html,
     text: `আপনার পাসওয়ার্ড রিসেট কোড: ${resetCodeOrLink} (মেয়াদ ১৫ মিনিট)`,
-    type: 'system',
-    userId: to
+    type: 'password_reset',
+    userId: to,
+    skipNotification: true
   });
 }
 

@@ -33,7 +33,7 @@ interface AuthModalProps {
   initialMode?: AuthMode;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({
+export const AuthModal = ({
   isOpen,
   onClose,
   onSuccess,
@@ -41,8 +41,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   lang = 'bn',
   initialEmail = '',
   initialMode = 'login'
-}) => {
-  const [mode, setMode] = useState<AuthMode>(initialMode);
+}: AuthModalProps) => {
+  const [mode, setMode] = useState<AuthMode>(initialMode || 'login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');

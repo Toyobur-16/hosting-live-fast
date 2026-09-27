@@ -7,7 +7,7 @@ import {
   ArrowUp, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, BarChart3, Layers, Sliders,
   Upload, Image as ImageIcon, Loader2
 } from 'lucide-react';
-import { PlanRequest, AuthUser, HostedBot, PaymentSettings, HostingPlan, FreeTrialSettings, CustomDepositMethod } from '../types';
+import { PlanRequest, AuthUser, HostedBot, PaymentSettings, HostingPlan, FreeTrialSettings, CustomDepositMethod, CryptoNetworkItem } from '../types';
 import { AdminBannersManager } from './admin/AdminBannersManager';
 import { AdminSupportManager } from './admin/AdminSupportManager';
 import { AdminNoticesManager } from './admin/AdminNoticesManager';
@@ -77,6 +77,65 @@ export const PAYMENT_ICON_PRESETS = [
     suggestedName: 'Cash / Agent Pay',
     color: '#10B981',
     url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23059669"/><rect x="22" y="30" width="56" height="40" rx="6" fill="%2310B981" stroke="white" stroke-width="2"/><circle cx="50" cy="50" r="12" fill="white" fill-opacity="0.25"/><text x="50" y="56" font-family="sans-serif" font-size="20" font-weight="900" fill="white" text-anchor="middle">৳</text></svg>'
+  }
+];
+
+export const CRYPTO_NETWORK_PRESETS = [
+  {
+    name: 'Binance Pay / UID',
+    networkKey: 'binance_pay',
+    networkLabel: 'Binance Pay / UID (Instant / Zero Fee)',
+    defaultAddress: '922593999',
+    memo: '',
+    instructions: 'Binance Pay ID / UID তে সেন্ড করুন। পেমেন্ট শেষ হলে Order ID / Trx ID দিন।'
+  },
+  {
+    name: 'USDT (BEP-20)',
+    networkKey: 'bep20',
+    networkLabel: 'BNB Smart Chain (BEP-20)',
+    defaultAddress: '0xadf20566382613a481f39f62cd50b872314db1d3',
+    memo: '',
+    instructions: 'শুধুমাত্র USDT (BEP-20) পাঠাবেন। ডিপোজিট শেষ হলে ব্লকচেইন TrxID / Hash দিন।'
+  },
+  {
+    name: 'USDT (TRC-20)',
+    networkKey: 'trc20',
+    networkLabel: 'Tron (TRC-20)',
+    defaultAddress: 'TX7aA8b9qZ4eR2p3u5v6w7x8y9z0a1b2c3',
+    memo: '',
+    instructions: 'শুধুমাত্র USDT (TRC-20) পাঠাবেন। ডিপোজিট শেষ হলে ট্রানজেকশন হ্যাশ (TxID) দিন।'
+  },
+  {
+    name: 'USDT (Polygon)',
+    networkKey: 'polygon',
+    networkLabel: 'Polygon POS (MATIC)',
+    defaultAddress: '0xadf20566382613a481f39f62cd50b872314db1d3',
+    memo: '',
+    instructions: 'Polygon (MATIC) নেটওয়ার্কে USDT সেন্ড করুন। ফি অত্যন্ত কম।'
+  },
+  {
+    name: 'USDT (Solana)',
+    networkKey: 'solana',
+    networkLabel: 'Solana (SOL)',
+    defaultAddress: '',
+    memo: '',
+    instructions: 'Solana নেটওয়ার্কে USDT (SPL) সেন্ড করুন।'
+  },
+  {
+    name: 'USDT (TON)',
+    networkKey: 'ton',
+    networkLabel: 'The Open Network (TON)',
+    defaultAddress: '',
+    memo: '922593999',
+    instructions: 'TON নেটওয়ার্কে USDT পাঠানোর সময় অবশ্যই Memo/Comment উল্লেখ করবেন।'
+  },
+  {
+    name: 'USDT (ERC-20)',
+    networkKey: 'erc20',
+    networkLabel: 'Ethereum (ERC-20)',
+    defaultAddress: '0xadf20566382613a481f39f62cd50b872314db1d3',
+    memo: '',
+    instructions: 'Ethereum (ERC-20) নেটওয়ার্কে USDT সেন্ড করুন।'
   }
 ];
 
@@ -839,7 +898,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 return (
                   <button
                     key={tab.id}
-                    ref={(el) => (tabButtonRefs.current[tab.id] = el)}
+                    ref={(el) => { tabButtonRefs.current[tab.id] = el; }}
                     onClick={() => handleSelectTab(tab.id)}
                     className={`min-h-[38px] px-3.5 sm:px-4 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 border ${
                       isActive
@@ -1550,220 +1609,522 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               </div>
             </div>
 
+            {/* Deleted Default Methods Restoration Banner */}
+            {(paymentSettings.bkashDeleted || paymentSettings.nagadDeleted || paymentSettings.binanceDeleted) && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="text-slate-300 font-semibold">
+                    মুছে ফেলা ডিফল্ট মেথডসমূহ (পুনরায় ফিরিয়ে আনতে চাইলে ক্লিক করুন):
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {paymentSettings.bkashDeleted && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentSettings({ ...paymentSettings, bkashDeleted: false, bkashEnabled: true })}
+                      className="px-2.5 py-1 rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-bold text-[11px] cursor-pointer shadow-xs transition"
+                    >
+                      + bKash রিস্টোর
+                    </button>
+                  )}
+                  {paymentSettings.nagadDeleted && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentSettings({ ...paymentSettings, nagadDeleted: false, nagadEnabled: true })}
+                      className="px-2.5 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-[11px] cursor-pointer shadow-xs transition"
+                    >
+                      + Nagad রিস্টোর
+                    </button>
+                  )}
+                  {paymentSettings.binanceDeleted && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentSettings({ ...paymentSettings, binanceDeleted: false, binanceEnabled: true })}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] cursor-pointer shadow-xs transition"
+                    >
+                      + Binance রিস্টোর
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              {/* bKash */}
-              <div className="p-3 rounded-xl bg-[#090e18] border border-[#1f2d48] space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-pink-400 flex items-center gap-1.5">
-                    <span>bKash (বিকাশ) একাউন্ট:</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={paymentSettings.bkashEnabled !== false}
-                      onChange={(e) => setPaymentSettings({ ...paymentSettings, bkashEnabled: e.target.checked })}
-                      className="accent-pink-500 rounded"
-                    />
-                    <span>সক্রিয়</span>
-                  </label>
-                </div>
-                <input
-                  type="text"
-                  value={paymentSettings.bkashNumber}
-                  onChange={(e) => setPaymentSettings({ ...paymentSettings, bkashNumber: e.target.value })}
-                  placeholder="01614572747 (Send Money Personal)"
-                  className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-pink-500 font-mono"
-                />
-
-                {/* bKash Custom Logo / Icon */}
-                <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-xl bg-[#050912] border border-[#141f32]">
-                  <div className="flex items-center gap-2">
-                    {paymentSettings.bkashLogoUrl ? (
-                      <img src={paymentSettings.bkashLogoUrl} alt="bKash" className="w-8 h-8 rounded-lg object-contain bg-black/40 border border-pink-500/30 p-0.5" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-lg bg-[#E2136E]/20 text-pink-400 border border-[#E2136E]/40 flex items-center justify-center font-bold text-[9px]">
-                        বিকাশ
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-[11px] font-bold text-slate-200">
-                        লোগো / আইকন (Optional Logo)
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {paymentSettings.bkashLogoUrl ? 'কাস্টম লোগো সক্রিয়' : 'ডিফল্ট bKash লোগো'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {paymentSettings.bkashLogoUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setPaymentSettings({ ...paymentSettings, bkashLogoUrl: '' })}
-                        className="px-2 py-1 text-[10px] font-bold rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 cursor-pointer"
-                      >
-                        রিমুভ
-                      </button>
-                    )}
-                    <label className="px-2.5 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer transition">
-                      {uploadingQrField === 'bkash_logo' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                      <span>{paymentSettings.bkashLogoUrl ? 'পরিবর্তন' : '📷 লোগো আপলোড'}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleUploadPaymentImage(f, 'bkash_logo', (url) => setPaymentSettings((prev) => ({ ...prev, bkashLogoUrl: url })));
-                        }}
-                      />
+              {/* bKash (Only shown if not deleted) */}
+              {!paymentSettings.bkashDeleted && (
+                <div className="p-3.5 rounded-2xl bg-[#090e18] border border-[#1f2d48] space-y-2.5 relative">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-pink-400 flex items-center gap-1.5">
+                      <span>bKash (বিকাশ) একাউন্ট:</span>
                     </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Nagad */}
-              <div className="p-3 rounded-xl bg-[#090e18] border border-[#1f2d48] space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-orange-400 flex items-center gap-1.5">
-                    <span>Nagad (নগদ) একাউন্ট:</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={paymentSettings.nagadEnabled !== false}
-                      onChange={(e) => setPaymentSettings({ ...paymentSettings, nagadEnabled: e.target.checked })}
-                      className="accent-orange-500 rounded"
-                    />
-                    <span>সক্রিয়</span>
-                  </label>
-                </div>
-                <input
-                  type="text"
-                  value={paymentSettings.nagadNumber}
-                  onChange={(e) => setPaymentSettings({ ...paymentSettings, nagadNumber: e.target.value })}
-                  placeholder="01304104492 (Send Money Personal)"
-                  className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-orange-500 font-mono"
-                />
-
-                {/* Nagad Custom Logo / Icon */}
-                <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-xl bg-[#050912] border border-[#141f32]">
-                  <div className="flex items-center gap-2">
-                    {paymentSettings.nagadLogoUrl ? (
-                      <img src={paymentSettings.nagadLogoUrl} alt="Nagad" className="w-8 h-8 rounded-lg object-contain bg-black/40 border border-orange-500/30 p-0.5" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-lg bg-[#F15A24]/20 text-orange-400 border border-[#F15A24]/40 flex items-center justify-center font-bold text-[9px]">
-                        নগদ
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-[11px] font-bold text-slate-200">
-                        লোগো / আইকন (Optional Logo)
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {paymentSettings.nagadLogoUrl ? 'কাস্টম লোগো সক্রিয়' : 'ডিফল্ট Nagad লোগো'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {paymentSettings.nagadLogoUrl && (
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={paymentSettings.bkashEnabled !== false}
+                          onChange={(e) => setPaymentSettings({ ...paymentSettings, bkashEnabled: e.target.checked })}
+                          className="accent-pink-500 rounded"
+                        />
+                        <span>সক্রিয়</span>
+                      </label>
                       <button
                         type="button"
-                        onClick={() => setPaymentSettings({ ...paymentSettings, nagadLogoUrl: '' })}
-                        className="px-2 py-1 text-[10px] font-bold rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 cursor-pointer"
-                      >
-                        রিমুভ
-                      </button>
-                    )}
-                    <label className="px-2.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer transition">
-                      {uploadingQrField === 'nagad_logo' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                      <span>{paymentSettings.nagadLogoUrl ? 'পরিবর্তন' : '📷 লোগো আপলোড'}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleUploadPaymentImage(f, 'nagad_logo', (url) => setPaymentSettings((prev) => ({ ...prev, nagadLogoUrl: url })));
+                        onClick={() => {
+                          if (confirm('আপনি কি নিশ্চিত যে bKash মেথডটি সম্পূর্ণ ডিলিট করতে চান? ডিপোজিট পেজে এটি আর দেখা যাবে না।')) {
+                            setPaymentSettings({ ...paymentSettings, bkashDeleted: true, bkashEnabled: false });
+                          }
                         }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Binance USDT */}
-              <div className="p-3 rounded-xl bg-[#090e18] border border-[#1f2d48] space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-amber-400 flex items-center gap-1.5">
-                    <span>Binance Pay / UID / USDT Wallet:</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={paymentSettings.binanceEnabled !== false}
-                      onChange={(e) => setPaymentSettings({ ...paymentSettings, binanceEnabled: e.target.checked })}
-                      className="accent-amber-500 rounded"
-                    />
-                    <span>সক্রিয়</span>
-                  </label>
-                </div>
-                <input
-                  type="text"
-                  value={paymentSettings.binancePayId || paymentSettings.binanceUid || paymentSettings.binanceId}
-                  onChange={(e) => setPaymentSettings({ ...paymentSettings, binancePayId: e.target.value, binanceUid: e.target.value })}
-                  placeholder="849201948 (Binance Pay ID / UID)"
-                  className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
-                />
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 mb-1">
-                    Binance BEP-20 (BSC) USDT এড্রেস (ঐচ্ছিক):
-                  </label>
-                  <input
-                    type="text"
-                    value={paymentSettings.binanceBscAddress || ''}
-                    onChange={(e) => setPaymentSettings({ ...paymentSettings, binanceBscAddress: e.target.value })}
-                    placeholder="0xadf20566382613a481f39f62cd50b872314db1d3"
-                    className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
-                  />
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  {paymentSettings.binanceQrUrl ? (
-                    <div className="flex items-center gap-2 flex-1 min-w-0 bg-[#0d1524] p-1.5 rounded-lg border border-[#1f2d48]">
-                      <img src={paymentSettings.binanceQrUrl} alt="Binance QR" className="w-8 h-8 rounded object-cover border border-[#2b3d60]" />
-                      <span className="text-[10px] text-slate-400 truncate flex-1">QR কোড যুক্ত আছে</span>
-                      <button
-                        type="button"
-                        onClick={() => setPaymentSettings({ ...paymentSettings, binanceQrUrl: '' })}
-                        className="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"
-                        title="রিমুভ করুন"
+                        className="p-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition cursor-pointer"
+                        title="মেথড সম্পূর্ণ মুছুন (Delete Method)"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 flex-1">QR বা পিকচার নেই</span>
-                  )}
-                  <label className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition shrink-0">
-                    {uploadingQrField === 'binance' ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Upload className="w-3 h-3" />
-                    )}
-                    <span>{paymentSettings.binanceQrUrl ? 'পরিবর্তন' : 'পিকচার আপলোড'}</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={paymentSettings.bkashNumber || ''}
+                    onChange={(e) => setPaymentSettings({ ...paymentSettings, bkashNumber: e.target.value })}
+                    placeholder="01614572747 (Send Money Personal)"
+                    className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-pink-500 font-mono"
+                  />
+
+                  {/* bKash Custom Logo / Icon */}
+                  <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-xl bg-[#050912] border border-[#141f32]">
+                    <div className="flex items-center gap-2">
+                      {paymentSettings.bkashLogoUrl ? (
+                        <img src={paymentSettings.bkashLogoUrl} alt="bKash" className="w-8 h-8 rounded-lg object-contain bg-black/40 border border-pink-500/30 p-0.5" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-[#E2136E]/20 text-pink-400 border border-[#E2136E]/40 flex items-center justify-center font-bold text-[9px]">
+                          বিকাশ
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-200">
+                          লোগো / আইকন (Optional Logo)
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {paymentSettings.bkashLogoUrl ? 'কাস্টম লোগো সক্রিয়' : 'ডিফল্ট bKash লোগো'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {paymentSettings.bkashLogoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentSettings({ ...paymentSettings, bkashLogoUrl: '' })}
+                          className="px-2 py-1 text-[10px] font-bold rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 cursor-pointer"
+                        >
+                          রিমুভ
+                        </button>
+                      )}
+                      <label className="px-2.5 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer transition">
+                        {uploadingQrField === 'bkash_logo' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                        <span>{paymentSettings.bkashLogoUrl ? 'পরিবর্তন' : '📷 লোগো আপলোড'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleUploadPaymentImage(f, 'bkash_logo', (url) => setPaymentSettings((prev) => ({ ...prev, bkashLogoUrl: url })));
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Nagad (Only shown if not deleted) */}
+              {!paymentSettings.nagadDeleted && (
+                <div className="p-3.5 rounded-2xl bg-[#090e18] border border-[#1f2d48] space-y-2.5 relative">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-orange-400 flex items-center gap-1.5">
+                      <span>Nagad (নগদ) একাউন্ট:</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={paymentSettings.nagadEnabled !== false}
+                          onChange={(e) => setPaymentSettings({ ...paymentSettings, nagadEnabled: e.target.checked })}
+                          className="accent-orange-500 rounded"
+                        />
+                        <span>সক্রিয়</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm('আপনি কি নিশ্চিত যে Nagad মেথডটি সম্পূর্ণ ডিলিট করতে চান? ডিপোজিট পেজে এটি আর দেখা যাবে না।')) {
+                            setPaymentSettings({ ...paymentSettings, nagadDeleted: true, nagadEnabled: false });
+                          }
+                        }}
+                        className="p-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition cursor-pointer"
+                        title="মেথড সম্পূর্ণ মুছুন (Delete Method)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={paymentSettings.nagadNumber || ''}
+                    onChange={(e) => setPaymentSettings({ ...paymentSettings, nagadNumber: e.target.value })}
+                    placeholder="01304104492 (Send Money Personal)"
+                    className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-orange-500 font-mono"
+                  />
+
+                  {/* Nagad Custom Logo / Icon */}
+                  <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-xl bg-[#050912] border border-[#141f32]">
+                    <div className="flex items-center gap-2">
+                      {paymentSettings.nagadLogoUrl ? (
+                        <img src={paymentSettings.nagadLogoUrl} alt="Nagad" className="w-8 h-8 rounded-lg object-contain bg-black/40 border border-orange-500/30 p-0.5" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-[#F15A24]/20 text-orange-400 border border-[#F15A24]/40 flex items-center justify-center font-bold text-[9px]">
+                          নগদ
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-200">
+                          লোগো / আইকন (Optional Logo)
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {paymentSettings.nagadLogoUrl ? 'কাস্টম লোগো সক্রিয়' : 'ডিফল্ট Nagad লোগো'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {paymentSettings.nagadLogoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentSettings({ ...paymentSettings, nagadLogoUrl: '' })}
+                          className="px-2 py-1 text-[10px] font-bold rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 cursor-pointer"
+                        >
+                          রিমুভ
+                        </button>
+                      )}
+                      <label className="px-2.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer transition">
+                        {uploadingQrField === 'nagad_logo' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                        <span>{paymentSettings.nagadLogoUrl ? 'পরিবর্তন' : '📷 লোগো আপলোড'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleUploadPaymentImage(f, 'nagad_logo', (url) => setPaymentSettings((prev) => ({ ...prev, nagadLogoUrl: url })));
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Binance Base Method (Only shown if not deleted) */}
+              {!paymentSettings.binanceDeleted && (
+                <div className="p-3.5 rounded-2xl bg-[#090e18] border border-[#1f2d48] space-y-2.5 relative">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-amber-400 flex items-center gap-1.5">
+                      <span>Binance Pay / UID একাউন্ট:</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={paymentSettings.binanceEnabled !== false}
+                          onChange={(e) => setPaymentSettings({ ...paymentSettings, binanceEnabled: e.target.checked })}
+                          className="accent-amber-500 rounded"
+                        />
+                        <span>সক্রিয়</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm('আপনি কি নিশ্চিত যে Binance মেথডটি সম্পূর্ণ ডিলিট করতে চান?')) {
+                            setPaymentSettings({ ...paymentSettings, binanceDeleted: true, binanceEnabled: false });
+                          }
+                        }}
+                        className="p-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition cursor-pointer"
+                        title="মেথড সম্পূর্ণ মুছুন (Delete Method)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={paymentSettings.binancePayId || paymentSettings.binanceUid || paymentSettings.binanceId || ''}
+                    onChange={(e) => setPaymentSettings({ ...paymentSettings, binancePayId: e.target.value, binanceUid: e.target.value, binanceId: e.target.value })}
+                    placeholder="922593999 (Binance Pay ID / UID)"
+                    className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                      Binance BEP-20 (BSC) এড্রেস:
+                    </label>
                     <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleUploadPaymentImage(f, 'binance', (url) => setPaymentSettings((prev) => ({ ...prev, binanceQrUrl: url })));
-                      }}
+                      type="text"
+                      value={paymentSettings.binanceBscAddress || ''}
+                      onChange={(e) => setPaymentSettings({ ...paymentSettings, binanceBscAddress: e.target.value })}
+                      placeholder="0xadf20566382613a481f39f62cd50b872314db1d3"
+                      className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
                     />
-                  </label>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    {paymentSettings.binanceQrUrl ? (
+                      <div className="flex items-center gap-2 flex-1 min-w-0 bg-[#0d1524] p-1.5 rounded-lg border border-[#1f2d48]">
+                        <img src={paymentSettings.binanceQrUrl} alt="Binance QR" className="w-8 h-8 rounded object-cover border border-[#2b3d60]" />
+                        <span className="text-[10px] text-slate-400 truncate flex-1">QR কোড যুক্ত আছে</span>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentSettings({ ...paymentSettings, binanceQrUrl: '' })}
+                          className="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"
+                          title="রিমুভ করুন"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 flex-1">QR বা পিকচার নেই</span>
+                    )}
+                    <label className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition shrink-0">
+                      {uploadingQrField === 'binance' ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Upload className="w-3 h-3" />
+                      )}
+                      <span>{paymentSettings.binanceQrUrl ? 'পরিবর্তন' : 'পিকচার আপলোড'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleUploadPaymentImage(f, 'binance', (url) => setPaymentSettings((prev) => ({ ...prev, binanceQrUrl: url })));
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* SEPARATE CRYPTO NETWORKS MANAGER */}
+            <div className="p-4 rounded-2xl bg-[#080d18] border border-[#1f2d48] space-y-3 mt-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h5 className="text-xs font-black text-amber-400 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>🌐 ক্রিপ্টো নেটওয়ার্কসমূহ (Crypto Networks - TRC20, BEP20, Polygon, Solana, TON ইত্যাদি)</span>
+                  </h5>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    ইউজাররা ডিপোজিট পেজে প্রতিটি নেটওয়ার্ক আলাদা আলাদা সিলেক্ট করে নির্ধারিত এড্রেসে ডলার পাঠাতে পারবেন।
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newId = `net_${Date.now()}`;
+                      const currentList = paymentSettings.cryptoNetworks || [];
+                      setPaymentSettings({
+                        ...paymentSettings,
+                        cryptoNetworks: [
+                          ...currentList,
+                          {
+                            id: newId,
+                            name: 'USDT (TRC-20)',
+                            networkKey: 'trc20',
+                            networkLabel: 'Tron (TRC-20)',
+                            addressOrId: '',
+                            memoOrTag: '',
+                            instructionsBn: 'এই ঠিকানায় শুধুমাত্র USDT (TRC-20) পাঠাবেন।',
+                            enabled: true
+                          }
+                        ]
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 shadow-md cursor-pointer transition shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>নতুন নেটওয়ার্ক যোগ করুন</span>
+                  </button>
                 </div>
               </div>
+
+              {/* Quick Presets for Common Networks */}
+              <div className="p-2.5 rounded-xl bg-[#050912] border border-[#141f32]">
+                <div className="text-[10px] font-bold text-slate-400 mb-1.5">
+                  ১-ক্লিকে জনপ্রিয় নেটওয়ার্ক যুক্ত করুন:
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {CRYPTO_NETWORK_PRESETS.map((preset) => {
+                    const alreadyExists = (paymentSettings.cryptoNetworks || []).some((n) => n.networkKey === preset.networkKey);
+                    return (
+                      <button
+                        key={preset.networkKey}
+                        type="button"
+                        onClick={() => {
+                          const currentList = paymentSettings.cryptoNetworks || [];
+                          if (alreadyExists) {
+                            alert(`'${preset.name}' নেটওয়ার্কটি ইতোমধ্যে যুক্ত আছে।`);
+                            return;
+                          }
+                          setPaymentSettings({
+                            ...paymentSettings,
+                            cryptoNetworks: [
+                              ...currentList,
+                              {
+                                id: `net_${preset.networkKey}_${Date.now()}`,
+                                name: preset.name,
+                                networkKey: preset.networkKey,
+                                networkLabel: preset.networkLabel,
+                                addressOrId: preset.defaultAddress,
+                                memoOrTag: preset.memo,
+                                instructionsBn: preset.instructions,
+                                enabled: true
+                              }
+                            ]
+                          });
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 ${
+                          alreadyExists
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 opacity-60'
+                            : 'bg-[#0e1728] border-[#1d2d46] hover:border-amber-400 text-slate-200'
+                        }`}
+                      >
+                        <span>+ {preset.name}</span>
+                        {alreadyExists && <Check className="w-2.5 h-2.5 text-amber-400" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Networks List */}
+              {(!paymentSettings.cryptoNetworks || paymentSettings.cryptoNetworks.length === 0) ? (
+                <div className="py-4 text-center text-xs text-slate-500 border border-dashed border-[#1f2d48] rounded-xl">
+                  কোনো ক্রিপ্টো নেটওয়ার্ক কনফিগার করা নেই। উপরের প্রি-সেট থেকে TRC-20 বা BEP-20 যোগ করুন।
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {paymentSettings.cryptoNetworks.map((net, idx) => (
+                    <div key={net.id || idx} className="p-3.5 rounded-xl bg-[#0b1220] border border-[#1f2d48] space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 text-[10px] font-black uppercase">
+                            {net.networkKey || 'CRYPTO'}
+                          </span>
+                          <span className="text-xs font-bold text-white">
+                            {net.name || 'Crypto Network'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={net.enabled !== false}
+                              onChange={(e) => {
+                                const list = [...(paymentSettings.cryptoNetworks || [])];
+                                list[idx] = { ...list[idx], enabled: e.target.checked };
+                                setPaymentSettings({ ...paymentSettings, cryptoNetworks: list });
+                              }}
+                              className="accent-amber-500 rounded"
+                            />
+                            <span>সক্রিয়</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const list = (paymentSettings.cryptoNetworks || []).filter((_, i) => i !== idx);
+                              setPaymentSettings({ ...paymentSettings, cryptoNetworks: list });
+                            }}
+                            className="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded cursor-pointer transition"
+                            title="নেটওয়ার্ক ডিলিট করুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                            নেটওয়ার্কের নাম (Name):
+                          </label>
+                          <input
+                            type="text"
+                            value={net.name}
+                            onChange={(e) => {
+                              const list = [...(paymentSettings.cryptoNetworks || [])];
+                              list[idx] = { ...list[idx], name: e.target.value };
+                              setPaymentSettings({ ...paymentSettings, cryptoNetworks: list });
+                            }}
+                            placeholder="যেমন: USDT (TRC-20)"
+                            className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                            ওয়ালেট এড্রেস / Pay ID (Address / Pay ID):
+                          </label>
+                          <input
+                            type="text"
+                            value={net.addressOrId}
+                            onChange={(e) => {
+                              const list = [...(paymentSettings.cryptoNetworks || [])];
+                              list[idx] = { ...list[idx], addressOrId: e.target.value };
+                              setPaymentSettings({ ...paymentSettings, cryptoNetworks: list });
+                            }}
+                            placeholder="যেমন: TX7aA8b9qZ4eR2p3u5v6w7x8y9z0a1b2c3"
+                            className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                            মেমো / ট্যাগ (Memo/Tag - ঐচ্ছিক):
+                          </label>
+                          <input
+                            type="text"
+                            value={net.memoOrTag || ''}
+                            onChange={(e) => {
+                              const list = [...(paymentSettings.cryptoNetworks || [])];
+                              list[idx] = { ...list[idx], memoOrTag: e.target.value };
+                              setPaymentSettings({ ...paymentSettings, cryptoNetworks: list });
+                            }}
+                            placeholder="TON বা মেমো প্রয়োজন হলে লিখুন"
+                            className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                            নির্দেশনা (Instructions):
+                          </label>
+                          <input
+                            type="text"
+                            value={net.instructionsBn || ''}
+                            onChange={(e) => {
+                              const list = [...(paymentSettings.cryptoNetworks || [])];
+                              list[idx] = { ...list[idx], instructionsBn: e.target.value };
+                              setPaymentSettings({ ...paymentSettings, cryptoNetworks: list });
+                            }}
+                            placeholder="যেমন: শুধুমাত্র TRC-20 নেটওয়ার্কে পাঠাবেন"
+                            className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Custom Deposit Methods Section with Direct Picture Upload */}
