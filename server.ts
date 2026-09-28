@@ -6753,6 +6753,19 @@ app.get(
   }
 );
 
+// HilltopAds Site Ownership Verification routes (.txt, .html, and bare path)
+app.get(
+  [
+    '/a1761586c89975927ec2.txt',
+    '/a1761586c89975927ec2.html',
+    '/a1761586c89975927ec2'
+  ],
+  (req, res) => {
+    res.type(req.path.endsWith('.html') ? 'text/html' : 'text/plain');
+    res.send('hilltopads');
+  }
+);
+
 // ExoClick VAST XML Resolver & Proxy (handles Client Hints forwarding, Wrapper chains, and MediaFile extraction)
 function extractCdataOrText(xmlChunk: string): string {
   const cdataMatch = xmlChunk.match(/<!\[CDATA\[([\s\S]*?)\]\]>/i);
