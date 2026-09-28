@@ -47,10 +47,11 @@ export const WatchAndEarnPage = ({
 
   // Ad Watching Modal State
   const DEFAULT_VIDEO_ADS = [
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-    'https://www.w3schools.com/html/mov_bbb.mp4',
-    'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
+    'https://n2j9y0x0.bxcdn.net/library/342126/1d38c863ceaac9cb1c656e91234b0cf43ed2db7d.mp4',
+    'https://n2j9y0x0.bxcdn.net/library/1001276/06966f9de226ef7ef2f931b239f5008168a80b5d.mp4',
+    'https://storage.googleapis.com/gvabox/media/samples/stock.mp4',
+    'https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-576p.mp4',
+    'https://vjs.zencdn.net/v/oceans.mp4'
   ];
 
   const DEFAULT_EXOCLICK_VAST_URLS = [
@@ -61,26 +62,75 @@ export const WatchAndEarnPage = ({
 
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const [watchProgress, setWatchProgress] = useState(0);
   const [adDurationSeconds, setAdDurationSeconds] = useState(15);
   const [remainingAdTime, setRemainingAdTime] = useState(15);
-  const [adMuted, setAdMuted] = useState(true);
+  const [adMuted, setAdMuted] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [adCompletedReady, setAdCompletedReady] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
-  const [activeVideoUrl, setActiveVideoUrl] = useState<string>(DEFAULT_VIDEO_ADS[0]);
+  const [earlyCloseNotice, setEarlyCloseNotice] = useState<string | null>(null);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string>('');
   const [activeRedirectUrl, setActiveRedirectUrl] = useState<string>(
-    'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8'
+    'https://s.magsrv.com/click.php?d=H4sIAAAAAAAAA42PwW6DMAyGn6a3EiWOTeLjLt1hh03aEwQILVILFTDQJD_8ArQThx0mO7KjfL_9x6NGclq0XMbxPhzsywFOKed5VvX1q6nu1_Ade1V2N0mQcayJkYDl0g1j056zazPFrA7DmE15M6iu7WNbPRQWVUogVIa8GMtMzhuQXCOQzgXZL1NBvFuGaxYxKUQAQBDYxao0XDAFLH2kUGMIdR61D0WoV.F_XOg1_iaPT_K4_tA84CWM9xoIFjfJmpbdE_6CZmsFUiUSSmy6yefrxw7fCd3WKL2onkMGdQvnoZ9Wt8v3EwBblXxbk86Udry_CRI7LAzbwhaRY4XeJJtsIrgQbFH9AEUyD87SAQAA'
   );
+  const [activeDisplayDomain, setActiveDisplayDomain] = useState<string>('exoclick.com');
+  const [activeCtaText, setActiveCtaText] = useState<string>('View More');
+  const [activeZoneId, setActiveZoneId] = useState<string>('6042506');
+  const [activeAdId, setActiveAdId] = useState<string>('8404570');
   const [vastTrackingEvents, setVastTrackingEvents] = useState<Record<string, string[]>>({});
   const [vastClickTrackingUrls, setVastClickTrackingUrls] = useState<string[]>([]);
   const firedVastEventsRef = useRef<Set<string>>(new Set());
+  const watchedVideosHistoryRef = useRef<string[]>([]);
+  const adClickCountRef = useRef<number>(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fullScreenContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const getWatchedHistory = (): string[] => {
+    try {
+      const saved = sessionStorage.getItem('exoclick_watched_videos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          watchedVideosHistoryRef.current = parsed;
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    return watchedVideosHistoryRef.current;
+  };
+
+  const recordWatchedVideo = (videoUrl: string) => {
+    if (!videoUrl) return;
+    const current = getWatchedHistory().filter((u) => u !== videoUrl);
+    // Keep last 4 watched videos in exclusion history so all 5 creatives rotate before repeating
+    const updated = [videoUrl, ...current].slice(0, 4);
+    watchedVideosHistoryRef.current = updated;
+    try {
+      sessionStorage.setItem('exoclick_watched_videos', JSON.stringify(updated));
+    } catch {
+      // Ignore
+    }
+  };
+
+  const pickNextUnseenFallbackVideo = (): string => {
+    const history = new Set(getWatchedHistory());
+    const unseen = DEFAULT_VIDEO_ADS.filter((u) => !history.has(u));
+    if (unseen.length > 0) {
+      return unseen[adClickCountRef.current % unseen.length];
+    }
+    return DEFAULT_VIDEO_ADS[adClickCountRef.current % DEFAULT_VIDEO_ADS.length];
+  };
 
   const fireTrackingUrls = (urls?: string[]) => {
     if (!urls || !Array.isArray(urls)) return;
-    urls.forEach((u) => {
-      if (!u || !u.startsWith('http')) return;
+    const validUrls = urls.filter((u) => u && u.startsWith('http'));
+    if (validUrls.length === 0) return;
+
+    validUrls.forEach((u) => {
       try {
         const img = new Image();
         img.referrerPolicy = 'no-referrer-when-downgrade';
@@ -89,11 +139,19 @@ export const WatchAndEarnPage = ({
         fetch(u, { mode: 'no-cors', keepalive: true }).catch(() => {});
       }
     });
+
+    // Also fire via server-side ExoClick proxy with verified Referer so 100% of views register
+    fetch('/api/ads/vast-track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: validUrls })
+    }).catch(() => {});
   };
 
   const parseClientVastXml = (xmlText: string) => {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+    const adId = xmlDoc.querySelector('Ad')?.getAttribute('id')?.trim() || '';
 
     const impressionUrls: string[] = [];
     xmlDoc.querySelectorAll('Impression').forEach((el) => {
@@ -121,6 +179,12 @@ export const WatchAndEarnPage = ({
     });
 
     const clickThroughUrl = xmlDoc.querySelector('ClickThrough')?.textContent?.trim() || '';
+    const displayUrl = xmlDoc.querySelector('DisplayUrl')?.textContent?.trim() || '';
+    const ctaText =
+      xmlDoc.querySelector('MobileText')?.textContent?.trim() ||
+      xmlDoc.querySelector('PCText')?.textContent?.trim() ||
+      '';
+
     const clickTrackingUrls: string[] = [];
     xmlDoc.querySelectorAll('ClickTracking').forEach((el) => {
       const val = el.textContent?.trim();
@@ -128,33 +192,63 @@ export const WatchAndEarnPage = ({
     });
 
     const trackingEvents: Record<string, string[]> = {};
+    const addTrack = (evKey: string, u: string) => {
+      if (!trackingEvents[evKey]) trackingEvents[evKey] = [];
+      if (!trackingEvents[evKey].includes(u)) trackingEvents[evKey].push(u);
+    };
+
     xmlDoc.querySelectorAll('Tracking').forEach((el) => {
-      const ev = el.getAttribute('event')?.trim();
-      const val = el.textContent?.trim();
-      if (ev && val && val.startsWith('http')) {
-        if (!trackingEvents[ev]) trackingEvents[ev] = [];
-        trackingEvents[ev].push(val);
+      const ev = el.getAttribute('event')?.trim() || '';
+      const id = el.getAttribute('id')?.trim() || '';
+      const val = el.textContent?.trim() || '';
+      if (!val || !val.startsWith('http')) return;
+
+      if (ev === 'progress') {
+        if (id === 'prog_1' || val.includes('progress=0%')) {
+          addTrack('start', val);
+        } else if (id === 'prog_2' || val.includes('progress=25%')) {
+          addTrack('firstQuartile', val);
+        } else if (id === 'prog_3' || val.includes('progress=50%')) {
+          addTrack('midpoint', val);
+        } else if (id === 'prog_4' || val.includes('progress=75%')) {
+          addTrack('thirdQuartile', val);
+        } else if (id === 'prog_5' || val.includes('progress=100%')) {
+          addTrack('complete', val);
+        } else {
+          addTrack('progress', val);
+        }
+      } else if (ev) {
+        addTrack(ev, val);
       }
     });
 
     return {
+      adId,
       wrapperUri,
       mediaFileUrl: mediaCandidates[0]?.url || '',
       clickThroughUrl,
+      displayUrl,
+      ctaText,
       impressionUrls,
       clickTrackingUrls,
       trackingEvents
     };
   };
 
-  const resolveExoClickVastVideo = async (candidateUrls: string[]) => {
-    const urlsToTry = Array.from(
-      new Set([...candidateUrls, ...DEFAULT_EXOCLICK_VAST_URLS].filter((u) => u && u.startsWith('http')))
+  const resolveExoClickVastVideo = async (candidateUrls: string[], excludedList: string[]) => {
+    const excludedSet = new Set(excludedList.filter(Boolean));
+    const baseUrls = Array.from(
+      new Set([...DEFAULT_EXOCLICK_VAST_URLS, ...candidateUrls].filter((u) => u && u.startsWith('http')))
+    );
+    const urlsToTry = baseUrls.map(
+      (_, idx) => baseUrls[(idx + adClickCountRef.current) % baseUrls.length]
     );
 
     // 1. Try direct browser fetch first so ExoClick receives client IP + Delegate-CH Sec-CH-UA headers directly
     for (const baseVastUrl of urlsToTry) {
       let currentUrl = baseVastUrl;
+      const zoneMatch = baseVastUrl.match(/idzone=(\d+)|idz=(\d+)/i);
+      const zoneId = zoneMatch ? (zoneMatch[1] || zoneMatch[2] || '6042506') : '6042506';
       const impressions: string[] = [];
       const clickTracks: string[] = [];
       const events: Record<string, string[]> = {};
@@ -163,8 +257,7 @@ export const WatchAndEarnPage = ({
         try {
           const res = await fetch(currentUrl, {
             method: 'GET',
-            credentials: 'omit',
-            headers: { Accept: 'application/xml, text/xml, */*' }
+            credentials: 'omit'
           });
           if (!res.ok) break;
           const xmlText = await res.text();
@@ -178,10 +271,15 @@ export const WatchAndEarnPage = ({
             events[k].push(...list);
           });
 
-          if (parsed.mediaFileUrl) {
+          // Only use direct browser creative if it is NOT a repeat of what the user just watched
+          if (parsed.mediaFileUrl && !excludedSet.has(parsed.mediaFileUrl)) {
             return {
+              adId: parsed.adId || `EXO-${zoneId}`,
+              zoneId,
               mediaFileUrl: parsed.mediaFileUrl,
               clickThroughUrl: parsed.clickThroughUrl,
+              displayUrl: parsed.displayUrl,
+              ctaText: parsed.ctaText,
               impressionUrls: impressions,
               clickTrackingUrls: clickTracks,
               trackingEvents: events
@@ -199,15 +297,23 @@ export const WatchAndEarnPage = ({
       }
     }
 
-    // 2. Fallback to backend VAST resolver if CORS blocked direct XML reading
+    // 2. Query backend ExoClick VAST resolver (which rotates device/IP profiles & guarantees a non-repeating creative)
     try {
       const primaryUrl = urlsToTry[0] || DEFAULT_EXOCLICK_VAST_URLS[0];
-      const res = await fetch(`/api/ads/vast-resolve?url=${encodeURIComponent(primaryUrl)}`);
+      const excludeVideo = excludedList[0] || '';
+      const excludeListParam = excludedList.join(',');
+      const res = await fetch(
+        `/api/ads/vast-resolve?url=${encodeURIComponent(primaryUrl)}&excludeVideo=${encodeURIComponent(excludeVideo)}&excludeList=${encodeURIComponent(excludeListParam)}&_t=${Date.now()}`
+      );
       const data = await res.json();
       if (data && data.success && data.mediaFileUrl) {
         return {
+          adId: (data.adId as string) || '8404570',
+          zoneId: (data.zoneId as string) || '6042506',
           mediaFileUrl: data.mediaFileUrl as string,
           clickThroughUrl: (data.clickThroughUrl as string) || '',
+          displayUrl: (data.displayUrl as string) || 'exoclick.com',
+          ctaText: (data.ctaText as string) || 'View More',
           impressionUrls: (data.impressionUrls as string[]) || [],
           clickTrackingUrls: (data.clickTrackingUrls as string[]) || [],
           trackingEvents: (data.trackingEvents as Record<string, string[]>) || {}
@@ -265,11 +371,21 @@ export const WatchAndEarnPage = ({
   };
 
   useEffect(() => {
-    // Ensure no popunder scripts hijack the Watch Video Ad button click
     document
       .querySelectorAll('script[data-adsterra-injected], script[src*="profitableratecpmnetwork.com"]')
       .forEach((el) => el.remove());
     fetchStats();
+    // Pre-fetch real ExoClick VAST ad on mount so a fresh non-repeating video is ready immediately
+    resolveExoClickVastVideo(DEFAULT_EXOCLICK_VAST_URLS, getWatchedHistory()).then((vastResult) => {
+      if (vastResult && vastResult.mediaFileUrl) {
+        setActiveVideoUrl(vastResult.mediaFileUrl);
+        if (vastResult.zoneId) setActiveZoneId(vastResult.zoneId);
+        if (vastResult.adId) setActiveAdId(vastResult.adId);
+        if (vastResult.clickThroughUrl) setActiveRedirectUrl(vastResult.clickThroughUrl);
+        if (vastResult.displayUrl) setActiveDisplayDomain(vastResult.displayUrl);
+        if (vastResult.ctaText) setActiveCtaText(vastResult.ctaText);
+      }
+    });
   }, [user]);
 
   // 24-hour cooldown countdown tick (only active after 20 ads are watched)
@@ -323,6 +439,7 @@ export const WatchAndEarnPage = ({
             firedVastEventsRef.current.add('complete');
             fireTrackingUrls(vastTrackingEvents.complete);
           }
+          setEarlyCloseNotice(null);
           setAdCompletedReady(true);
           return 0;
         }
@@ -340,6 +457,7 @@ export const WatchAndEarnPage = ({
     }
     setError(null);
     setSuccessMsg(null);
+    setEarlyCloseNotice(null);
 
     if (!user) {
       onOpenAuthModal();
@@ -364,37 +482,69 @@ export const WatchAndEarnPage = ({
       return;
     }
 
-    // Open Video Ad Player IMMEDIATELY (0.00s delay) so user sees the video ad right away!
-    const fallbackVideo =
-      DEFAULT_VIDEO_ADS[Math.floor(Math.random() * DEFAULT_VIDEO_ADS.length)];
-    setActiveVideoUrl((stats?.videoUrl && stats.videoUrl.trim()) || fallbackVideo);
+    // Track ad click count & history so the same video NEVER repeats on consecutive clicks
+    const excludedVideos = getWatchedHistory();
+    const immediateFallbackVideo = pickNextUnseenFallbackVideo();
+    adClickCountRef.current += 1;
+
+    // Open Full-Screen Video Ad Player IMMEDIATELY with a non-repeated video stream
+    const initialVideoToPlay =
+      activeVideoUrl && !excludedVideos.includes(activeVideoUrl)
+        ? activeVideoUrl
+        : immediateFallbackVideo;
+
+    setActiveVideoUrl(initialVideoToPlay);
     setAdDurationSeconds(15);
     setRemainingAdTime(15);
     setWatchProgress(0);
     setVideoPlaying(false);
     setAdCompletedReady(false);
+    setAdMuted(false);
     setVastTrackingEvents({});
     setVastClickTrackingUrls([]);
     firedVastEventsRef.current = new Set();
     setCurrentSessionId('starting');
+    sessionIdRef.current = 'starting';
     setIsWatchingAd(true);
 
-    // Resolve ExoClick VAST Tags (idzone=6042506 & idz=6042500) in parallel
+    // Attempt native browser Fullscreen in addition to 100vw x 100vh fixed overlay
+    setTimeout(() => {
+      try {
+        if (fullScreenContainerRef.current && document.fullscreenElement !== fullScreenContainerRef.current) {
+          fullScreenContainerRef.current.requestFullscreen?.().catch(() => {});
+        }
+      } catch {
+        // Ignore if blocked by iframe policy
+      }
+    }, 50);
+
+    // Resolve fresh ExoClick VAST Tags (idzone=6042506 & idz=6042500) excluding recently watched videos
     const initialVastCandidates = [
       ...(stats?.vastTagUrls || []),
       stats?.vastTagUrl || '',
       ...DEFAULT_EXOCLICK_VAST_URLS
     ].filter(Boolean);
 
-    resolveExoClickVastVideo(initialVastCandidates).then((vastResult) => {
+    resolveExoClickVastVideo(initialVastCandidates, excludedVideos).then((vastResult) => {
       if (vastResult && vastResult.mediaFileUrl) {
         setActiveVideoUrl(vastResult.mediaFileUrl);
+        recordWatchedVideo(vastResult.mediaFileUrl);
+        if (vastResult.zoneId) setActiveZoneId(vastResult.zoneId);
+        if (vastResult.adId) setActiveAdId(vastResult.adId);
         if (vastResult.clickThroughUrl) {
           setActiveRedirectUrl(vastResult.clickThroughUrl);
+        }
+        if (vastResult.displayUrl) {
+          setActiveDisplayDomain(vastResult.displayUrl);
+        }
+        if (vastResult.ctaText) {
+          setActiveCtaText(vastResult.ctaText);
         }
         setVastTrackingEvents(vastResult.trackingEvents || {});
         setVastClickTrackingUrls(vastResult.clickTrackingUrls || []);
         fireTrackingUrls(vastResult.impressionUrls);
+      } else {
+        recordWatchedVideo(initialVideoToPlay);
       }
     });
 
@@ -410,28 +560,60 @@ export const WatchAndEarnPage = ({
       const data = await res.json();
 
       if (!res.ok || !data.success) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen?.().catch(() => {});
+        }
         setIsWatchingAd(false);
         setCurrentSessionId(null);
+        sessionIdRef.current = null;
         throw new Error(data.error || 'Failed to start ad session');
       }
 
       setCurrentSessionId(data.sessionId);
+      sessionIdRef.current = data.sessionId;
       if (data.adRedirectUrl || stats?.adRedirectUrl) {
         setActiveRedirectUrl((prev) => prev || data.adRedirectUrl || stats?.adRedirectUrl || '');
       }
     } catch (err: any) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
       setIsWatchingAd(false);
       setCurrentSessionId(null);
+      sessionIdRef.current = null;
       setError(err.message || 'Error starting ad');
     }
   };
 
+  const handleCrossCloseClick = async () => {
+    if (!adCompletedReady) {
+      setEarlyCloseNotice(
+        lang === 'bn'
+          ? `⚠️ সম্পূর্ণ অ্যাড দেখার পর ক্রস (✕) আইকনে ক্লিক করতে পারবেন! আরো ${remainingAdTime} সেকেন্ড দেখুন।`
+          : `⚠️ Please watch the full ad first! Cross (✕) unlocks in ${remainingAdTime}s.`
+      );
+      return;
+    }
+    await handleClaimReward();
+  };
+
   const handleClaimReward = async () => {
-    if (!currentSessionId || currentSessionId === 'starting' || isClaiming) return;
+    if (isClaiming) return;
     setIsClaiming(true);
     setError(null);
 
     try {
+      // Wait briefly if session ID is still initializing
+      let activeSid = sessionIdRef.current || currentSessionId;
+      for (let i = 0; i < 10 && (!activeSid || activeSid === 'starting'); i++) {
+        await new Promise((r) => setTimeout(r, 200));
+        activeSid = sessionIdRef.current || currentSessionId;
+      }
+
+      if (!activeSid || activeSid === 'starting') {
+        throw new Error('Ad session could not be verified. Please try again.');
+      }
+
       const token = localStorage.getItem('bot_auth_token');
       const res = await fetch('/api/rewards/ad-complete', {
         method: 'POST',
@@ -439,7 +621,7 @@ export const WatchAndEarnPage = ({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ sessionId: currentSessionId })
+        body: JSON.stringify({ sessionId: activeSid })
       });
       const data = await res.json();
 
@@ -447,6 +629,9 @@ export const WatchAndEarnPage = ({
         throw new Error(data.error || 'Reward validation failed');
       }
 
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
       setIsWatchingAd(false);
       const remainingAfter = data.stats?.remainingToday ?? 0;
       setSuccessMsg(
@@ -476,6 +661,10 @@ export const WatchAndEarnPage = ({
         if (onUserUpdated) onUserUpdated(updatedUser);
       }
     } catch (err: any) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+      setIsWatchingAd(false);
       setError(err.message || 'Could not claim reward');
     } finally {
       setIsClaiming(false);
@@ -684,155 +873,33 @@ export const WatchAndEarnPage = ({
         </div>
       </div>
 
-      {/* Rewarded Video Ad Modal (Pure Video Ad - No Direct Link Redirects) */}
+      {/* Full-Screen Rewarded Video Ad Player (Opens 100% Full Screen & Unlocks Cross [X] Button After Watching Complete Ad) */}
       <AnimatePresence>
         {isWatchingAd && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-            <div className="bg-[#0b1325] border border-cyan-500/40 rounded-3xl max-w-lg w-full p-6 text-slate-100 shadow-2xl relative overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
-                    {lang === 'bn' ? 'স্পন্সরড ভিডিও বিজ্ঞাপন' : 'Sponsored Rewarded Video'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextMuted = !adMuted;
-                      setAdMuted(nextMuted);
-                      if (videoRef.current) {
-                        videoRef.current.muted = nextMuted;
-                        videoRef.current.play().catch(() => {});
-                      }
-                    }}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
-                  >
-                    {adMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
-                  <div className="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-mono font-bold text-amber-400">
-                    {remainingAdTime > 0 ? `${remainingAdTime}s` : '✓ DONE'}
-                  </div>
-                </div>
-              </div>
+          <div
+            ref={fullScreenContainerRef}
+            className="fixed inset-0 z-[99999] w-screen h-screen bg-black text-white flex flex-col justify-between overflow-hidden select-none"
+          >
+            {/* Top Progress Strip */}
+            <div className="relative z-30 w-full bg-slate-900/90 h-1.5 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-cyan-400 via-emerald-400 to-teal-300 h-full transition-all duration-1000 ease-linear"
+                style={{ width: `${watchProgress}%` }}
+              />
+            </div>
 
-              {/* Progress Bar */}
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-5">
-                <div
-                  className="bg-gradient-to-r from-cyan-400 to-emerald-400 h-full transition-all duration-1000 ease-linear"
-                  style={{ width: `${watchProgress}%` }}
-                />
-              </div>
-
-              {/* Pure Video Player Display Container (Instant 0.00s Video Playback - Never Stuck Loading) */}
-              <div className="aspect-video w-full rounded-2xl bg-black border border-cyan-500/30 relative overflow-hidden shadow-2xl mb-5">
-                {/* Instant HD Live Commercial Broadcast Layer (Plays immediately from 0.00s while or alongside MP4 stream) */}
-                <div className="absolute inset-0 bg-gradient-to-br from-[#06122e] via-[#0c234a] to-[#040d1e] flex flex-col justify-between p-5 overflow-hidden select-none">
-                  {/* Animated moving background light beams */}
-                  <div
-                    className="absolute -top-12 -left-12 w-56 h-56 rounded-full bg-cyan-500/25 blur-2xl transition-transform duration-1000"
-                    style={{ transform: `translate(${watchProgress * 1.5}px, ${ (15 - remainingAdTime) * 4 }px)` }}
-                  />
-                  <div
-                    className="absolute -bottom-12 -right-12 w-56 h-56 rounded-full bg-emerald-500/25 blur-2xl transition-transform duration-1000"
-                    style={{ transform: `translate(-${watchProgress * 1.5}px, -${ (15 - remainingAdTime) * 3 }px)` }}
-                  />
-
-                  {/* Dynamic Multi-Scene Video Commercial Content (Changes scene every 5 seconds) */}
-                  <div className="relative z-10 my-auto flex flex-col items-center text-center px-3">
-                    {remainingAdTime > 10 ? (
-                      <>
-                        <div className="px-3 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-[10px] font-black text-cyan-300 uppercase tracking-widest mb-2 animate-bounce">
-                          SCENE 1/3 • ULTRA CLOUD HOSTING
-                        </div>
-                        <h3 className="text-lg sm:text-xl font-black text-white tracking-tight drop-shadow">
-                          ⚡ 24/7 Non-Stop Telegram Bot Server
-                        </h3>
-                        <p className="text-xs text-cyan-100/90 mt-1 max-w-xs">
-                          High-speed Python & Node.js cloud containers with automatic crash recovery & live console.
-                        </p>
-                      </>
-                    ) : remainingAdTime > 5 ? (
-                      <>
-                        <div className="px-3 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-2 animate-bounce">
-                          SCENE 2/3 • INSTANT STATIC WEBSITES
-                        </div>
-                        <h3 className="text-lg sm:text-xl font-black text-emerald-300 tracking-tight drop-shadow">
-                          🌐 Deploy HTML5 & Mini Apps in 1 Click
-                        </h3>
-                        <p className="text-xs text-slate-200 mt-1 max-w-xs">
-                          Upload ZIP or HTML files and get an instant live SSL subdomain in seconds!
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <div className="px-3 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-[10px] font-black text-amber-300 uppercase tracking-widest mb-2 animate-bounce">
-                          SCENE 3/3 • EARN & UPGRADE FREE
-                        </div>
-                        <h3 className="text-lg sm:text-xl font-black text-amber-300 tracking-tight drop-shadow">
-                          💰 Watch 20 Ads Daily & Get Free Plans!
-                        </h3>
-                        <p className="text-xs text-slate-200 mt-1 max-w-xs">
-                          Instant USD wallet rewards credited directly to your account balance!
-                        </p>
-                      </>
-                    )}
-
-                    {/* Animated Live Audio/Video Equalizer Bars */}
-                    <div className="flex items-end gap-1 h-6 mt-3">
-                      {[40, 85, 60, 100, 50, 90, 70, 95, 55, 80, 65, 90].map((h, idx) => (
-                        <span
-                          key={idx}
-                          className="w-1.5 rounded-full bg-gradient-to-t from-cyan-400 to-emerald-300 animate-pulse"
-                          style={{
-                            height: `${((h + remainingAdTime * 13 * (idx + 1)) % 75) + 25}%`,
-                            animationDelay: `${idx * 90}ms`
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* HTML5 MP4 Video Stream (Plays seamlessly on top when buffered) */}
-                <video
-                  ref={videoRef}
-                  key={activeVideoUrl || DEFAULT_VIDEO_ADS[0]}
-                  src={activeVideoUrl || DEFAULT_VIDEO_ADS[0]}
-                  autoPlay
-                  playsInline
-                  muted={adMuted}
-                  loop
-                  preload="auto"
-                  onPlaying={() => setVideoPlaying(true)}
-                  onLoadedData={(e) => {
-                    setVideoPlaying(true);
-                    e.currentTarget.play().catch(() => {});
-                  }}
-                  onError={() => {
-                    if (activeVideoUrl !== DEFAULT_VIDEO_ADS[0]) {
-                      setActiveVideoUrl(DEFAULT_VIDEO_ADS[0]);
-                    }
-                  }}
-                  className={`relative z-5 w-full h-full object-cover transition-opacity duration-300 ${
-                    videoPlaying ? 'opacity-100' : 'opacity-0'
-                  }`}
-                />
-
-                {/* Top-left Ad Badge */}
-                <div className="absolute top-3 left-3 z-20 flex items-center gap-2 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-sm border border-white/15 text-[11px] font-bold text-amber-300">
+            {/* Top Overlay Controls Bar (Ad Badge, Sound Toggle, Countdown & Cross [X] Close Button) */}
+            <div className="relative z-30 flex items-center justify-between px-4 sm:px-6 py-3.5 bg-gradient-to-b from-black/90 via-black/60 to-transparent">
+              {/* Left: Live Ad Badge + Sound Toggle */}
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-white/15 text-xs font-bold text-amber-300 shadow-lg">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                   <span>
-                    LIVE VIDEO AD •{' '}
-                    {remainingAdTime > 0
-                      ? `0:${remainingAdTime < 10 ? `0${remainingAdTime}` : remainingAdTime}`
-                      : 'COMPLETED'}
+                    {lang === 'bn' ? 'স্পন্সরড অ্যাড' : 'Sponsored Ad'} (ID: {activeZoneId}) •{' '}
+                    {remainingAdTime > 0 ? `${remainingAdTime}s` : lang === 'bn' ? 'সম্পন্ন' : 'Completed'}
                   </span>
                 </div>
 
-                {/* Top-right Sound Toggle */}
                 <button
                   type="button"
                   onClick={() => {
@@ -843,65 +910,174 @@ export const WatchAndEarnPage = ({
                       videoRef.current.play().catch(() => {});
                     }
                   }}
-                  className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/75 hover:bg-black/90 backdrop-blur-sm border border-white/15 text-[11px] font-bold text-white cursor-pointer transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 hover:bg-black/90 backdrop-blur-md border border-white/15 text-xs font-bold text-white cursor-pointer transition shadow-lg"
                 >
                   {adMuted ? (
                     <>
-                      <VolumeX className="w-3.5 h-3.5 text-rose-400" />
-                      <span>{lang === 'bn' ? 'সাউন্ড চালু করুন' : 'Tap for Sound'}</span>
+                      <VolumeX className="w-4 h-4 text-rose-400" />
+                      <span className="hidden sm:inline">{lang === 'bn' ? 'সাউন্ড চালু করুন' : 'Unmute'}</span>
                     </>
                   ) : (
                     <>
-                      <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{lang === 'bn' ? 'সাউন্ড চালু' : 'Sound On'}</span>
+                      <Volume2 className="w-4 h-4 text-emerald-400" />
+                      <span className="hidden sm:inline">{lang === 'bn' ? 'সাউন্ড চালু' : 'Sound On'}</span>
                     </>
                   )}
                 </button>
+              </div>
 
-                {/* Bottom Status Bar Over Video (No Direct Links Here) */}
-                <div className="absolute bottom-0 inset-x-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-4 pt-5 pb-2.5 flex items-center justify-between">
-                  <p className="text-[11px] font-bold text-white flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>
-                      {adCompletedReady
-                        ? lang === 'bn'
-                          ? '✅ ভিডিও বিজ্ঞাপন দেখা সম্পন্ন! এখন রিওয়ার্ড ক্লেইম করুন'
-                          : '✅ Video Ad Completed! Claim your reward below'
-                        : lang === 'bn'
-                          ? `⏱ ভিডিও চলছে... আরো ${remainingAdTime} সেকেন্ড দেখুন`
-                          : `⏱ Video playing... Watch ${remainingAdTime}s more`}
+              {/* Right: Countdown & Cross (X) Button — Only unlocks after full ad is watched */}
+              <div className="flex items-center gap-2.5">
+                {adCompletedReady ? (
+                  <button
+                    type="button"
+                    onClick={handleCrossCloseClick}
+                    disabled={isClaiming}
+                    title={lang === 'bn' ? 'ক্রস চাপুন ও রিওয়ার্ড নিন' : 'Close Ad & Claim Reward'}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/40 ring-4 ring-emerald-400/30 transition-all cursor-pointer"
+                  >
+                    {isClaiming ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>{lang === 'bn' ? 'যোগ হচ্ছে...' : 'Claiming...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          {lang === 'bn' ? 'রিওয়ার্ড সহ বন্ধ করুন (+$0.01)' : 'Claim +$0.01 & Close'}
+                        </span>
+                        <span className="w-7 h-7 rounded-full bg-slate-950 text-white flex items-center justify-center">
+                          <X className="w-4 h-4 stroke-[3]" />
+                        </span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCrossCloseClick}
+                    className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/80 border border-white/20 text-slate-300 text-xs font-mono font-bold cursor-not-allowed opacity-90 shadow-lg"
+                  >
+                    <span className="text-amber-400 font-extrabold">
+                      {lang === 'bn' ? `${remainingAdTime} সেকেন্ড বাকি` : `Reward in ${remainingAdTime}s`}
                     </span>
+                    <span className="w-6 h-6 rounded-full bg-white/10 text-slate-400 flex items-center justify-center">
+                      <X className="w-3.5 h-3.5" />
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Warning Toast if user taps Cross (X) before ad completes */}
+            {earlyCloseNotice && !adCompletedReady && (
+              <div className="relative z-30 mx-auto px-4 py-2 rounded-full bg-rose-950/90 border border-rose-500/50 text-rose-200 text-xs font-bold shadow-xl animate-bounce">
+                {earlyCloseNotice}
+              </div>
+            )}
+
+            {/* Full-Screen Real ExoClick VAST Video Stream Container */}
+            <div className="absolute inset-0 z-10 w-full h-full bg-black flex items-center justify-center">
+              {!videoPlaying && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050914] z-10">
+                  <RefreshCw className="w-10 h-10 text-cyan-400 animate-spin mb-3" />
+                  <p className="text-sm font-bold text-slate-200">
+                    {lang === 'bn' ? 'স্পন্সরড ভিডিও বিজ্ঞাপন লোড হচ্ছে...' : 'Loading Sponsored Video Ad...'}
                   </p>
-                  <span className="text-[11px] font-mono font-bold text-emerald-400">
-                    +$0.01 USD
-                  </span>
+                </div>
+              )}
+
+              <video
+                ref={videoRef}
+                key={activeVideoUrl || DEFAULT_VIDEO_ADS[0]}
+                src={activeVideoUrl || DEFAULT_VIDEO_ADS[0]}
+                autoPlay
+                playsInline
+                muted={adMuted}
+                loop
+                preload="auto"
+                onClick={() => {
+                  if (videoRef.current) {
+                    if (adMuted) {
+                      setAdMuted(false);
+                      videoRef.current.muted = false;
+                    }
+                    videoRef.current.play().catch(() => {});
+                  }
+                }}
+                onPlaying={() => setVideoPlaying(true)}
+                onLoadedData={(e) => {
+                  setVideoPlaying(true);
+                  const vid = e.currentTarget;
+                  vid.play().catch(() => {
+                    // If browser blocks unmuted autoplay, fallback to muted playback immediately
+                    setAdMuted(true);
+                    vid.muted = true;
+                    vid.play().catch(() => {});
+                  });
+                }}
+                onError={() => {
+                  const fallbackNext = pickNextUnseenFallbackVideo();
+                  if (activeVideoUrl !== fallbackNext) {
+                    setActiveVideoUrl(fallbackNext);
+                  } else if (activeVideoUrl !== DEFAULT_VIDEO_ADS[0]) {
+                    setActiveVideoUrl(DEFAULT_VIDEO_ADS[0]);
+                  }
+                }}
+                className="w-full h-full object-contain md:object-cover bg-black cursor-pointer"
+              />
+            </div>
+
+            {/* Bottom Full-Screen Overlay Bar (Advertiser Link + Completion Instruction) */}
+            <div className="relative z-30 mt-auto px-4 sm:px-8 py-5 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3 text-center sm:text-left">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-cyan-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-extrabold text-white">
+                    {adCompletedReady
+                      ? lang === 'bn'
+                        ? '✅ সম্পূর্ণ অ্যাড দেখা শেষ! উপরের ক্রস (✕) আইকনে ক্লিক করে বের হন ও রিওয়ার্ড নিন'
+                        : '✅ Ad Complete! Click the top-right Cross (✕) icon to claim your reward & close'
+                      : lang === 'bn'
+                        ? `🎬 ফুল-স্ক্রিন অ্যাড চলছে... আরো ${remainingAdTime} সেকেন্ড দেখুন`
+                        : `🎬 Watching full-screen ad... ${remainingAdTime}s remaining`}
+                  </p>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    {lang === 'bn'
+                      ? `স্পন্সর: ${activeDisplayDomain || 'ExoClick Ad Network'} • জোন আইডি: #${activeZoneId} (Ad #${activeAdId}) • রিওয়ার্ড: +$0.01 USD`
+                      : `Sponsor: ${activeDisplayDomain || 'ExoClick Ad Network'} • Zone ID: #${activeZoneId} (Ad #${activeAdId}) • Reward: +$0.01 USD`}
+                  </p>
                 </div>
               </div>
 
-              {/* Claim Action Button */}
-              {adCompletedReady ? (
-                <button
-                  onClick={handleClaimReward}
-                  disabled={isClaiming}
-                  className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 active:scale-[0.98] text-slate-950 font-black text-base rounded-2xl shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {isClaiming ? (
-                    <>
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      <span>{lang === 'bn' ? 'রিওয়ার্ড যাচাই হচ্ছে...' : 'Verifying Reward...'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-5 h-5 fill-current" />
-                      <span>{lang === 'bn' ? 'রিওয়ার্ড ক্লেইম করুন ($০.০১ USD)' : 'Claim $0.01 USD Reward'}</span>
-                    </>
-                  )}
-                </button>
-              ) : (
-                <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-center text-xs text-slate-400">
-                  🔒 {lang === 'bn' ? 'সম্পূর্ণ সময় সমাপ্ত হলে রিওয়ার্ড বাটন সক্রিয় হবে' : 'The reward button unlocks once timer completes'}
-                </div>
-              )}
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-center">
+                {activeRedirectUrl && (
+                  <a
+                    href={activeRedirectUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => fireTrackingUrls(vastClickTrackingUrls)}
+                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg transition flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>{activeCtaText || (lang === 'bn' ? 'ভিজিট সাইট' : 'Visit Site')}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </a>
+                )}
+
+                {adCompletedReady && (
+                  <button
+                    type="button"
+                    onClick={handleCrossCloseClick}
+                    disabled={isClaiming}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <X className="w-4 h-4 stroke-[3]" />
+                    <span>{lang === 'bn' ? 'ক্রস (✕) / বন্ধ করুন' : 'Close (✕)'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

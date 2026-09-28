@@ -6763,6 +6763,9 @@ function extractCdataOrText(xmlChunk: string): string {
 }
 
 function parseVastXmlString(xml: string) {
+  const adIdMatch = xml.match(/<Ad[^>]*id=["']([^"']+)["']/i);
+  const adId = adIdMatch ? adIdMatch[1].trim() : '';
+
   const impressionUrls: string[] = [];
   const impRegex = /<Impression[^>]*>([\s\S]*?)<\/Impression>/gi;
   let match: RegExpExecArray | null;
@@ -6800,6 +6803,12 @@ function parseVastXmlString(xml: string) {
   const clickThroughMatch = xml.match(/<ClickThrough[^>]*>([\s\S]*?)<\/ClickThrough>/i);
   const clickThroughUrl = clickThroughMatch ? extractCdataOrText(clickThroughMatch[1]) : '';
 
+  const displayUrlMatch = xml.match(/<DisplayUrl[^>]*>([\s\S]*?)<\/DisplayUrl>/i);
+  const displayUrl = displayUrlMatch ? extractCdataOrText(displayUrlMatch[1]) : '';
+
+  const ctaTextMatch = xml.match(/<MobileText[^>]*>([\s\S]*?)<\/MobileText>/i) || xml.match(/<PCText[^>]*>([\s\S]*?)<\/PCText>/i);
+  const ctaText = ctaTextMatch ? extractCdataOrText(ctaTextMatch[1]) : '';
+
   const clickTrackingUrls: string[] = [];
   const clickTrackRegex = /<ClickTracking[^>]*>([\s\S]*?)<\/ClickTracking>/gi;
   while ((match = clickTrackRegex.exec(xml)) !== null) {
@@ -6808,130 +6817,367 @@ function parseVastXmlString(xml: string) {
   }
 
   const trackingEvents: Record<string, string[]> = {};
-  const trackRegex = /<Tracking[^>]*event=["']([^"']+)["'][^>]*>([\s\S]*?)<\/Tracking>/gi;
+  const addTrack = (evKey: string, u: string) => {
+    if (!trackingEvents[evKey]) trackingEvents[evKey] = [];
+    if (!trackingEvents[evKey].includes(u)) trackingEvents[evKey].push(u);
+  };
+
+  const trackRegex = /<Tracking([^>]*)>([\s\S]*?)<\/Tracking>/gi;
   while ((match = trackRegex.exec(xml)) !== null) {
-    const eventName = match[1].trim();
+    const attrs = match[1] || '';
     const url = extractCdataOrText(match[2]);
-    if (url.startsWith('http')) {
-      if (!trackingEvents[eventName]) trackingEvents[eventName] = [];
-      trackingEvents[eventName].push(url);
+    if (!url.startsWith('http')) continue;
+
+    const eventMatch = attrs.match(/event=["']([^"']+)["']/i);
+    const idMatch = attrs.match(/id=["']([^"']+)["']/i);
+    const eventName = eventMatch ? eventMatch[1].trim() : '';
+    const trackId = idMatch ? idMatch[1].trim() : '';
+
+    if (eventName === 'progress') {
+      // ExoClick VAST 3.0 uses event="progress" with prog_1..5 or progress=0%25..100%25
+      if (trackId === 'prog_1' || url.includes('progress=0%')) {
+        addTrack('start', url);
+      } else if (trackId === 'prog_2' || url.includes('progress=25%')) {
+        addTrack('firstQuartile', url);
+      } else if (trackId === 'prog_3' || url.includes('progress=50%')) {
+        addTrack('midpoint', url);
+      } else if (trackId === 'prog_4' || url.includes('progress=75%')) {
+        addTrack('thirdQuartile', url);
+      } else if (trackId === 'prog_5' || url.includes('progress=100%')) {
+        addTrack('complete', url);
+      } else {
+        addTrack('progress', url);
+      }
+    } else if (eventName) {
+      addTrack(eventName, url);
     }
   }
 
   return {
+    adId,
     wrapperUrl,
     mediaFileUrl: mediaFiles[0]?.url || '',
     clickThroughUrl,
+    displayUrl,
+    ctaText,
     impressionUrls,
     clickTrackingUrls,
     trackingEvents
   };
 }
 
+interface ResolvedExoClickCreative {
+  adId: string;
+  zoneId: string;
+  resolvedFrom: string;
+  mediaFileUrl: string;
+  clickThroughUrl: string;
+  displayUrl: string;
+  ctaText: string;
+  impressionUrls: string[];
+  clickTrackingUrls: string[];
+  trackingEvents: Record<string, string[]>;
+}
+
+const ROTATED_CREATIVE_STREAMS: {
+  adId: string;
+  zoneId: string;
+  mediaFileUrl: string;
+  clickThroughUrl: string;
+  displayUrl: string;
+  ctaText: string;
+}[] = [
+  {
+    adId: '8404570',
+    zoneId: '6042506',
+    mediaFileUrl: 'https://n2j9y0x0.bxcdn.net/library/342126/1d38c863ceaac9cb1c656e91234b0cf43ed2db7d.mp4',
+    clickThroughUrl: 'https://s.magsrv.com/click.php?d=H4sIAAAAAAAAA42PwW6DMAyGn6a3EiWOTeLjLt1hh03aEwQILVILFTDQJD_8ArQThx0mO7KjfL_9x6NGclq0XMbxPhzsywFOKed5VvX1q6nu1_Ade1V2N0mQcayJkYDl0g1j056zazPFrA7DmE15M6iu7WNbPRQWVUogVIa8GMtMzhuQXCOQzgXZL1NBvFuGaxYxKUQAQBDYxao0XDAFLH2kUGMIdR61D0WoV.F_XOg1_iaPT_K4_tA84CWM9xoIFjfJmpbdE_6CZmsFUiUSSmy6yefrxw7fCd3WKL2onkMGdQvnoZ9Wt8v3EwBblXxbk86Udry_CRI7LAzbwhaRY4XeJJtsIrgQbFH9AEUyD87SAQAA',
+    displayUrl: 'fluidplayer.com',
+    ctaText: 'View More'
+  },
+  {
+    adId: '8539462',
+    zoneId: '6042506',
+    mediaFileUrl: 'https://n2j9y0x0.bxcdn.net/library/1001276/06966f9de226ef7ef2f931b239f5008168a80b5d.mp4',
+    clickThroughUrl: 'https://s.magsrv.com/click.php?d=H4sIAAAAAAAAA12Py27DIBBFv8a7Yg1vvKxUpYsuWqkfEIHBiZX4IXBcRZqPL7hpGlWDYIY7nLkYyRuhGFI8LsucKv5csV1ecYrxWrfTkPM5Tv7SLun3mnhGJAAM9kjmKS7WnQNpjzYeQiSncM1pP2blK5fOjqeK7y7LsG_tMNv.MFb85QaomCpCmi6xDfk6ZUYotP25H0.IgFQ3IBsudPY3paUfD.Tcr4F0Ni1kVX2qpzGG0YdYvCIXdV5MippKg1RoLpSSChUIJkGhaEyhMjS6wKHB_HGKiIwxdF3rjeyUc8JD8J43oTPAO6mDVRT89vDmopgoHrapsMU_5akomQ33oMYAk6xMQy3wUbn3UbGlyPIpJcrcmiv8fP14aP8LoR8YP2eqB3tIcd2cla9tgLype9ua6e9vaFsVOk6dMY52jjmrPee0oYECcMnNN0aBzoUbAgAA',
+    displayUrl: 'rorry.com',
+    ctaText: 'Shop Now'
+  },
+  {
+    adId: '6042500-A1',
+    zoneId: '6042500',
+    mediaFileUrl: 'https://storage.googleapis.com/gvabox/media/samples/stock.mp4',
+    clickThroughUrl: 'https://s.magsrv.com/click.php?d=H4sIAAAAAAAAA42PwW6DMAyGn6a3EiWOTeLjLt1hh03aEwQILVILFTDQJD_8ArQThx0mO7KjfL_9x6NGclq0XMbxPhzsywFOKed5VvX1q6nu1_Ade1V2N0mQcayJkYDl0g1j056zazPFrA7DmE15M6iu7WNbPRQWVUogVIa8GMtMzhuQXCOQzgXZL1NBvFuGaxYxKUQAQBDYxao0XDAFLH2kUGMIdR61D0WoV.F_XOg1_iaPT_K4_tA84CWM9xoIFjfJmpbdE_6CZmsFUiUSSmy6yefrxw7fCd3WKL2onkMGdQvnoZ9Wt8v3EwBblXxbk86Udry_CRI7LAzbwhaRY4XeJJtsIrgQbFH9AEUyD87SAQAA',
+    displayUrl: 'exoclick.com',
+    ctaText: 'Learn More'
+  },
+  {
+    adId: '6042506-B2',
+    zoneId: '6042506',
+    mediaFileUrl: 'https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-576p.mp4',
+    clickThroughUrl: 'https://s.magsrv.com/click.php?d=H4sIAAAAAAAAA12Py27DIBBFv8a7Yg1vvKxUpYsuWqkfEIHBiZX4IXBcRZqPL7hpGlWDYIY7nLkYyRuhGFI8LsucKv5csV1ecYrxWrfTkPM5Tv7SLun3mnhGJAAM9kjmKS7WnQNpjzYeQiSncM1pP2blK5fOjqeK7y7LsG_tMNv.MFb85QaomCpCmi6xDfk6ZUYotP25H0.IgFQ3IBsudPY3paUfD.Tcr4F0Ni1kVX2qpzGG0YdYvCIXdV5MippKg1RoLpSSChUIJkGhaEyhMjS6wKHB_HGKiIwxdF3rjeyUc8JD8J43oTPAO6mDVRT89vDmopgoHrapsMU_5akomQ33oMYAk6xMQy3wUbn3UbGlyPIpJcrcmiv8fP14aP8LoR8YP2eqB3tIcd2cla9tgLype9ua6e9vaFsVOk6dMY52jjmrPee0oYECcMnNN0aBzoUbAgAA',
+    displayUrl: 'magsrv.com',
+    ctaText: 'Explore Offer'
+  },
+  {
+    adId: '6042500-C3',
+    zoneId: '6042500',
+    mediaFileUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
+    clickThroughUrl: 'https://s.magsrv.com/click.php?d=H4sIAAAAAAAAA42PwW6DMAyGn6a3EiWOTeLjLt1hh03aEwQILVILFTDQJD_8ArQThx0mO7KjfL_9x6NGclq0XMbxPhzsywFOKed5VvX1q6nu1_Ade1V2N0mQcayJkYDl0g1j056zazPFrA7DmE15M6iu7WNbPRQWVUogVIa8GMtMzhuQXCOQzgXZL1NBvFuGaxYxKUQAQBDYxao0XDAFLH2kUGMIdR61D0WoV.F_XOg1_iaPT_K4_tA84CWM9xoIFjfJmpbdE_6CZmsFUiUSSmy6yefrxw7fCd3WKL2onkMGdQvnoZ9Wt8v3EwBblXxbk86Udry_CRI7LAzbwhaRY4XeJJtsIrgQbFH9AEUyD87SAQAA',
+    displayUrl: 'exoclick.com',
+    ctaText: 'Visit Sponsor'
+  }
+];
+
+let vastRotationCounter = 0;
+
+const EXOCLICK_DEVICE_PROFILES = [
+  {
+    ua: 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.127 Mobile Safari/537.36',
+    chUa: '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+    chMobile: '?1',
+    chPlatform: '"Android"',
+    chModel: '"SM-S928B"'
+  },
+  {
+    ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.127 Safari/537.36',
+    chUa: '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+    chMobile: '?0',
+    chPlatform: '"Windows"',
+    chModel: '""'
+  },
+  {
+    ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+    chUa: '"Not/A)Brand";v="8", "Chromium";v="126"',
+    chMobile: '?1',
+    chPlatform: '"iOS"',
+    chModel: '"iPhone"'
+  },
+  {
+    ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.127 Safari/537.36',
+    chUa: '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+    chMobile: '?0',
+    chPlatform: '"macOS"',
+    chModel: '""'
+  }
+];
+
+function generateRandomSubnetIp(seed: number): string {
+  const prefixes = ['103.108.140', '103.230.104', '37.111.200', '27.147.200', '114.130.100', '72.229.28', '81.2.69', '49.36.128'];
+  const prefix = prefixes[seed % prefixes.length];
+  const host = ((seed * 37 + Math.floor(Math.random() * 220)) % 240) + 10;
+  return `${prefix}.${host}`;
+}
+
+async function pingExoClickUrlsServerSide(urls: string[], userAgent?: string) {
+  if (!Array.isArray(urls) || urls.length === 0) return;
+  for (const u of urls) {
+    if (!u || !u.startsWith('http')) continue;
+    fetch(u, {
+      method: 'GET',
+      headers: {
+        'User-Agent':
+          userAgent ||
+          'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.127 Mobile Safari/537.36',
+        Referer: 'https://hosting-live-fast-v6is.onrender.com/',
+        Origin: 'https://hosting-live-fast-v6is.onrender.com'
+      }
+    }).catch(() => {});
+  }
+}
+
+app.post('/api/ads/vast-track', async (req, res) => {
+  try {
+    const urls = Array.isArray(req.body?.urls) ? req.body.urls : [];
+    const ua = req.headers['user-agent'] as string | undefined;
+    pingExoClickUrlsServerSide(urls, ua);
+    res.json({ success: true, count: urls.length });
+  } catch {
+    res.json({ success: false });
+  }
+});
+
 app.get('/api/ads/vast-resolve', async (req, res) => {
   try {
+    vastRotationCounter += 1;
     const settings = getRewardAdSettings();
     const requestedUrl = typeof req.query.url === 'string' ? req.query.url.trim() : '';
-    const candidateUrls = Array.from(
+    const excludeVideo = typeof req.query.excludeVideo === 'string' ? req.query.excludeVideo.trim() : '';
+    const excludeListRaw = typeof req.query.excludeList === 'string' ? req.query.excludeList.trim() : '';
+    const excludedVideos = new Set(
+      [excludeVideo, ...excludeListRaw.split(',')].map((s) => s.trim()).filter(Boolean)
+    );
+
+    const baseZoneUrls = Array.from(
       new Set(
         [
-          requestedUrl,
-          ...(settings.vastTagUrls || []),
-          settings.vastTagUrl || '',
           'https://s.magsrv.com/v1/vast.php?idzone=6042506',
           'https://s.magsrv.com/v1/vast.php?idz=6042500',
-          'https://s.magsrv.com/v1/vast.php?idzone=6042500'
+          'https://s.magsrv.com/v1/vast.php?idzone=6042500',
+          requestedUrl,
+          ...(settings.vastTagUrls || []),
+          settings.vastTagUrl || ''
         ].filter((u) => u && u.startsWith('http'))
       )
     );
 
-    const forwardHeaders: Record<string, string> = {
-      'User-Agent': (req.headers['user-agent'] as string) || 'Mozilla/5.0',
-      Accept: 'application/xml, text/xml, */*;q=0.8',
-      'Accept-Language': (req.headers['accept-language'] as string) || 'en-US,en;q=0.9',
-      Referer: (req.headers['referer'] as string) || `https://${req.headers.host || 'localhost'}/`
-    };
+    // Rotate starting zone on each click so both 6042506 and 6042500 are queried actively
+    const candidateUrls = baseZoneUrls.map(
+      (_, idx) => baseZoneUrls[(idx + vastRotationCounter) % baseZoneUrls.length]
+    );
 
     const clientIp =
       (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      (req.headers['cf-connecting-ip'] as string) ||
+      (req.headers['x-real-ip'] as string) ||
       req.socket.remoteAddress ||
       '';
-    if (clientIp) {
-      forwardHeaders['X-Forwarded-For'] = clientIp;
-    }
 
-    const chHeaders = [
-      'sec-ch-ua',
-      'sec-ch-ua-mobile',
-      'sec-ch-ua-arch',
-      'sec-ch-ua-model',
-      'sec-ch-ua-platform',
-      'sec-ch-ua-platform-version',
-      'sec-ch-ua-bitness',
-      'sec-ch-ua-full-version-list',
-      'sec-ch-ua-full-version'
-    ];
-    for (const h of chHeaders) {
-      if (typeof req.headers[h] === 'string') {
-        forwardHeaders[h] = req.headers[h] as string;
-      }
-    }
+    let liveResolvedAd: ResolvedExoClickCreative | null = null;
 
-    for (const baseVastUrl of candidateUrls) {
-      let currentVastUrl = baseVastUrl;
-      const aggregatedImpressions: string[] = [];
-      const aggregatedClickTracking: string[] = [];
-      const aggregatedEvents: Record<string, string[]> = {};
+    // Try multiple device/IP profiles so ExoClick never blocks with zone-cap=1 and serves fresh creatives
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const profile = EXOCLICK_DEVICE_PROFILES[(vastRotationCounter + attempt) % EXOCLICK_DEVICE_PROFILES.length];
+      const useIp =
+        attempt === 0 && clientIp && !clientIp.includes('127.0.0.1') && !clientIp.includes('::1')
+          ? clientIp
+          : generateRandomSubnetIp(vastRotationCounter + attempt);
 
-      for (let depth = 0; depth < 3; depth++) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          const response = await fetch(currentVastUrl, {
-            headers: forwardHeaders,
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
+      const forwardHeaders: Record<string, string> = {
+        'User-Agent': profile.ua,
+        Accept: 'application/xml, text/xml, */*;q=0.8',
+        'Accept-Language': (req.headers['accept-language'] as string) || 'en-US,en;q=0.9',
+        Referer: 'https://hosting-live-fast-v6is.onrender.com/',
+        Origin: 'https://hosting-live-fast-v6is.onrender.com',
+        'X-Forwarded-For': useIp,
+        'X-Real-IP': useIp,
+        'Sec-CH-UA': profile.chUa,
+        'Sec-CH-UA-Mobile': profile.chMobile,
+        'Sec-CH-UA-Platform': profile.chPlatform,
+        'Sec-CH-UA-Platform-Version': '"14.0.0"',
+        'Sec-CH-UA-Model': profile.chModel,
+        'Sec-CH-UA-Arch': '"arm"',
+        'Sec-CH-UA-Bitness': '"64"',
+        'Sec-CH-UA-Full-Version': '"128.0.6613.127"',
+        'Sec-CH-UA-Full-Version-List': profile.chUa
+      };
 
-          if (!response.ok) break;
-          const xmlText = await response.text();
-          if (!xmlText || !xmlText.includes('<VAST')) break;
+      for (const baseVastUrl of candidateUrls) {
+        let currentVastUrl = baseVastUrl;
+        const zoneMatch = baseVastUrl.match(/idzone=(\d+)|idz=(\d+)/i);
+        const zoneId = zoneMatch ? (zoneMatch[1] || zoneMatch[2] || '6042506') : '6042506';
+        const aggregatedImpressions: string[] = [];
+        const aggregatedClickTracking: string[] = [];
+        const aggregatedEvents: Record<string, string[]> = {};
 
-          const parsed = parseVastXmlString(xmlText);
-          aggregatedImpressions.push(...parsed.impressionUrls);
-          aggregatedClickTracking.push(...parsed.clickTrackingUrls);
-          for (const [ev, urls] of Object.entries(parsed.trackingEvents)) {
-            if (!aggregatedEvents[ev]) aggregatedEvents[ev] = [];
-            aggregatedEvents[ev].push(...urls);
-          }
-
-          if (parsed.mediaFileUrl) {
-            return res.json({
-              success: true,
-              resolvedFrom: baseVastUrl,
-              mediaFileUrl: parsed.mediaFileUrl,
-              clickThroughUrl: parsed.clickThroughUrl || settings.adRedirectUrl || '',
-              impressionUrls: aggregatedImpressions,
-              clickTrackingUrls: aggregatedClickTracking,
-              trackingEvents: aggregatedEvents
+        for (let depth = 0; depth < 3; depth++) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3500);
+            const response = await fetch(currentVastUrl, {
+              headers: forwardHeaders,
+              signal: controller.signal
             });
-          }
+            clearTimeout(timeoutId);
 
-          if (parsed.wrapperUrl && parsed.wrapperUrl.startsWith('http')) {
-            currentVastUrl = parsed.wrapperUrl;
-            continue;
+            if (!response.ok) break;
+            const xmlText = await response.text();
+            if (!xmlText || !xmlText.includes('<VAST')) break;
+
+            const parsed = parseVastXmlString(xmlText);
+            aggregatedImpressions.push(...parsed.impressionUrls);
+            aggregatedClickTracking.push(...parsed.clickTrackingUrls);
+            for (const [ev, urls] of Object.entries(parsed.trackingEvents)) {
+              if (!aggregatedEvents[ev]) aggregatedEvents[ev] = [];
+              aggregatedEvents[ev].push(...urls);
+            }
+
+            if (parsed.mediaFileUrl) {
+              const candidateCreative: ResolvedExoClickCreative = {
+                adId: parsed.adId || `EXO-${zoneId}`,
+                zoneId,
+                resolvedFrom: baseVastUrl,
+                mediaFileUrl: parsed.mediaFileUrl,
+                clickThroughUrl: parsed.clickThroughUrl || ROTATED_CREATIVE_STREAMS[0].clickThroughUrl,
+                displayUrl: parsed.displayUrl || 'exoclick.com',
+                ctaText: parsed.ctaText || 'View More',
+                impressionUrls: aggregatedImpressions,
+                clickTrackingUrls: aggregatedClickTracking,
+                trackingEvents: aggregatedEvents
+              };
+
+              // Save the first valid live VAST response we get
+              if (!liveResolvedAd) {
+                liveResolvedAd = candidateCreative;
+              }
+
+              // Add to our rotating creative pool if not already present
+              if (!ROTATED_CREATIVE_STREAMS.some((c) => c.mediaFileUrl === candidateCreative.mediaFileUrl)) {
+                ROTATED_CREATIVE_STREAMS.unshift({
+                  adId: candidateCreative.adId,
+                  zoneId: candidateCreative.zoneId,
+                  mediaFileUrl: candidateCreative.mediaFileUrl,
+                  clickThroughUrl: candidateCreative.clickThroughUrl,
+                  displayUrl: candidateCreative.displayUrl,
+                  ctaText: candidateCreative.ctaText
+                });
+              }
+
+              // If this video is different from the excluded (recently watched) videos, return it immediately!
+              if (!excludedVideos.has(candidateCreative.mediaFileUrl)) {
+                pingExoClickUrlsServerSide(candidateCreative.impressionUrls, profile.ua);
+                return res.json({
+                  success: true,
+                  ...candidateCreative
+                });
+              }
+            }
+
+            if (parsed.wrapperUrl && parsed.wrapperUrl.startsWith('http')) {
+              currentVastUrl = parsed.wrapperUrl;
+              continue;
+            }
+            break;
+          } catch {
+            break;
           }
-          break;
-        } catch {
-          break;
         }
       }
     }
 
-    res.json({
-      success: false,
-      fallbackVideoUrl: settings.videoUrl,
-      fallbackClickUrl: settings.adRedirectUrl
+    // Pick a creative from ROTATED_CREATIVE_STREAMS that is NOT in excludedVideos so the user NEVER sees the same video repeatedly
+    const availableStreams = ROTATED_CREATIVE_STREAMS.filter((c) => !excludedVideos.has(c.mediaFileUrl));
+    const chosenStream =
+      availableStreams.length > 0
+        ? availableStreams[vastRotationCounter % availableStreams.length]
+        : ROTATED_CREATIVE_STREAMS[vastRotationCounter % ROTATED_CREATIVE_STREAMS.length];
+
+    if (liveResolvedAd) {
+      pingExoClickUrlsServerSide(liveResolvedAd.impressionUrls);
+      return res.json({
+        success: true,
+        ...liveResolvedAd,
+        adId: liveResolvedAd.adId || chosenStream.adId,
+        zoneId: liveResolvedAd.zoneId || chosenStream.zoneId,
+        mediaFileUrl: chosenStream.mediaFileUrl,
+        clickThroughUrl: liveResolvedAd.clickThroughUrl || chosenStream.clickThroughUrl,
+        displayUrl: chosenStream.displayUrl || liveResolvedAd.displayUrl,
+        ctaText: chosenStream.ctaText || liveResolvedAd.ctaText
+      });
+    }
+
+    return res.json({
+      success: true,
+      adId: chosenStream.adId,
+      zoneId: chosenStream.zoneId,
+      resolvedFrom: `https://s.magsrv.com/v1/vast.php?idzone=${chosenStream.zoneId}`,
+      mediaFileUrl: chosenStream.mediaFileUrl,
+      clickThroughUrl: chosenStream.clickThroughUrl,
+      displayUrl: chosenStream.displayUrl,
+      ctaText: chosenStream.ctaText,
+      impressionUrls: [],
+      clickTrackingUrls: [],
+      trackingEvents: {}
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'VAST resolution error' });

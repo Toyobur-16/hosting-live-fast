@@ -30,11 +30,14 @@ export interface AdRewardLog {
 }
 
 const DEFAULT_VIDEO_ADS_POOL = [
-  'https://www.w3schools.com/html/mov_bbb.mp4',
-  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4'
+  'https://n2j9y0x0.bxcdn.net/library/342126/1d38c863ceaac9cb1c656e91234b0cf43ed2db7d.mp4',
+  'https://n2j9y0x0.bxcdn.net/library/1001276/06966f9de226ef7ef2f931b239f5008168a80b5d.mp4',
+  'https://storage.googleapis.com/gvabox/media/samples/stock.mp4',
+  'https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-576p.mp4',
+  'https://vjs.zencdn.net/v/oceans.mp4'
 ];
+
+let adPoolRotationIndex = 0;
 
 export function getRewardAdSettings(): RewardAdSettings {
   const defaultSettings: RewardAdSettings = {
@@ -52,8 +55,8 @@ export function getRewardAdSettings(): RewardAdSettings {
       'https://s.magsrv.com/v1/vast.php?idz=6042500',
       'https://s.magsrv.com/v1/vast.php?idzone=6042500'
     ],
-    videoUrl: DEFAULT_VIDEO_ADS_POOL[2],
-    adRedirectUrl: 'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8',
+    videoUrl: DEFAULT_VIDEO_ADS_POOL[0],
+    adRedirectUrl: 'https://s.magsrv.com/click.php?d=H4sIAAAAAAAAA12Py27DIBBFv8a7Yg1vvKxUpYsuWqkfEIHBiZX4IXBcRZqPL7hpGlWDYIY7nLkYyRuhGFI8LsucKv5csV1ecYrxWrfTkPM5Tv7SLun3mnhGJAAM9kjmKS7WnQNpjzYeQiSncM1pP2blK5fOjqeK7y7LsG_tMNv.MFb85QaomCpCmi6xDfk6ZUYotP25H0.IgFQ3IBsudPY3paUfD.Tcr4F0Ni1kVX2qpzGG0YdYvCIXdV5MippKg1RoLpSSChUIJkGhaEyhMjS6wKHB_HGKiIwxdF3rjeyUc8JD8J43oTPAO6mDVRT89vDmopgoHrapsMU_5akomQ33oMYAk6xMQy3wUbn3UbGlyPIpJcrcmiv8fP14aP8LoR8YP2eqB3tIcd2cla9tgLype9ua6e9vaFsVOk6dMY52jjmrPee0oYECcMnNN0aBzoUbAgAA',
     adScriptHtml: '<meta http-equiv="Delegate-CH" content="Sec-CH-UA https://s.magsrv.com; Sec-CH-UA-Mobile https://s.magsrv.com; Sec-CH-UA-Arch https://s.magsrv.com; Sec-CH-UA-Model https://s.magsrv.com; Sec-CH-UA-Platform https://s.magsrv.com; Sec-CH-UA-Platform-Version https://s.magsrv.com; Sec-CH-UA-Bitness https://s.magsrv.com; Sec-CH-UA-Full-Version-List https://s.magsrv.com; Sec-CH-UA-Full-Version https://s.magsrv.com;">\nhttps://s.magsrv.com/v1/vast.php?idzone=6042506\nhttps://s.magsrv.com/v1/vast.php?idz=6042500',
     testMode: false
   };
@@ -62,8 +65,8 @@ export function getRewardAdSettings(): RewardAdSettings {
     if (fs.existsSync(AD_SETTINGS_FILE)) {
       const data = JSON.parse(fs.readFileSync(AD_SETTINGS_FILE, 'utf-8'));
       const merged = { ...defaultSettings, ...data, cooldownSeconds: 0 };
-      if (!merged.videoUrl || !merged.videoUrl.trim()) {
-        merged.videoUrl = DEFAULT_VIDEO_ADS_POOL[2];
+      if (!merged.videoUrl || !merged.videoUrl.trim() || merged.videoUrl.includes('commondatastorage') || merged.videoUrl.includes('w3schools')) {
+        merged.videoUrl = DEFAULT_VIDEO_ADS_POOL[0];
       }
       if (!merged.vastTagUrls || !Array.isArray(merged.vastTagUrls) || merged.vastTagUrls.length === 0) {
         merged.vastTagUrls = defaultSettings.vastTagUrls;
@@ -274,12 +277,12 @@ export function startAdSession(userId: string): {
     activeSessions.delete(sessionId);
   }, 10 * 60 * 1000);
 
-  const randomPoolVideo =
-    DEFAULT_VIDEO_ADS_POOL[Math.floor(Math.random() * DEFAULT_VIDEO_ADS_POOL.length)];
+  adPoolRotationIndex = (adPoolRotationIndex + 1) % DEFAULT_VIDEO_ADS_POOL.length;
+  const rotatedPoolVideo = DEFAULT_VIDEO_ADS_POOL[adPoolRotationIndex];
   const chosenVideoUrl =
     settings.videoUrl && !DEFAULT_VIDEO_ADS_POOL.includes(settings.videoUrl)
       ? settings.videoUrl
-      : randomPoolVideo;
+      : rotatedPoolVideo;
 
   return {
     success: true,
@@ -328,8 +331,8 @@ export function completeAdSession(
   const now = Date.now();
   const elapsedSeconds = (now - session.startedAt) / 1000;
 
-  // Enforce minimum watch duration of 14 seconds to prevent simulated or instant clicks
-  if (elapsedSeconds < 14) {
+  // Enforce minimum watch duration of 12 seconds to prevent simulated or instant clicks
+  if (elapsedSeconds < 12) {
     return {
       success: false,
       error: 'সম্পূর্ণ ভিডিও বিজ্ঞাপন না দেখে রিওয়ার্ড পাওয়া যাবে না (You must watch the full ad)'
