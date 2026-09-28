@@ -6753,18 +6753,41 @@ app.get(
   }
 );
 
-// HilltopAds Site Ownership Verification routes (.txt, .html, and bare path)
+// HilltopAds Site Ownership Verification routes (.txt, .html, bare path, and dynamic hex token fallback)
 app.get(
   [
     '/a1761586c89975927ec2.txt',
     '/a1761586c89975927ec2.html',
-    '/a1761586c89975927ec2'
+    '/a1761586c89975927ec2',
+    '/ae0ce1900ccdde020982.txt',
+    '/ae0ce1900ccdde020982.html',
+    '/ae0ce1900ccdde020982'
   ],
   (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.type(req.path.endsWith('.html') ? 'text/html' : 'text/plain');
     res.send('hilltopads');
   }
 );
+
+// Dynamic wildcard route for HilltopAds (20-char hex) and ExoClick (32-char hex) root verification files
+app.get(/^\/([a-f0-9]{16,32})(\.txt|\.html)?$/i, (req, res, next) => {
+  const hash = req.params[0];
+  const ext = (req.params[1] || '').toLowerCase();
+  // Only intercept .txt, .html, or exact 20/32 char hex verification paths
+  if (!ext && hash.length !== 20 && hash.length !== 32) {
+    return next();
+  }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.type(ext === '.html' ? 'text/html' : 'text/plain');
+  if (hash.length === 32) {
+    res.send(hash);
+  } else {
+    res.send('hilltopads');
+  }
+});
 
 // ExoClick VAST XML Resolver & Proxy (handles Client Hints forwarding, Wrapper chains, and MediaFile extraction)
 function extractCdataOrText(xmlChunk: string): string {
