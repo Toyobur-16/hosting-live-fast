@@ -149,6 +149,7 @@ export interface RewardAdSettings {
   adProvider:
     | 'monetag'
     | 'adsterra'
+    | 'exoclick'
     | 'adsgram'
     | 'hilltopads'
     | 'richads'

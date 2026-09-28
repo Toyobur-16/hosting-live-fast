@@ -24,25 +24,25 @@ import {
 
 import firebaseAppletConfig from '../../firebase-applet-config.json';
 
-// Default config from user's Firebase project (hosting-live-fast-11b13)
+// Default config from user's Firebase project (firebase-applet-config.json)
 export const firebaseConfig = {
-  apiKey: firebaseAppletConfig.apiKey || "AIzaSyA08M7c1iHvXhQHeUf8kXS5cUvtJ8s_kqY",
-  authDomain: firebaseAppletConfig.authDomain || "hosting-live-fast-11b13.firebaseapp.com",
-  projectId: firebaseAppletConfig.projectId || "hosting-live-fast-11b13",
-  storageBucket: firebaseAppletConfig.storageBucket || "hosting-live-fast-11b13.firebasestorage.app",
-  messagingSenderId: firebaseAppletConfig.messagingSenderId || "880032238370",
-  appId: firebaseAppletConfig.appId || "1:880032238370:web:c0510582bebc2ce71c737b",
-  measurementId: firebaseAppletConfig.measurementId || "G-K2NFZE486M"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseAppletConfig.apiKey,
+  authDomain: firebaseAppletConfig.authDomain,
+  projectId: firebaseAppletConfig.projectId,
+  storageBucket: firebaseAppletConfig.storageBucket,
+  messagingSenderId: firebaseAppletConfig.messagingSenderId,
+  appId: firebaseAppletConfig.appId,
+  measurementId: firebaseAppletConfig.measurementId
 };
 
-// Secondary preview-authorized Firebase Auth config (used automatically if current preview domain is not yet added in hosting-live-fast-11b13)
+// Secondary preview-authorized Firebase Auth config
 const previewFallbackConfig = {
-  apiKey: "AIzaSyCEhmg6xeuuPrDRnfbPiKhC9qaEEKMFwc4",
-  authDomain: "gen-lang-client-0570339332.firebaseapp.com",
-  projectId: "gen-lang-client-0570339332",
-  storageBucket: "gen-lang-client-0570339332.firebasestorage.app",
-  messagingSenderId: "287134574302",
-  appId: "1:287134574302:web:c47b18fa31bbc39b7d844f"
+  apiKey: import.meta.env.VITE_FIREBASE_FALLBACK_API_KEY || firebaseAppletConfig.apiKey,
+  authDomain: firebaseAppletConfig.authDomain,
+  projectId: firebaseAppletConfig.projectId,
+  storageBucket: firebaseAppletConfig.storageBucket,
+  messagingSenderId: firebaseAppletConfig.messagingSenderId,
+  appId: firebaseAppletConfig.appId
 };
 
 // Initialize primary app single-instance

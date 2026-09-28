@@ -15,6 +15,14 @@ import { RewardAdSettings } from '../../types';
 
 const RECOMMENDED_AD_NETWORKS = [
   {
+    id: 'exoclick',
+    name: 'ExoClick Network',
+    url: 'https://www.exoclick.com',
+    badge: 'Site Verified • VAST Video & Banner/Direct Link',
+    descBn: 'বিশ্বে অন্যতম বড় অ্যাড নেটওয়ার্ক। আপনার সাইট ভেরিফিকেশন ফাইল ও মেটা ট্যাগ (b7642159c47d7c756e6ebb61ef9767d2) যুক্ত করা হয়েছে। VAST Video, In-Page Push ও Direct Link সাপোর্ট করে। পেমেন্ট: USDT, Crypto, Paxum, Wire।',
+    descEn: 'Global ad network. Site verification file & meta tag (b7642159c47d7c756e6ebb61ef9767d2) configured. Supports VAST Video, Push & Direct Links. Payouts via USDT & Crypto.'
+  },
+  {
     id: 'monetag',
     name: 'Monetag (PropellerAds)',
     url: 'https://monetag.com',
@@ -223,6 +231,7 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
                 onChange={(e) => setSettings({ ...settings, adProvider: e.target.value as any })}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-medium focus:border-sky-500 focus:outline-none"
               >
+                <option value="exoclick">ExoClick — VAST Video, Push & Direct Link</option>
                 <option value="monetag">Monetag (PropellerAds) — Web & MiniApp</option>
                 <option value="adsterra">Adsterra — VAST Video & Direct Link</option>
                 <option value="adsgram">Adsgram.ai — Telegram Rewarded Video</option>

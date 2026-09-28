@@ -7,9 +7,18 @@ const HOSTED_BOTS_DIR = path.join(process.cwd(), 'hosted_bots');
 const VERIFICATIONS_FILE = path.join(HOSTED_BOTS_DIR, 'email_verifications.json');
 const PASSWORD_RESETS_FILE = path.join(HOSTED_BOTS_DIR, 'password_resets.json');
 
+let defaultFirebaseApiKey = '';
+try {
+  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(configPath)) {
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    if (raw.apiKey) defaultFirebaseApiKey = raw.apiKey;
+  }
+} catch {}
+
 // Secret salt for HMAC hashing verification codes
 const VERIFICATION_SECRET = process.env.VERIFICATION_SECRET || 'hlf_email_verify_secret_key_2026';
-const FIREBASE_AUTH_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyA08M7c1iHvXhQHeUf8kXS5cUvtJ8s_kqY';
+const FIREBASE_AUTH_API_KEY = process.env.FIREBASE_API_KEY || defaultFirebaseApiKey;
 
 export interface PendingRegistrationData {
   name: string;

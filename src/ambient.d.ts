@@ -217,3 +217,11 @@ interface BufferConstructor {
 declare var process: NodeJS.Process;
 declare var Buffer: BufferConstructor;
 declare var __dirname: string;
+
+interface ImportMeta {
+  readonly env: Record<string, string | undefined>;
+}
+
+interface ImportMeta {
+  readonly env: Record<string, string | undefined>;
+}

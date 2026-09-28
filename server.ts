@@ -6726,6 +6726,19 @@ app.get(['/app-ads.txt', '/ads.txt'], (req, res) => {
   res.send(`google.com, ${pubId}, DIRECT, f08c47fec0942fa0\n`);
 });
 
+// ExoClick Site Ownership Verification routes (.html, .txt, and bare path)
+app.get(
+  [
+    '/b7642159c47d7c756e6ebb61ef9767d2.html',
+    '/b7642159c47d7c756e6ebb61ef9767d2.txt',
+    '/b7642159c47d7c756e6ebb61ef9767d2'
+  ],
+  (req, res) => {
+    res.type(req.path.endsWith('.html') ? 'text/html' : 'text/plain');
+    res.send('b7642159c47d7c756e6ebb61ef9767d2');
+  }
+);
+
 // Robots.txt & Sitemap routes for Google Search Console & SEO crawlers
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
