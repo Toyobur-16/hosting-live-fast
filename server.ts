@@ -6756,6 +6756,9 @@ app.get(
 // HilltopAds Site Ownership Verification routes (.txt, .html, bare path, and dynamic hex token fallback)
 app.get(
   [
+    '/a1761586c89975927ec2ae0ce1900ccdde020982.txt',
+    '/a1761586c89975927ec2ae0ce1900ccdde020982.html',
+    '/a1761586c89975927ec2ae0ce1900ccdde020982',
     '/a1761586c89975927ec2.txt',
     '/a1761586c89975927ec2.html',
     '/a1761586c89975927ec2',
@@ -6771,12 +6774,12 @@ app.get(
   }
 );
 
-// Dynamic wildcard route for HilltopAds (20-char hex) and ExoClick (32-char hex) root verification files
-app.get(/^\/([a-f0-9]{16,32})(\.txt|\.html)?$/i, (req, res, next) => {
+// Dynamic wildcard route for HilltopAds (20/40-char hex) and ExoClick (32-char hex) root verification files
+app.get(/^\/([a-f0-9]{16,64})(\.txt|\.html)?$/i, (req, res, next) => {
   const hash = req.params[0];
   const ext = (req.params[1] || '').toLowerCase();
-  // Only intercept .txt, .html, or exact 20/32 char hex verification paths
-  if (!ext && hash.length !== 20 && hash.length !== 32) {
+  // Only intercept .txt, .html, or exact 20/32/40 char hex verification paths
+  if (!ext && hash.length !== 20 && hash.length !== 32 && hash.length !== 40) {
     return next();
   }
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
