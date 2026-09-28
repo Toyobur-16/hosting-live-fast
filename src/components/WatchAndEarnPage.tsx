@@ -47,10 +47,16 @@ export const WatchAndEarnPage = ({
 
   // Ad Watching Modal State
   const DEFAULT_VIDEO_ADS = [
-    'https://www.w3schools.com/html/mov_bbb.mp4',
-    'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
     'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4'
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+    'https://www.w3schools.com/html/mov_bbb.mp4',
+    'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
+  ];
+
+  const DEFAULT_EXOCLICK_VAST_URLS = [
+    'https://s.magsrv.com/v1/vast.php?idzone=6042506',
+    'https://s.magsrv.com/v1/vast.php?idz=6042500',
+    'https://s.magsrv.com/v1/vast.php?idzone=6042500'
   ];
 
   const [isWatchingAd, setIsWatchingAd] = useState(false);
@@ -66,7 +72,153 @@ export const WatchAndEarnPage = ({
   const [activeRedirectUrl, setActiveRedirectUrl] = useState<string>(
     'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8'
   );
+  const [vastTrackingEvents, setVastTrackingEvents] = useState<Record<string, string[]>>({});
+  const [vastClickTrackingUrls, setVastClickTrackingUrls] = useState<string[]>([]);
+  const firedVastEventsRef = useRef<Set<string>>(new Set());
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const fireTrackingUrls = (urls?: string[]) => {
+    if (!urls || !Array.isArray(urls)) return;
+    urls.forEach((u) => {
+      if (!u || !u.startsWith('http')) return;
+      try {
+        const img = new Image();
+        img.referrerPolicy = 'no-referrer-when-downgrade';
+        img.src = u;
+      } catch {
+        fetch(u, { mode: 'no-cors', keepalive: true }).catch(() => {});
+      }
+    });
+  };
+
+  const parseClientVastXml = (xmlText: string) => {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+
+    const impressionUrls: string[] = [];
+    xmlDoc.querySelectorAll('Impression').forEach((el) => {
+      const val = el.textContent?.trim();
+      if (val && val.startsWith('http')) impressionUrls.push(val);
+    });
+
+    const wrapperUri = xmlDoc.querySelector('VASTAdTagURI')?.textContent?.trim() || '';
+
+    const mediaCandidates: { url: string; type: string; bitrate: number }[] = [];
+    xmlDoc.querySelectorAll('MediaFile').forEach((el) => {
+      const url = el.textContent?.trim() || '';
+      const type = (el.getAttribute('type') || 'video/mp4').toLowerCase();
+      const bitrate = parseInt(el.getAttribute('bitrate') || '0', 10) || 0;
+      if (url.startsWith('http')) {
+        mediaCandidates.push({ url, type, bitrate });
+      }
+    });
+
+    mediaCandidates.sort((a, b) => {
+      const aMp4 = a.type.includes('mp4') ? 1 : 0;
+      const bMp4 = b.type.includes('mp4') ? 1 : 0;
+      if (aMp4 !== bMp4) return bMp4 - aMp4;
+      return b.bitrate - a.bitrate;
+    });
+
+    const clickThroughUrl = xmlDoc.querySelector('ClickThrough')?.textContent?.trim() || '';
+    const clickTrackingUrls: string[] = [];
+    xmlDoc.querySelectorAll('ClickTracking').forEach((el) => {
+      const val = el.textContent?.trim();
+      if (val && val.startsWith('http')) clickTrackingUrls.push(val);
+    });
+
+    const trackingEvents: Record<string, string[]> = {};
+    xmlDoc.querySelectorAll('Tracking').forEach((el) => {
+      const ev = el.getAttribute('event')?.trim();
+      const val = el.textContent?.trim();
+      if (ev && val && val.startsWith('http')) {
+        if (!trackingEvents[ev]) trackingEvents[ev] = [];
+        trackingEvents[ev].push(val);
+      }
+    });
+
+    return {
+      wrapperUri,
+      mediaFileUrl: mediaCandidates[0]?.url || '',
+      clickThroughUrl,
+      impressionUrls,
+      clickTrackingUrls,
+      trackingEvents
+    };
+  };
+
+  const resolveExoClickVastVideo = async (candidateUrls: string[]) => {
+    const urlsToTry = Array.from(
+      new Set([...candidateUrls, ...DEFAULT_EXOCLICK_VAST_URLS].filter((u) => u && u.startsWith('http')))
+    );
+
+    // 1. Try direct browser fetch first so ExoClick receives client IP + Delegate-CH Sec-CH-UA headers directly
+    for (const baseVastUrl of urlsToTry) {
+      let currentUrl = baseVastUrl;
+      const impressions: string[] = [];
+      const clickTracks: string[] = [];
+      const events: Record<string, string[]> = {};
+
+      for (let depth = 0; depth < 3; depth++) {
+        try {
+          const res = await fetch(currentUrl, {
+            method: 'GET',
+            credentials: 'omit',
+            headers: { Accept: 'application/xml, text/xml, */*' }
+          });
+          if (!res.ok) break;
+          const xmlText = await res.text();
+          if (!xmlText || !xmlText.includes('<VAST')) break;
+
+          const parsed = parseClientVastXml(xmlText);
+          impressions.push(...parsed.impressionUrls);
+          clickTracks.push(...parsed.clickTrackingUrls);
+          Object.entries(parsed.trackingEvents).forEach(([k, list]) => {
+            if (!events[k]) events[k] = [];
+            events[k].push(...list);
+          });
+
+          if (parsed.mediaFileUrl) {
+            return {
+              mediaFileUrl: parsed.mediaFileUrl,
+              clickThroughUrl: parsed.clickThroughUrl,
+              impressionUrls: impressions,
+              clickTrackingUrls: clickTracks,
+              trackingEvents: events
+            };
+          }
+
+          if (parsed.wrapperUri && parsed.wrapperUri.startsWith('http')) {
+            currentUrl = parsed.wrapperUri;
+            continue;
+          }
+          break;
+        } catch {
+          break;
+        }
+      }
+    }
+
+    // 2. Fallback to backend VAST resolver if CORS blocked direct XML reading
+    try {
+      const primaryUrl = urlsToTry[0] || DEFAULT_EXOCLICK_VAST_URLS[0];
+      const res = await fetch(`/api/ads/vast-resolve?url=${encodeURIComponent(primaryUrl)}`);
+      const data = await res.json();
+      if (data && data.success && data.mediaFileUrl) {
+        return {
+          mediaFileUrl: data.mediaFileUrl as string,
+          clickThroughUrl: (data.clickThroughUrl as string) || '',
+          impressionUrls: (data.impressionUrls as string[]) || [],
+          clickTrackingUrls: (data.clickTrackingUrls as string[]) || [],
+          trackingEvents: (data.trackingEvents as Record<string, string[]>) || {}
+        };
+      }
+    } catch {
+      // Ignore
+    }
+
+    return null;
+  };
 
   const formatCooldownTime = (totalSec: number) => {
     const hrs = Math.floor(totalSec / 3600);
@@ -136,7 +288,7 @@ export const WatchAndEarnPage = ({
     return () => clearInterval(interval);
   }, [cooldownTime]);
 
-  // Rewarded Video Watch Timer Tick
+  // Rewarded Video Watch Timer Tick + VAST Quartile Event Tracking
   useEffect(() => {
     if (!isWatchingAd || adCompletedReady) return;
 
@@ -146,8 +298,31 @@ export const WatchAndEarnPage = ({
         const progress = Math.min(100, Math.round(((adDurationSeconds - nextTime) / adDurationSeconds) * 100));
         setWatchProgress(progress);
 
+        // Fire VAST tracking pixels at start, 25%, 50%, 75%, and 100%
+        if (progress >= 5 && !firedVastEventsRef.current.has('start')) {
+          firedVastEventsRef.current.add('start');
+          fireTrackingUrls(vastTrackingEvents.start);
+          fireTrackingUrls(vastTrackingEvents.creativeView);
+        }
+        if (progress >= 25 && !firedVastEventsRef.current.has('firstQuartile')) {
+          firedVastEventsRef.current.add('firstQuartile');
+          fireTrackingUrls(vastTrackingEvents.firstQuartile);
+        }
+        if (progress >= 50 && !firedVastEventsRef.current.has('midpoint')) {
+          firedVastEventsRef.current.add('midpoint');
+          fireTrackingUrls(vastTrackingEvents.midpoint);
+        }
+        if (progress >= 75 && !firedVastEventsRef.current.has('thirdQuartile')) {
+          firedVastEventsRef.current.add('thirdQuartile');
+          fireTrackingUrls(vastTrackingEvents.thirdQuartile);
+        }
+
         if (nextTime <= 0) {
           clearInterval(timer);
+          if (!firedVastEventsRef.current.has('complete')) {
+            firedVastEventsRef.current.add('complete');
+            fireTrackingUrls(vastTrackingEvents.complete);
+          }
           setAdCompletedReady(true);
           return 0;
         }
@@ -156,7 +331,7 @@ export const WatchAndEarnPage = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isWatchingAd, adCompletedReady, adDurationSeconds]);
+  }, [isWatchingAd, adCompletedReady, adDurationSeconds, vastTrackingEvents]);
 
   const handleStartWatchAd = async (e?: React.MouseEvent) => {
     if (e) {
@@ -198,8 +373,30 @@ export const WatchAndEarnPage = ({
     setWatchProgress(0);
     setVideoPlaying(false);
     setAdCompletedReady(false);
+    setVastTrackingEvents({});
+    setVastClickTrackingUrls([]);
+    firedVastEventsRef.current = new Set();
     setCurrentSessionId('starting');
     setIsWatchingAd(true);
+
+    // Resolve ExoClick VAST Tags (idzone=6042506 & idz=6042500) in parallel
+    const initialVastCandidates = [
+      ...(stats?.vastTagUrls || []),
+      stats?.vastTagUrl || '',
+      ...DEFAULT_EXOCLICK_VAST_URLS
+    ].filter(Boolean);
+
+    resolveExoClickVastVideo(initialVastCandidates).then((vastResult) => {
+      if (vastResult && vastResult.mediaFileUrl) {
+        setActiveVideoUrl(vastResult.mediaFileUrl);
+        if (vastResult.clickThroughUrl) {
+          setActiveRedirectUrl(vastResult.clickThroughUrl);
+        }
+        setVastTrackingEvents(vastResult.trackingEvents || {});
+        setVastClickTrackingUrls(vastResult.clickTrackingUrls || []);
+        fireTrackingUrls(vastResult.impressionUrls);
+      }
+    });
 
     try {
       const token = localStorage.getItem('bot_auth_token');
@@ -220,7 +417,7 @@ export const WatchAndEarnPage = ({
 
       setCurrentSessionId(data.sessionId);
       if (data.adRedirectUrl || stats?.adRedirectUrl) {
-        setActiveRedirectUrl(data.adRedirectUrl || stats?.adRedirectUrl || '');
+        setActiveRedirectUrl((prev) => prev || data.adRedirectUrl || stats?.adRedirectUrl || '');
       }
     } catch (err: any) {
       setIsWatchingAd(false);
@@ -444,6 +641,7 @@ export const WatchAndEarnPage = ({
                 href={activeRedirectUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => fireTrackingUrls(vastClickTrackingUrls)}
                 className="w-full sm:w-auto px-6 py-4 bg-[#111c33] hover:bg-[#162441] border border-amber-500/40 text-amber-300 font-bold text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4 text-amber-400" />

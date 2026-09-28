@@ -81,6 +81,20 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+// Delegate Client Hints to ExoClick (https://s.magsrv.com) via HTTP Headers
+app.use((req, res, next) => {
+  res.setHeader(
+    'Accept-CH',
+    'Sec-CH-UA, Sec-CH-UA-Mobile, Sec-CH-UA-Arch, Sec-CH-UA-Model, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version, Sec-CH-UA-Bitness, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Full-Version'
+  );
+  res.setHeader(
+    'Permissions-Policy',
+    'ch-ua=(self "https://s.magsrv.com"), ch-ua-mobile=(self "https://s.magsrv.com"), ch-ua-arch=(self "https://s.magsrv.com"), ch-ua-model=(self "https://s.magsrv.com"), ch-ua-platform=(self "https://s.magsrv.com"), ch-ua-platform-version=(self "https://s.magsrv.com"), ch-ua-bitness=(self "https://s.magsrv.com"), ch-ua-full-version-list=(self "https://s.magsrv.com"), ch-ua-full-version=(self "https://s.magsrv.com")'
+  );
+  next();
+});
+
 app.use('/APK_DOWNLOAD', express.static(path.join(process.cwd(), 'APK_DOWNLOAD')));
 
 const HOSTED_BOTS_DIR = path.join(process.cwd(), 'hosted_bots');
@@ -6738,6 +6752,191 @@ app.get(
     res.send('b7642159c47d7c756e6ebb61ef9767d2');
   }
 );
+
+// ExoClick VAST XML Resolver & Proxy (handles Client Hints forwarding, Wrapper chains, and MediaFile extraction)
+function extractCdataOrText(xmlChunk: string): string {
+  const cdataMatch = xmlChunk.match(/<!\[CDATA\[([\s\S]*?)\]\]>/i);
+  if (cdataMatch && cdataMatch[1]) {
+    return cdataMatch[1].trim();
+  }
+  return xmlChunk.replace(/<[^>]+>/g, '').trim();
+}
+
+function parseVastXmlString(xml: string) {
+  const impressionUrls: string[] = [];
+  const impRegex = /<Impression[^>]*>([\s\S]*?)<\/Impression>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = impRegex.exec(xml)) !== null) {
+    const url = extractCdataOrText(match[1]);
+    if (url.startsWith('http')) impressionUrls.push(url);
+  }
+
+  const wrapperMatch = xml.match(/<VASTAdTagURI[^>]*>([\s\S]*?)<\/VASTAdTagURI>/i);
+  const wrapperUrl = wrapperMatch ? extractCdataOrText(wrapperMatch[1]) : '';
+
+  const mediaFiles: { url: string; type: string; bitrate: number }[] = [];
+  const mediaRegex = /<MediaFile([^>]*)>([\s\S]*?)<\/MediaFile>/gi;
+  while ((match = mediaRegex.exec(xml)) !== null) {
+    const attrs = match[1] || '';
+    const url = extractCdataOrText(match[2]);
+    if (!url.startsWith('http')) continue;
+    const typeMatch = attrs.match(/type=["']([^"']+)["']/i);
+    const bitrateMatch = attrs.match(/bitrate=["'](\d+)["']/i);
+    mediaFiles.push({
+      url,
+      type: typeMatch ? typeMatch[1].toLowerCase() : 'video/mp4',
+      bitrate: bitrateMatch ? parseInt(bitrateMatch[1], 10) : 0
+    });
+  }
+
+  // Prefer video/mp4 first, then webm/ogg, then any valid stream
+  mediaFiles.sort((a, b) => {
+    const aMp4 = a.type.includes('mp4') ? 1 : 0;
+    const bMp4 = b.type.includes('mp4') ? 1 : 0;
+    if (aMp4 !== bMp4) return bMp4 - aMp4;
+    return b.bitrate - a.bitrate;
+  });
+
+  const clickThroughMatch = xml.match(/<ClickThrough[^>]*>([\s\S]*?)<\/ClickThrough>/i);
+  const clickThroughUrl = clickThroughMatch ? extractCdataOrText(clickThroughMatch[1]) : '';
+
+  const clickTrackingUrls: string[] = [];
+  const clickTrackRegex = /<ClickTracking[^>]*>([\s\S]*?)<\/ClickTracking>/gi;
+  while ((match = clickTrackRegex.exec(xml)) !== null) {
+    const url = extractCdataOrText(match[1]);
+    if (url.startsWith('http')) clickTrackingUrls.push(url);
+  }
+
+  const trackingEvents: Record<string, string[]> = {};
+  const trackRegex = /<Tracking[^>]*event=["']([^"']+)["'][^>]*>([\s\S]*?)<\/Tracking>/gi;
+  while ((match = trackRegex.exec(xml)) !== null) {
+    const eventName = match[1].trim();
+    const url = extractCdataOrText(match[2]);
+    if (url.startsWith('http')) {
+      if (!trackingEvents[eventName]) trackingEvents[eventName] = [];
+      trackingEvents[eventName].push(url);
+    }
+  }
+
+  return {
+    wrapperUrl,
+    mediaFileUrl: mediaFiles[0]?.url || '',
+    clickThroughUrl,
+    impressionUrls,
+    clickTrackingUrls,
+    trackingEvents
+  };
+}
+
+app.get('/api/ads/vast-resolve', async (req, res) => {
+  try {
+    const settings = getRewardAdSettings();
+    const requestedUrl = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+    const candidateUrls = Array.from(
+      new Set(
+        [
+          requestedUrl,
+          ...(settings.vastTagUrls || []),
+          settings.vastTagUrl || '',
+          'https://s.magsrv.com/v1/vast.php?idzone=6042506',
+          'https://s.magsrv.com/v1/vast.php?idz=6042500',
+          'https://s.magsrv.com/v1/vast.php?idzone=6042500'
+        ].filter((u) => u && u.startsWith('http'))
+      )
+    );
+
+    const forwardHeaders: Record<string, string> = {
+      'User-Agent': (req.headers['user-agent'] as string) || 'Mozilla/5.0',
+      Accept: 'application/xml, text/xml, */*;q=0.8',
+      'Accept-Language': (req.headers['accept-language'] as string) || 'en-US,en;q=0.9',
+      Referer: (req.headers['referer'] as string) || `https://${req.headers.host || 'localhost'}/`
+    };
+
+    const clientIp =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket.remoteAddress ||
+      '';
+    if (clientIp) {
+      forwardHeaders['X-Forwarded-For'] = clientIp;
+    }
+
+    const chHeaders = [
+      'sec-ch-ua',
+      'sec-ch-ua-mobile',
+      'sec-ch-ua-arch',
+      'sec-ch-ua-model',
+      'sec-ch-ua-platform',
+      'sec-ch-ua-platform-version',
+      'sec-ch-ua-bitness',
+      'sec-ch-ua-full-version-list',
+      'sec-ch-ua-full-version'
+    ];
+    for (const h of chHeaders) {
+      if (typeof req.headers[h] === 'string') {
+        forwardHeaders[h] = req.headers[h] as string;
+      }
+    }
+
+    for (const baseVastUrl of candidateUrls) {
+      let currentVastUrl = baseVastUrl;
+      const aggregatedImpressions: string[] = [];
+      const aggregatedClickTracking: string[] = [];
+      const aggregatedEvents: Record<string, string[]> = {};
+
+      for (let depth = 0; depth < 3; depth++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          const response = await fetch(currentVastUrl, {
+            headers: forwardHeaders,
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (!response.ok) break;
+          const xmlText = await response.text();
+          if (!xmlText || !xmlText.includes('<VAST')) break;
+
+          const parsed = parseVastXmlString(xmlText);
+          aggregatedImpressions.push(...parsed.impressionUrls);
+          aggregatedClickTracking.push(...parsed.clickTrackingUrls);
+          for (const [ev, urls] of Object.entries(parsed.trackingEvents)) {
+            if (!aggregatedEvents[ev]) aggregatedEvents[ev] = [];
+            aggregatedEvents[ev].push(...urls);
+          }
+
+          if (parsed.mediaFileUrl) {
+            return res.json({
+              success: true,
+              resolvedFrom: baseVastUrl,
+              mediaFileUrl: parsed.mediaFileUrl,
+              clickThroughUrl: parsed.clickThroughUrl || settings.adRedirectUrl || '',
+              impressionUrls: aggregatedImpressions,
+              clickTrackingUrls: aggregatedClickTracking,
+              trackingEvents: aggregatedEvents
+            });
+          }
+
+          if (parsed.wrapperUrl && parsed.wrapperUrl.startsWith('http')) {
+            currentVastUrl = parsed.wrapperUrl;
+            continue;
+          }
+          break;
+        } catch {
+          break;
+        }
+      }
+    }
+
+    res.json({
+      success: false,
+      fallbackVideoUrl: settings.videoUrl,
+      fallbackClickUrl: settings.adRedirectUrl
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'VAST resolution error' });
+  }
+});
 
 // Robots.txt & Sitemap routes for Google Search Console & SEO crawlers
 app.get('/robots.txt', (req, res) => {

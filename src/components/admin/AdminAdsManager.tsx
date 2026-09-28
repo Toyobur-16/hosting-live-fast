@@ -75,13 +75,19 @@ const RECOMMENDED_AD_NETWORKS = [
 export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' }) => {
   const [settings, setSettings] = useState<RewardAdSettings>({
     enabled: true,
-    adProvider: 'adsterra',
+    adProvider: 'exoclick',
     appId: 'ca-app-pub-2943337025131771~1508810719',
-    adUnitId: '31534338',
-    adsterraWebsiteId: '6080422',
-    videoUrl: '',
+    adUnitId: '6042506, 6042500',
+    adsterraWebsiteId: '6042506',
+    vastTagUrl: 'https://s.magsrv.com/v1/vast.php?idzone=6042506',
+    vastTagUrls: [
+      'https://s.magsrv.com/v1/vast.php?idzone=6042506',
+      'https://s.magsrv.com/v1/vast.php?idz=6042500',
+      'https://s.magsrv.com/v1/vast.php?idzone=6042500'
+    ],
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
     adRedirectUrl: 'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8',
-    adScriptHtml: '<script src="https://pl31534338.profitableratecpmnetwork.com/e9/85/74/e98574435b3666859ced66bcb30b378a.js"></script>\n<script src="https://pl31534336.profitableratecpmnetwork.com/97/5a/f4/975af480c3b8285bb8917ad9015855da.js"></script>',
+    adScriptHtml: '<meta http-equiv="Delegate-CH" content="Sec-CH-UA https://s.magsrv.com; Sec-CH-UA-Mobile https://s.magsrv.com; Sec-CH-UA-Arch https://s.magsrv.com; Sec-CH-UA-Model https://s.magsrv.com; Sec-CH-UA-Platform https://s.magsrv.com; Sec-CH-UA-Platform-Version https://s.magsrv.com; Sec-CH-UA-Bitness https://s.magsrv.com; Sec-CH-UA-Full-Version-List https://s.magsrv.com; Sec-CH-UA-Full-Version https://s.magsrv.com;">\nhttps://s.magsrv.com/v1/vast.php?idzone=6042506\nhttps://s.magsrv.com/v1/vast.php?idz=6042500',
     rewardAmountUsd: 0.01,
     dailyLimit: 20,
     cooldownSeconds: 0,
@@ -328,24 +334,66 @@ export const AdminAdsManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 'bn' 
               </p>
             </div>
 
+            {/* ExoClick / Network VAST Tag URLs */}
+            <div className="md:col-span-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-300">
+                  {lang === 'bn'
+                    ? 'ExoClick VAST Video Tag URLs (প্রতি লাইনে একটি VAST লিংক)'
+                    : 'ExoClick VAST Video Tag URLs (One VAST URL per line)'}
+                </label>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  ✓ Delegate-CH + VAST Active
+                </span>
+              </div>
+              <textarea
+                rows={3}
+                value={(settings.vastTagUrls && settings.vastTagUrls.length > 0
+                  ? settings.vastTagUrls
+                  : [
+                      settings.vastTagUrl || 'https://s.magsrv.com/v1/vast.php?idzone=6042506',
+                      'https://s.magsrv.com/v1/vast.php?idz=6042500'
+                    ]
+                ).join('\n')}
+                onChange={(e) => {
+                  const lines = e.target.value
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  setSettings({
+                    ...settings,
+                    vastTagUrl: lines[0] || '',
+                    vastTagUrls: lines
+                  });
+                }}
+                placeholder="https://s.magsrv.com/v1/vast.php?idzone=6042506&#10;https://s.magsrv.com/v1/vast.php?idz=6042500"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-emerald-300 text-xs font-mono focus:border-sky-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                {lang === 'bn'
+                  ? 'ExoClick-এর In-Stream / Outstream / Rewarded VAST Video Tag লিংকগুলো এখানে দিন (Zone 6042506 ও 6042500 সংযুক্ত করা হয়েছে)।'
+                  : 'Paste your ExoClick VAST Video Tag URLs here (Zones 6042506 and 6042500 are pre-configured).'}
+              </p>
+            </div>
+
             {/* Adsterra / Network GET CODE Script Box */}
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
                 {lang === 'bn'
-                  ? 'Adsterra (GET CODE) স্ক্রিপ্ট বা VAST কোড (ঐচ্ছিক)'
-                  : 'Adsterra GET CODE Script / VAST Tag (Optional)'}
+                  ? 'ExoClick Delegate-CH মেটা ট্যাগ / স্ক্রিপ্ট কোড (ঐচ্ছিক)'
+                  : 'ExoClick Delegate-CH Meta Tag / Script Code (Optional)'}
               </label>
               <textarea
                 rows={2}
                 value={settings.adScriptHtml || ''}
                 onChange={(e) => setSettings({ ...settings, adScriptHtml: e.target.value })}
-                placeholder="<script type='text/javascript' src='//...'></script> অথবা Direct Link"
+                placeholder="<meta http-equiv='Delegate-CH' content='Sec-CH-UA https://s.magsrv.com; ...'>"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1526] border border-[#1d2c47] text-white text-xs font-mono focus:border-sky-500 focus:outline-none"
               />
               <p className="text-[11px] text-slate-500 mt-1">
                 {lang === 'bn'
-                  ? 'Adsterra-তে আপনার ওয়েবসাইট (ID: 6080422) Approved হওয়ার পর GET CODE বাটনে চাপ দিয়ে পাওয়া কোড বা লিংক এখানে পেস্ট করতে পারেন।'
-                  : 'Once your Adsterra site (ID: 6080422) is approved, click GET CODE and paste the script or link here.'}
+                  ? 'ExoClick এর Delegate-CH মেটা ট্যাগ আপনার সাইটের <head> এবং HTTP হেডারে স্বয়ংক্রিয়ভাবে যুক্ত করা হয়েছে।'
+                  : 'ExoClick Delegate-CH meta tag is automatically injected in your site <head> and HTTP response headers.'}
               </p>
             </div>
 

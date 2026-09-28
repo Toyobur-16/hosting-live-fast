@@ -163,6 +163,8 @@ export interface RewardAdSettings {
   appId?: string;
   adUnitId?: string;
   adsterraWebsiteId?: string;
+  vastTagUrl?: string;
+  vastTagUrls?: string[];
   videoUrl?: string;
   adRedirectUrl?: string;
   adScriptHtml?: string;
@@ -185,6 +187,8 @@ export interface AdRewardStats {
   appId?: string;
   adUnitId?: string;
   adsterraWebsiteId?: string;
+  vastTagUrl?: string;
+  vastTagUrls?: string[];
   adScriptHtml?: string;
   videoUrl?: string;
   adRedirectUrl?: string;

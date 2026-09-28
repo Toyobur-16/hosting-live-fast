@@ -1,12 +1,18 @@
 {
   "enabled": true,
-  "adProvider": "adsterra",
+  "adProvider": "exoclick",
   "appId": "ca-app-pub-2943337025131771~1508810719",
-  "adUnitId": "31534338",
-  "adsterraWebsiteId": "6080422",
+  "adUnitId": "6042506, 6042500",
+  "adsterraWebsiteId": "6042506",
+  "vastTagUrl": "https://s.magsrv.com/v1/vast.php?idzone=6042506",
+  "vastTagUrls": [
+    "https://s.magsrv.com/v1/vast.php?idzone=6042506",
+    "https://s.magsrv.com/v1/vast.php?idz=6042500",
+    "https://s.magsrv.com/v1/vast.php?idzone=6042500"
+  ],
   "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
   "adRedirectUrl": "https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8",
-  "adScriptHtml": "",
+  "adScriptHtml": "<meta http-equiv=\"Delegate-CH\" content=\"Sec-CH-UA https://s.magsrv.com; Sec-CH-UA-Mobile https://s.magsrv.com; Sec-CH-UA-Arch https://s.magsrv.com; Sec-CH-UA-Model https://s.magsrv.com; Sec-CH-UA-Platform https://s.magsrv.com; Sec-CH-UA-Platform-Version https://s.magsrv.com; Sec-CH-UA-Bitness https://s.magsrv.com; Sec-CH-UA-Full-Version-List https://s.magsrv.com; Sec-CH-UA-Full-Version https://s.magsrv.com;\">\nhttps://s.magsrv.com/v1/vast.php?idzone=6042506\nhttps://s.magsrv.com/v1/vast.php?idz=6042500",
   "rewardAmountUsd": 0.01,
   "dailyLimit": 20,
   "cooldownSeconds": 0,

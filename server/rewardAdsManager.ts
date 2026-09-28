@@ -42,13 +42,19 @@ export function getRewardAdSettings(): RewardAdSettings {
     rewardAmountUsd: 0.01,
     dailyLimit: 20,
     cooldownSeconds: 0,
-    adProvider: 'adsterra',
+    adProvider: 'exoclick',
     appId: process.env.ADMOB_APP_ID || 'ca-app-pub-2943337025131771~1508810719',
-    adUnitId: process.env.REWARDED_AD_UNIT_ID || '31534338',
-    adsterraWebsiteId: '6080422',
-    videoUrl: DEFAULT_VIDEO_ADS_POOL[0],
+    adUnitId: process.env.REWARDED_AD_UNIT_ID || '6042506, 6042500',
+    adsterraWebsiteId: '6042506',
+    vastTagUrl: 'https://s.magsrv.com/v1/vast.php?idzone=6042506',
+    vastTagUrls: [
+      'https://s.magsrv.com/v1/vast.php?idzone=6042506',
+      'https://s.magsrv.com/v1/vast.php?idz=6042500',
+      'https://s.magsrv.com/v1/vast.php?idzone=6042500'
+    ],
+    videoUrl: DEFAULT_VIDEO_ADS_POOL[2],
     adRedirectUrl: 'https://www.profitableratecpmnetwork.com/d0xhayqy?key=d84637eb2d016c3d3cbe33aed1604ce8',
-    adScriptHtml: '',
+    adScriptHtml: '<meta http-equiv="Delegate-CH" content="Sec-CH-UA https://s.magsrv.com; Sec-CH-UA-Mobile https://s.magsrv.com; Sec-CH-UA-Arch https://s.magsrv.com; Sec-CH-UA-Model https://s.magsrv.com; Sec-CH-UA-Platform https://s.magsrv.com; Sec-CH-UA-Platform-Version https://s.magsrv.com; Sec-CH-UA-Bitness https://s.magsrv.com; Sec-CH-UA-Full-Version-List https://s.magsrv.com; Sec-CH-UA-Full-Version https://s.magsrv.com;">\nhttps://s.magsrv.com/v1/vast.php?idzone=6042506\nhttps://s.magsrv.com/v1/vast.php?idz=6042500',
     testMode: false
   };
 
@@ -57,7 +63,13 @@ export function getRewardAdSettings(): RewardAdSettings {
       const data = JSON.parse(fs.readFileSync(AD_SETTINGS_FILE, 'utf-8'));
       const merged = { ...defaultSettings, ...data, cooldownSeconds: 0 };
       if (!merged.videoUrl || !merged.videoUrl.trim()) {
-        merged.videoUrl = DEFAULT_VIDEO_ADS_POOL[0];
+        merged.videoUrl = DEFAULT_VIDEO_ADS_POOL[2];
+      }
+      if (!merged.vastTagUrls || !Array.isArray(merged.vastTagUrls) || merged.vastTagUrls.length === 0) {
+        merged.vastTagUrls = defaultSettings.vastTagUrls;
+      }
+      if (!merged.vastTagUrl || !merged.vastTagUrl.trim()) {
+        merged.vastTagUrl = merged.vastTagUrls?.[0] || defaultSettings.vastTagUrl;
       }
       return merged;
     }
@@ -194,6 +206,9 @@ export function getUserRewardStats(userId: string, currentBalanceUsd = 0): AdRew
     adProvider: settings.adProvider,
     appId: settings.appId,
     adUnitId: settings.adUnitId,
+    adsterraWebsiteId: settings.adsterraWebsiteId,
+    vastTagUrl: settings.vastTagUrl,
+    vastTagUrls: settings.vastTagUrls,
     videoUrl: settings.videoUrl,
     adRedirectUrl: settings.adRedirectUrl,
     adScriptHtml: settings.adScriptHtml,
@@ -210,6 +225,8 @@ export function startAdSession(userId: string): {
   minDurationSeconds?: number;
   rewardAmount?: number;
   nextAvailableSeconds?: number;
+  vastTagUrl?: string;
+  vastTagUrls?: string[];
   videoUrl?: string;
   adRedirectUrl?: string;
   adScriptHtml?: string;
@@ -269,6 +286,8 @@ export function startAdSession(userId: string): {
     sessionId,
     minDurationSeconds: settings.minDurationSeconds || 15, // minimum watch duration
     rewardAmount: settings.rewardAmountUsd,
+    vastTagUrl: settings.vastTagUrl,
+    vastTagUrls: settings.vastTagUrls,
     videoUrl: chosenVideoUrl,
     adRedirectUrl: settings.adRedirectUrl,
     adScriptHtml: settings.adScriptHtml,
