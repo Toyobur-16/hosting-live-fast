@@ -35,6 +35,7 @@ interface Message {
 
 interface AiLiveSupportWidgetProps {
   currentUser: AuthUser | null;
+  siteName?: string;
   onNavigateToDeposit?: () => void;
   onNavigateToPlans?: () => void;
 }
@@ -50,6 +51,7 @@ const QUICK_PROMPTS = [
 
 export const AiLiveSupportWidget: React.FC<AiLiveSupportWidgetProps> = ({
   currentUser,
+  siteName = 'hosting live fast',
   onNavigateToDeposit,
   onNavigateToPlans
 }) => {
@@ -371,7 +373,7 @@ ${errorLog.trim() ? `কনসোল এরর বা সমস্যা:\n\`\`\
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-white text-base sm:text-lg">হোস্টিংলাইভফাস্ট এআই সাপোর্ট</h3>
+                    <h3 className="font-bold text-white text-base sm:text-lg">{siteName ? `${siteName} এআই সাপোর্ট` : 'হোস্টিংলাইভফাস্ট এআই সাপোর্ট'}</h3>
                     <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] border border-indigo-500/30">
                       <Sparkles className="w-2.5 h-2.5 text-amber-400" />
                       অটো কোড ফিক্সার
@@ -553,9 +555,9 @@ ${errorLog.trim() ? `কনসোল এরর বা সমস্যা:\n\`\`\
                     </form>
 
                     <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500 px-1">
-                      <span className="flex items-center gap-1 text-slate-400">
-                        <Sparkles className="w-3 h-3 text-amber-400" />
-                        Google Gemini 24/7 AI Engine
+                      <span className="flex items-center gap-1.5 text-slate-400 font-medium">
+                        <Sparkles className="w-3 h-3 text-cyan-400" />
+                        {siteName || 'hosting live fast'}
                       </span>
                       <div className="flex items-center gap-3">
                         <a

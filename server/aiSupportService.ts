@@ -120,23 +120,28 @@ export async function askAiSupport(
 
       // Only use currently supported modern models per Gemini API guidelines
       const candidateModels = [
-        'gemini-flash-latest',
-        'gemini-3.8-flash',
-        'gemini-3.1-flash-lite'
+        'gemini-2.5-flash',
+        'gemini-3.8-flash'
       ];
 
       for (const modelName of candidateModels) {
         try {
-          const response = await ai.models.generateContent({
-            model: modelName,
-            contents,
-            config: {
-              systemInstruction: SYSTEM_INSTRUCTION,
-              temperature: 0.6
-            }
-          });
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('AI request timed out')), 6000)
+          );
+          const response: any = await Promise.race([
+            ai.models.generateContent({
+              model: modelName,
+              contents,
+              config: {
+                systemInstruction: SYSTEM_INSTRUCTION,
+                temperature: 0.6
+              }
+            }),
+            timeoutPromise
+          ]);
 
-          const replyText = response.text?.trim();
+          const replyText = response?.text?.trim();
           if (replyText) {
             return { text: replyText, fallback: false };
           }

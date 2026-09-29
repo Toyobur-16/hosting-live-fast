@@ -768,14 +768,14 @@ export const BotList: React.FC<BotListProps> = ({
                         onClick={(e) => handleAutoFixBot(e, bot.id)}
                         disabled={fixingBotId === bot.id}
                         className="min-h-[32px] py-1.5 px-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
-                        title={lang === 'bn' ? 'মিসিং ফটো ফোল্ডার, ডিপেনডেন্সি ও ডাটা এক ক্লিকে ফিক্স করুন' : '1-Click Auto-Fix Missing Folders, Photos & Dependencies'}
+                        title={lang === 'bn' ? 'টেলিগ্রাম বটের কোড এরর, ডিপেনডেন্সি ও মিসিং ফাইল এক ক্লিকে ফিক্স করুন' : '1-Click Auto-Fix Bot Code, Dependencies & Files'}
                       >
                         {fixingBotId === bot.id ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <Wrench className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                         )}
-                        <span>{lang === 'bn' ? 'ডাটা ফিক্স' : 'Auto-Fix'}</span>
+                        <span>{lang === 'bn' ? 'কোড ও ডাটা ফিক্স' : 'Auto-Fix Code'}</span>
                       </button>
                     </div>
 

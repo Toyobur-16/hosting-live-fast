@@ -6,6 +6,12 @@ import { execSync } from 'child_process';
 const TRANSPARENT_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 const DUMMY_PNG_BUFFER = Buffer.from(TRANSPARENT_PNG_BASE64, 'base64');
 
+// 1x1 valid minimal JPEG buffer for Telegram photo compatibility
+const DUMMY_JPEG_BUFFER = Buffer.from(
+  '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=',
+  'base64'
+);
+
 // Common Python library mappings from import statements
 const IMPORT_TO_PACKAGE: Record<string, string> = {
   telebot: 'pyTelegramBotAPI',
@@ -135,10 +141,25 @@ export function scanAndAutoFixBotDirectory(
         }
 
         // Regex for file opening / asset references:
-        // open('photos/logo.png'), open('data/users.json'), 'images/banner.jpg', etc.
+        // open('photos/logo.png'), open('start.jpg'), open('data/users.json'), 'images/banner.jpg', etc.
         const pathMatches = code.matchAll(/['"]((?:photos?|images?|assets?|media|pics|pictures|banners?|downloads?|data|database)\/[a-zA-Z0-9_./-]+\.(?:png|jpg|jpeg|gif|webp|ico|svg|json|txt|db|sqlite|sqlite3|csv))['"]/gi);
         for (const pm of pathMatches) {
           referencedPaths.add(pm[1]);
+        }
+
+        // Regex for standalone image/photo references (e.g. 'start.jpg', 'welcome.png', 'banner.jpeg', open('photo.png'))
+        const imageMatches = code.matchAll(/['"]([a-zA-Z0-9_.-]+\.(?:png|jpg|jpeg|gif|webp|ico|svg))['"]/gi);
+        for (const im of imageMatches) {
+          const imgName = im[1];
+          if (!imgName.startsWith('http') && !imgName.includes('://')) {
+            referencedPaths.add(imgName);
+          }
+        }
+
+        // Regex for open() calls on any data or photo files
+        const openMatches = code.matchAll(/open\s*\(\s*['"]([a-zA-Z0-9_./-]+\.(?:png|jpg|jpeg|gif|webp|ico|svg|json|txt|db|sqlite|sqlite3|csv))['"]/gi);
+        for (const om of openMatches) {
+          referencedPaths.add(om[1]);
         }
 
         // Regex for standalone JSON references like open('users.json') or open('config.json')
@@ -162,6 +183,11 @@ export function scanAndAutoFixBotDirectory(
   }
 
   // 3. Auto-fix missing directories (especially photos, images, assets, data)
+  // Ensure primary directories always exist for Telegram bots to prevent FileNotFoundError on dynamic filenames
+  ['photos', 'images', 'data'].forEach((defFolder) => {
+    referencedFolders.add(defFolder);
+  });
+
   for (const folder of referencedFolders) {
     const targetDir = path.join(botDir, folder);
     if (!fs.existsSync(targetDir)) {
@@ -186,8 +212,12 @@ export function scanAndAutoFixBotDirectory(
         }
 
         const ext = path.extname(relPath).toLowerCase();
-        if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.ico', '.svg'].includes(ext)) {
-          // Create placeholder image so bot doesn't crash on FileNotFoundError
+        if (['.jpg', '.jpeg'].includes(ext)) {
+          // Create standard valid JPEG image so Telegram send_photo never crashes
+          fs.writeFileSync(fullPath, DUMMY_JPEG_BUFFER);
+          createdFiles.push(relPath);
+        } else if (['.png', '.webp', '.gif', '.ico', '.svg'].includes(ext)) {
+          // Create placeholder PNG image so bot doesn't crash on FileNotFoundError
           fs.writeFileSync(fullPath, DUMMY_PNG_BUFFER);
           createdFiles.push(relPath);
         } else if (ext === '.json') {
@@ -212,8 +242,15 @@ export function scanAndAutoFixBotDirectory(
       }
     }
   }
-  if (createdFiles.length > 0) {
-    fixesApplied.push(`🖼️ মিসিং ফটো/ডাটা ফাইল ফিক্স করা হয়েছে: ${createdFiles.slice(0, 5).join(', ')}${createdFiles.length > 5 ? ` (+${createdFiles.length - 5} more)` : ''}`);
+
+  const createdPhotos = createdFiles.filter((f) => /\.(png|jpg|jpeg|gif|webp|ico|svg)$/i.test(f));
+  const createdDataFiles = createdFiles.filter((f) => !/\.(png|jpg|jpeg|gif|webp|ico|svg)$/i.test(f));
+
+  if (createdPhotos.length > 0) {
+    fixesApplied.push(`📸 মিসিং ফটো/ইমেজ ফাইল তৈরি ও ফিক্স করা হয়েছে (${createdPhotos.length}টি): ${createdPhotos.slice(0, 4).join(', ')}${createdPhotos.length > 4 ? ` (+${createdPhotos.length - 4} more)` : ''}`);
+  }
+  if (createdDataFiles.length > 0) {
+    fixesApplied.push(`💾 মিসিং ডাটাবেজ ফাইল ফিক্স করা হয়েছে: ${createdDataFiles.join(', ')}`);
   }
 
   // 5. Auto-fix dependencies & requirements.txt

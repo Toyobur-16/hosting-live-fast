@@ -935,6 +935,7 @@ export default function App() {
       {/* 24/7 AI Live Support Robot Assistant (Bilingual: Bengali & English) */}
       <AiLiveSupportWidget
         currentUser={currentUser}
+        siteName={siteSettings.siteName}
         onNavigateToDeposit={() => setActiveTab('deposit-store')}
         onNavigateToPlans={() => setActiveTab('plans')}
       />

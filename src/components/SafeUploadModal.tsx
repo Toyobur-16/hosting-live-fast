@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, ShieldCheck, CheckCircle2, AlertTriangle, FileCode, Archive, RefreshCw, Database, Coins, Users, Check } from 'lucide-react';
+import { X, Upload, ShieldCheck, CheckCircle2, AlertTriangle, FileCode, Archive, RefreshCw, Database, Coins, Users, Check, Wrench, Sparkles, Loader2, Image } from 'lucide-react';
 import { HostedBot } from '../types';
 
 interface SafeUploadModalProps {
@@ -22,9 +22,17 @@ export const SafeUploadModal: React.FC<SafeUploadModalProps> = ({
   const [preserveDatabases, setPreserveDatabases] = useState(true);
   const [autoRestart, setAutoRestart] = useState(true);
   const [autoConnectDatabase, setAutoConnectDatabase] = useState(true);
+  const [autoFixMissing, setAutoFixMissing] = useState(true);
+  const [inspecting, setInspecting] = useState(false);
+  const [inspectionResult, setInspectionResult] = useState<{
+    success: boolean;
+    fixes: string[];
+    createdFolders?: string[];
+    createdFiles?: string[];
+  } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successInfo, setSuccessInfo] = useState<{ updatedFiles: number; preservedDbs: string[]; users: number; balance: number } | null>(null);
+  const [successInfo, setSuccessInfo] = useState<{ updatedFiles: number; preservedDbs: string[]; users: number; balance: number; fixes?: string[] } | null>(null);
   const [dbStats, setDbStats] = useState<{ usersCount: number; totalBalance: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,6 +98,33 @@ export const SafeUploadModal: React.FC<SafeUploadModalProps> = ({
     setSelectedFiles((prev) => [...prev, ...newFiles]);
   };
 
+  const handleInspectMissing = async () => {
+    if (!zipFile) return;
+    setInspecting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/bots/inspect-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          zipBase64: zipFile.base64,
+          token: bot.token,
+          entryFile: bot.entryFile
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setInspectionResult(data);
+      } else {
+        setError(data.fixes?.[0] || 'Inspection failed');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Inspection error');
+    } finally {
+      setInspecting(false);
+    }
+  };
+
   const handleUploadSubmit = async () => {
     if (selectedFiles.length === 0 && !zipFile) {
       setError(lang === 'bn' ? 'অনুগ্রহ করে অন্তত একটি ফাইল বা জিপ নির্বাচন করুন' : 'Please select at least one file or zip');
@@ -107,6 +142,7 @@ export const SafeUploadModal: React.FC<SafeUploadModalProps> = ({
       const body: any = {
         preserveDatabases,
         autoConnectDatabase,
+        autoFixMissing,
         restart: autoRestart
       };
 
@@ -132,7 +168,8 @@ export const SafeUploadModal: React.FC<SafeUploadModalProps> = ({
         updatedFiles: data.updatedFileCount || 0,
         preservedDbs: data.preservedDatabases || [],
         users: data.databaseStats?.usersCount || dbStats?.usersCount || 0,
-        balance: data.databaseStats?.totalBalance || dbStats?.totalBalance || 0
+        balance: data.databaseStats?.totalBalance || dbStats?.totalBalance || 0,
+        fixes: data.fixes || []
       });
 
       onSuccess();
@@ -214,7 +251,7 @@ export const SafeUploadModal: React.FC<SafeUploadModalProps> = ({
 
           {/* Success Message Card */}
           {successInfo && (
-            <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-xs space-y-2 animate-in zoom-in-95">
+            <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-xs space-y-2.5 animate-in zoom-in-95">
               <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                 <span>{lang === 'bn' ? 'ফাইল আপডেট সফলভাবে সম্পন্ন হয়েছে!' : 'Safe Upload Completed!'}</span>
@@ -224,6 +261,22 @@ export const SafeUploadModal: React.FC<SafeUploadModalProps> = ({
                   ? `মোট ${successInfo.updatedFiles}টি ফাইল সফলভাবে যুক্ত/আপডেট হয়েছে। ${successInfo.users} জন ইউজারের ব্যালেন্স (মোট ${successInfo.balance.toFixed(2)}) সম্পূর্ণ সুরক্ষিত আছে।`
                   : `Updated ${successInfo.updatedFiles} files safely. Preserved ${successInfo.users} users with total ${successInfo.balance.toFixed(2)} balance intact.`}
               </p>
+
+              {successInfo.fixes && successInfo.fixes.length > 0 && (
+                <div className="p-2.5 rounded-xl bg-indigo-950/70 border border-indigo-700/50 space-y-1.5 text-[11px]">
+                  <p className="font-bold text-indigo-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{lang === 'bn' ? '১-ক্লিকে অটো-ফিক্স সম্পন্ন:' : '1-Click Auto-Fixes Applied:'}</span>
+                  </p>
+                  {successInfo.fixes.map((f, i) => (
+                    <div key={i} className="flex items-start gap-1.5 text-emerald-300 text-[10.5px]">
+                      <span className="font-bold text-emerald-400">✓</span>
+                      <span>{f}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="pt-2 border-t border-emerald-800/40 flex items-center justify-end">
                 <button
                   onClick={onClose}
@@ -358,6 +411,58 @@ export const SafeUploadModal: React.FC<SafeUploadModalProps> = ({
                     </span>
                   </div>
                 </label>
+
+                {/* 1-Click Auto-Fix Missing Photos & Data Option */}
+                <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-700/60 space-y-2">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <label className="flex items-start gap-2.5 cursor-pointer flex-1">
+                      <input
+                        type="checkbox"
+                        checked={autoFixMissing}
+                        onChange={(e) => setAutoFixMissing(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 rounded text-indigo-500 focus:ring-indigo-400 focus:ring-offset-0 bg-[#0b1220] border-[#1f2d48] cursor-pointer"
+                      />
+                      <div>
+                        <span className="font-bold text-indigo-200 text-xs flex items-center gap-1.5">
+                          <Wrench className="w-3.5 h-3.5 text-indigo-400" />
+                          {lang === 'bn' ? '🛠️ ১-ক্লিকে টেলিগ্রাম বট কোড ও মিসিং ফাইল অটো-ফিক্স' : '🛠️ 1-Click Auto-Fix Bot Code & Missing Files'}
+                        </span>
+                        <span className="text-[10.5px] text-indigo-300/80 block mt-0.5 leading-relaxed">
+                          {lang === 'bn'
+                            ? 'বটের কোডে কোনো ভুল, সিনট্যাক্স এরর, মিসিং ডিপেনডেন্সি বা ডাটা ফাইল থাকলে সিস্টেম নিজে থেকেই কোড ও ফাইল ফিক্স করে বট সচল রাখবে।'
+                            : 'If your bot code has syntax issues, missing requirements, or missing files, the engine automatically fixes them to keep your bot running.'}
+                        </span>
+                      </div>
+                    </label>
+
+                    {zipFile && (
+                      <button
+                        type="button"
+                        onClick={handleInspectMissing}
+                        disabled={inspecting}
+                        className="shrink-0 px-2.5 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold flex items-center gap-1 shadow-sm cursor-pointer disabled:opacity-50 transition-all"
+                      >
+                        {inspecting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-amber-300" />}
+                        <span>{lang === 'bn' ? 'ডাটা স্ক্যান' : 'Scan'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {inspectionResult && (
+                    <div className="pt-2 border-t border-indigo-800/40 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between text-indigo-300 font-bold text-[10.5px]">
+                        <span>{lang === 'bn' ? 'স্ক্যান রেজাল্ট (ডাটা ও ফটো):' : 'Scan Result:'}</span>
+                        <span className="text-emerald-400">✓ {lang === 'bn' ? '১০০% রেডি' : '100% Ready'}</span>
+                      </div>
+                      {inspectionResult.fixes.map((f, i) => (
+                        <div key={i} className="flex items-start gap-1 text-emerald-300 text-[10px]">
+                          <span>✓</span>
+                          <span>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}

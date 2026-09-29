@@ -515,15 +515,15 @@ export const NewBotModal: React.FC<NewBotModalProps> = ({ onClose, onCreated, la
                 <div>
                   <label htmlFor="auto-fix-missing" className="text-xs font-bold text-indigo-950 dark:text-indigo-200 cursor-pointer flex items-center gap-1.5">
                     <Wrench className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                    {lang === 'bn' ? '১-ক্লিকে মিসিং ফাইল ও ফটো ডাটা অটো-ফিক্স' : '1-Click Auto-Fix Missing Data & Photos'}
+                    {lang === 'bn' ? '🛠️ ১-ক্লিকে টেলিগ্রাম বট কোড ও মিসিং ফাইল অটো-ফিক্স' : '🛠️ 1-Click Auto-Fix Bot Code & Missing Files'}
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-200/80 dark:bg-indigo-900/90 text-indigo-800 dark:text-indigo-300 font-bold">
                       {lang === 'bn' ? 'সুপার রিকমেন্ডেড' : 'Recommended'}
                     </span>
                   </label>
                   <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300/80 mt-0.5 leading-relaxed">
                     {lang === 'bn'
-                      ? 'জিপ ফাইলে কোনো ডাটা মিসিং থাকলে (যেমন: requirements.txt, photos/ বা images/ ফোল্ডার, config.json বা টোকেন) সিস্টেম নিজে থেকেই তা তৈরি ও ঠিক করে বট সচল রাখবে।'
-                      : 'If your zip is missing requirements.txt, photos/ folders, config.json or token configs, the engine automatically creates and fixes them.'}
+                      ? 'টেলিগ্রাম বটের কোডে কোনো ভুল, মিসিং ডিপেনডেন্সি (requirements.txt), কনফিগ (.env টোকেন), ডাটাবেজ বা ফাইল মিসিং থাকলে সিস্টেম নিজে থেকেই কোড ও ফাইল ঠিক করে বট ২৪ ঘণ্টা সচল রাখবে।'
+                      : 'If your Telegram bot code has syntax issues, missing requirements.txt, token config, or missing files, the engine automatically repairs them so your bot runs 24/7 without crashes.'}
                   </p>
                 </div>
               </div>

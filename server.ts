@@ -5231,6 +5231,7 @@ app.post('/api/bots', (req, res) => {
   fs.mkdirSync(botDir, { recursive: true });
 
   const finalEntry = entryFile || 'bot.py';
+  let resolvedEntry = finalEntry;
 
   // Handle uploaded files
   if (Array.isArray(files)) {
@@ -5399,7 +5400,8 @@ app.post('/api/bots/inspect-zip', (req, res) => {
 // 1-Click Auto-fix for existing bot
 app.post('/api/bots/:id/auto-fix', (req, res) => {
   const botId = req.params.id;
-  const bot = getBotById(botId);
+  const reg = getRegistry();
+  const bot = reg.find((b) => b.id === botId);
   if (!bot) return res.status(404).json({ error: 'Bot not found' });
   const botDir = path.join(HOSTED_BOTS_DIR, botId);
   const result = scanAndAutoFixBotDirectory(botDir, {
@@ -5984,7 +5986,29 @@ app.post('/api/bots/:id/safe-update', (req, res) => {
     }
   }
 
-  // 4. Auto-connect and initialize database files if missing
+  // 4. Auto-Fix Missing Photos, Assets, Folders & Dependencies
+  let fixesApplied: string[] = [];
+  if (req.body.autoFixMissing !== false) {
+    const fixResult = scanAndAutoFixBotDirectory(botDir, {
+      defaultToken: bot.token,
+      requestedEntry: bot.entryFile
+    });
+    fixesApplied = fixResult.fixesApplied;
+    if (fixResult.resolvedEntry && fixResult.resolvedEntry !== bot.entryFile) {
+      bot.entryFile = fixResult.resolvedEntry;
+      const reg = getRegistry();
+      const idx = reg.findIndex((b) => b.id === id);
+      if (idx !== -1) {
+        reg[idx] = bot;
+        saveRegistry(reg);
+      }
+    }
+    for (const fix of fixesApplied) {
+      appendLog(id, 'info', `[Auto-Fix] ${fix}`);
+    }
+  }
+
+  // 5. Auto-connect and initialize database files if missing
   if (autoConnectDatabase) {
     for (const dbFile of PROTECTED_DB_FILES) {
       const p = path.join(botDir, dbFile);
@@ -5994,7 +6018,7 @@ app.post('/api/bots/:id/safe-update', (req, res) => {
     }
   }
 
-  // 5. Read protected user stats
+  // 6. Read protected user stats
   let usersCount = 0;
   let totalBalance = 0;
   const usersPath = path.join(botDir, 'users.json');
@@ -6031,6 +6055,7 @@ app.post('/api/bots/:id/safe-update', (req, res) => {
     updatedFileCount,
     preservedDatabases,
     backupDir: `_db_snapshots/backup_${snapshotTimestamp}`,
+    fixes: fixesApplied,
     databaseStats: {
       usersCount,
       totalBalance
