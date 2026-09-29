@@ -218,9 +218,26 @@
         "updatedAt": { "type": "number", "description": "Timestamp" }
       },
       "required": ["id", "base64"]
+    },
+    "BotWorkspace": {
+      "title": "BotWorkspace",
+      "description": "Persistent compressed archive and source files of a hosted bot workspace",
+      "type": "object",
+      "properties": {
+        "botId": { "type": "string", "description": "ID of the hosted bot" },
+        "zipBase64": { "type": "string", "description": "Base64 encoded zip archive of the bot workspace files" },
+        "fileCount": { "type": "number", "description": "Total files count in the workspace" },
+        "byteLength": { "type": "number", "description": "Total byte size of workspace archive" },
+        "updatedAt": { "type": "number", "description": "Last synced timestamp" }
+      },
+      "required": ["botId", "zipBase64"]
     }
   },
   "firestore": {
+    "/bot_workspaces/{workspaceId}": {
+      "schema": "BotWorkspace",
+      "description": "Compressed workspace archives of all hosted bots ensuring zero data loss across updates"
+    },
     "/site_images/{imageId}": {
       "schema": "SiteImage",
       "description": "Website logo, deposit method logos, and branding images"

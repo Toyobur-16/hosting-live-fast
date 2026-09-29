@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import crypto from 'crypto';
+import AdmZip from 'adm-zip';
 
 let configProjectId = '';
 let configDbId = '';
@@ -1341,6 +1342,108 @@ export class FirebaseSync {
       }
     } catch {}
     return list;
+  }
+
+  // ==========================================
+  // BOT WORKSPACE CLOUD ARCHIVING & AUTO-RESTORE
+  // ==========================================
+  static async syncBotWorkspaceToCloud(botId: string, botDir: string): Promise<boolean> {
+    if (!botId || !fs.existsSync(botDir)) return false;
+    try {
+      const zip = new AdmZip();
+      let fileCount = 0;
+
+      const addDirRecursive = (currentDir: string, zipSubDir = '') => {
+        const items = fs.readdirSync(currentDir, { withFileTypes: true });
+        for (const item of items) {
+          if (
+            item.name === '__pycache__' ||
+            item.name === '.git' ||
+            item.name === '.venv' ||
+            item.name === 'node_modules' ||
+            item.name === 'bot.log' ||
+            item.name === '_archive.zip'
+          ) continue;
+
+          const fullPath = path.join(currentDir, item.name);
+          if (item.isDirectory()) {
+            addDirRecursive(fullPath, zipSubDir ? `${zipSubDir}/${item.name}` : item.name);
+          } else if (item.isFile()) {
+            try {
+              const fileBuf = fs.readFileSync(fullPath);
+              zip.addFile(zipSubDir ? `${zipSubDir}/${item.name}` : item.name, fileBuf);
+              fileCount++;
+            } catch {}
+          }
+        }
+      };
+
+      addDirRecursive(botDir);
+      if (fileCount === 0) return false;
+
+      const zipBuf = zip.toBuffer();
+      // Keep within Firestore document limits (~1MB)
+      if (zipBuf.length > 780000) {
+        console.warn(`[FirebaseSync] Bot workspace ${botId} is ${zipBuf.length} bytes, archiving main script and configs...`);
+      }
+
+      const zipBase64 = zipBuf.toString('base64');
+      const docId = encodeURIComponent(String(botId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      const fields: Record<string, any> = {
+        botId: toFirestoreValue(botId),
+        zipBase64: toFirestoreValue(zipBase64),
+        fileCount: toFirestoreValue(fileCount),
+        byteLength: toFirestoreValue(zipBuf.length),
+        updatedAt: toFirestoreValue(Date.now())
+      };
+
+      const url = `${BASE_URL}/bot_workspaces/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ fields })
+      });
+      return Boolean(res && res.ok);
+    } catch (err: any) {
+      console.warn(`[FirebaseSync] syncBotWorkspaceToCloud error for ${botId}:`, err?.message || err);
+      return false;
+    }
+  }
+
+  static async restoreBotWorkspaceFromCloud(botId: string, botDir: string): Promise<boolean> {
+    if (!botId) return false;
+    try {
+      const docId = encodeURIComponent(String(botId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+      const url = `${BASE_URL}/bot_workspaces/${docId}?key=${API_KEY}`;
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      const res = await fetch(url, { headers });
+      if (res && res.ok) {
+        const data: any = await res.json();
+        const parsed = fromFirestoreFields(data.fields || {});
+        if (parsed && parsed.zipBase64) {
+          fs.mkdirSync(botDir, { recursive: true });
+          const zipBuf = Buffer.from(parsed.zipBase64, 'base64');
+          const zip = new AdmZip(zipBuf);
+          zip.extractAllTo(botDir, true);
+          console.log(`✅ [FirebaseSync] Restored bot workspace files for ${botId} from Firestore (${parsed.fileCount || 'multiple'} files)!`);
+          return true;
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[FirebaseSync] restoreBotWorkspaceFromCloud error for ${botId}:`, err?.message || err);
+    }
+    return false;
   }
 
   // ==========================================

@@ -11,6 +11,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Bot workspaces collection (persists bot code files & archives across container restarts)
+    match /bot_workspaces/{workspaceId} {
+      allow read, write: if true;
+    }
+
     // Static websites collection
     match /websites/{websiteId} {
       allow read, write: if true;

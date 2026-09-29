@@ -643,6 +643,10 @@ function saveRegistry(data: any[]) {
     for (const b of data) {
       if (b && b.id) {
         FirebaseSync.syncBotToCloud(b).catch(() => {});
+        const botDir = path.join(HOSTED_BOTS_DIR, b.dirName || b.id);
+        if (fs.existsSync(botDir)) {
+          FirebaseSync.syncBotWorkspaceToCloud(b.id, botDir).catch(() => {});
+        }
       }
     }
   }
@@ -1483,8 +1487,13 @@ const botRestartAttempts = new Map<string, { count: number; firstAttempt: number
 // Bot runner
 function launchBotProcess(bot: any): boolean {
   const botDir = path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id);
-  if (!fs.existsSync(botDir)) {
-    appendLog(bot.id, 'error', `Workspace folder not found: ${botDir}`);
+  if (!fs.existsSync(botDir) || fs.readdirSync(botDir).length === 0) {
+    appendLog(bot.id, 'info', `Restoring workspace files from Firestore cloud backup...`);
+    FirebaseSync.restoreBotWorkspaceFromCloud(bot.id, botDir).then((restored) => {
+      if (restored) {
+        launchBotProcess(bot);
+      }
+    }).catch(() => {});
     return false;
   }
 
@@ -5469,16 +5478,39 @@ app.get('/api/admin/all-bots', (req, res) => {
 });
 
 // 2. Bot management (Strict User Isolation: Each user only sees their own bots)
-app.get('/api/bots', (req, res) => {
+app.get('/api/bots', async (req, res) => {
   const user = getAuthUser(req);
   if (!user) {
     // Unauthenticated visitors do not see any user's hosted bots
     return res.json({ bots: [] });
   }
 
-  const reg = getRegistry();
+  let reg = getRegistry();
+  // Immediately restore from Firebase Firestore if registry is empty (prevents bot disappearance on site updates)
+  if (reg.length === 0) {
+    try {
+      const remoteBots = await FirebaseSync.loadBotsFromCloud();
+      if (remoteBots && Array.isArray(remoteBots) && remoteBots.length > 0) {
+        saveRegistry(remoteBots);
+        reg = remoteBots;
+      }
+    } catch {}
+  }
+
   // Admins see all bots, normal users ONLY see bots they own
   const userBots = isUserAdmin(user) ? reg : reg.filter((b) => canUserAccessBot(b, user));
+
+  // Auto-restore workspace files for user bots if missing from disk
+  for (const b of userBots) {
+    const botDir = path.join(HOSTED_BOTS_DIR, b.dirName || b.id);
+    if (!fs.existsSync(botDir) || fs.readdirSync(botDir).length === 0) {
+      FirebaseSync.restoreBotWorkspaceFromCloud(b.id, botDir).then((restored) => {
+        if (restored && (b.status === 'running' || b.autoRestart !== false) && !runningProcesses.has(b.id)) {
+          launchBotProcess(b);
+        }
+      }).catch(() => {});
+    }
+  }
 
   // enrich with runtime status, accurate uptimeSeconds, and fileCount
   const enriched = userBots.map((b) => {
@@ -5698,6 +5730,9 @@ app.post('/api/bots', (req, res) => {
     deployedBy: user ? user.name : 'Owner',
     entryFile: resolvedEntry
   });
+
+  // Persist complete bot workspace to Firebase Firestore cloud storage
+  FirebaseSync.syncBotWorkspaceToCloud(botId, botDir).catch(() => {});
 
   // Background install requirements if present, without blocking API response
   const reqPath = path.join(botDir, 'requirements.txt');
@@ -5952,7 +5987,7 @@ app.delete('/api/bots/:id/logs', (req, res) => {
 });
 
 // 4. File operations (Edit, List, Delete, Upload) - Strictly isolated per bot owner
-app.get('/api/bots/:id/files', (req, res) => {
+app.get('/api/bots/:id/files', async (req, res) => {
   const { id } = req.params;
   const reg = getRegistry();
   const bot = reg.find((b) => b.id === id);
@@ -5966,6 +6001,9 @@ app.get('/api/bots/:id/files', (req, res) => {
   }
 
   const botDir = path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id);
+  if (!fs.existsSync(botDir) || fs.readdirSync(botDir).length === 0) {
+    await FirebaseSync.restoreBotWorkspaceFromCloud(bot.id, botDir);
+  }
   if (!fs.existsSync(botDir)) {
     return res.json({ files: [], fileDetails: [] });
   }
@@ -5994,7 +6032,7 @@ app.get('/api/bots/:id/files', (req, res) => {
   res.json({ files, fileDetails });
 });
 
-app.get('/api/bots/:id/file', (req, res) => {
+app.get('/api/bots/:id/file', async (req, res) => {
   const { id } = req.params;
   const filename = req.query.name as string;
   if (!filename) return res.status(400).json({ error: 'Filename is required' });
@@ -6006,6 +6044,11 @@ app.get('/api/bots/:id/file', (req, res) => {
   const user = getAuthUser(req);
   if (!user || !canUserAccessBot(bot, user)) {
     return res.status(403).json({ error: 'এই ফাইল পড়ার অনুমতি আপনার নেই (Access Denied: Only bot owner can view files)' });
+  }
+
+  const botDir = path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id);
+  if (!fs.existsSync(botDir) || fs.readdirSync(botDir).length === 0) {
+    await FirebaseSync.restoreBotWorkspaceFromCloud(bot.id, botDir);
   }
 
   const safeFilename = path.basename(filename);
@@ -6045,6 +6088,7 @@ app.post('/api/bots/:id/file', (req, res) => {
   try {
     fs.writeFileSync(filePath, content, 'utf-8');
     appendLog(id, 'info', `File '${safeFilename}' updated successfully.`);
+    FirebaseSync.syncBotWorkspaceToCloud(id, path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id)).catch(() => {});
 
     recordBotDeployment(id, {
       trigger: 'code_update',
@@ -6125,6 +6169,7 @@ app.post('/api/bots/:id/upload-files', (req, res) => {
   }
 
   appendLog(id, 'info', `Uploaded ${files.length} files.`);
+  FirebaseSync.syncBotWorkspaceToCloud(id, botDir).catch(() => {});
   if (restart) {
     stopBotProcess(id);
     setTimeout(() => {
@@ -6158,6 +6203,7 @@ app.post('/api/bots/:id/upload-zip', (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     appendLog(id, 'info', 'Extracted zip archive successfully.');
+    FirebaseSync.syncBotWorkspaceToCloud(id, botDir).catch(() => {});
     if (restart) {
       stopBotProcess(id);
       setTimeout(() => {
@@ -8122,15 +8168,26 @@ async function initSiteConfigSync() {
       const map = new Map<string, any>();
       current.forEach((b) => { if (b && b.id) map.set(b.id, b); });
       let added = false;
-      remoteBots.forEach((rb) => {
-        if (rb && rb.id && !map.has(rb.id)) {
-          map.set(rb.id, rb);
-          added = true;
+      for (const rb of remoteBots) {
+        if (rb && rb.id) {
+          if (!map.has(rb.id)) {
+            map.set(rb.id, rb);
+            added = true;
+          }
+          const botDir = path.join(HOSTED_BOTS_DIR, rb.dirName || rb.id);
+          if (!fs.existsSync(botDir) || fs.readdirSync(botDir).length === 0) {
+            await FirebaseSync.restoreBotWorkspaceFromCloud(rb.id, botDir);
+          }
+          if ((rb.status === 'running' || rb.autoRestart !== false) && !runningProcesses.has(rb.id)) {
+            setTimeout(() => {
+              launchBotProcess(rb);
+            }, 1500);
+          }
         }
-      });
+      }
       if (added) {
         saveRegistry(Array.from(map.values()));
-        console.log(`✅ Restored ${remoteBots.length} hosted bots from Firebase Firestore!`);
+        console.log(`✅ Restored ${remoteBots.length} hosted bots and workspaces from Firebase Firestore!`);
       }
     }
 
