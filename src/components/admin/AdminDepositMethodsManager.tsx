@@ -18,9 +18,8 @@ import {
   HelpCircle,
   ArrowRight
 } from 'lucide-react';
-import { DepositMethodItem } from '../../types';
+import { DepositMethodItem, DEFAULT_DEPOSIT_METHODS } from '../../types';
 import { db, doc, getDoc, setDoc, onSnapshot } from '../../lib/firebase';
-import { DEFAULT_DEPOSIT_METHODS } from '../../../server/depositMethodsManager';
 
 interface AdminDepositMethodsManagerProps {
   lang?: 'bn' | 'en';

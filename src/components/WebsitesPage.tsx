@@ -28,6 +28,7 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 import { HostedWebsite, AuthUser } from '../types';
+import { HostingTutorialSection } from './HostingTutorialSection';
 
 interface WebsitesPageProps {
   user: AuthUser | null;
@@ -87,6 +88,7 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
   // Delete modal
   const [deleteTargetSite, setDeleteTargetSite] = useState<HostedWebsite | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [websiteVideoUrl, setWebsiteVideoUrl] = useState<string | undefined>(undefined);
 
   const fetchWebsites = async () => {
     if (!user) return;
@@ -109,6 +111,14 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
 
   useEffect(() => {
     fetchWebsites();
+    fetch('/api/site-settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.settings?.websiteVideoUrl || data.settings?.hostingVideoUrl) {
+          setWebsiteVideoUrl(data.settings.websiteVideoUrl || data.settings.hostingVideoUrl);
+        }
+      })
+      .catch(() => {});
   }, [user]);
 
   // Transliterate Bangla to clean Latin slug
@@ -513,6 +523,14 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
         </div>
       )}
 
+      {/* Video Tutorial & How to Host Websites Guide */}
+      <HostingTutorialSection
+        lang={lang}
+        videoUrl={websiteVideoUrl}
+        onNavigateToPlans={onNavigateToPlans}
+        type="website"
+      />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <div className="bg-[#0b1222] border border-slate-800 p-4 rounded-2xl shadow-sm">
@@ -611,7 +629,7 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                       </div>
                       <div>
                         <h3 className="text-base font-bold text-white">{site.name}</h3>
-                        <p className="text-xs text-slate-400 font-mono">/{site.slug}</p>
+                        <p className="text-xs text-cyan-400 font-mono font-medium">https://{site.slug}.run.app</p>
                       </div>
                     </div>
 
@@ -629,13 +647,13 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                     </div>
                   </div>
 
-                  {/* URL Card - Always provides 100% accessible live working URL */}
+                  {/* URL Card - Always provides https://${site.slug}.run.app with direct preview access */}
                   <div className="bg-[#060c18] border border-cyan-500/30 rounded-2xl p-3.5 mb-4 shadow-inner">
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                         <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-extrabold">
-                          {lang === 'bn' ? 'সরাসরি লাইভ ওয়েবসাইট লিংক' : 'Direct Live Website Link'}
+                          {lang === 'bn' ? 'অফিসিয়াল লাইভ ওয়েবসাইট লিংক' : 'Official Live Website Link'}
                         </p>
                       </div>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/40">
@@ -648,20 +666,20 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                         href={fullLiveUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-xs text-cyan-300 hover:text-cyan-200 hover:underline truncate block font-mono font-medium flex-1 min-w-0"
-                        title={fullLiveUrl}
+                        className="text-xs text-cyan-300 hover:text-cyan-200 hover:underline truncate block font-mono font-bold flex-1 min-w-0"
+                        title={`https://${site.slug}.run.app`}
                       >
-                        {fullLiveUrl}
+                        https://{site.slug}.run.app
                       </a>
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           onClick={() => {
-                            copyToClipboard(fullLiveUrl, site.id);
+                            copyToClipboard(`https://${site.slug}.run.app`, site.id);
                             setSuccessMsg(
                               lang === 'bn'
-                                ? '✓ লাইভ ওয়েবসাইট লিংক কপি হয়েছে! ব্রাউজারে পেস্ট করে যেকোনো সময় সাইট ভিজিট করুন।'
-                                : '✓ Live website link copied to clipboard!'
+                                ? `✓ লিংক কপি হয়েছে: https://${site.slug}.run.app`
+                                : `✓ Copied: https://${site.slug}.run.app`
                             );
                           }}
                           className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
@@ -800,7 +818,7 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder={lang === 'bn' ? 'যেমন: My Portfolio বা Moto Live' : 'e.g. My Portfolio or Moto Live'}
+                  placeholder={lang === 'bn' ? 'যেমন: My Portfolio বা Incom Free BD' : 'e.g. My Portfolio or Incom Free BD'}
                   value={newSiteName}
                   onChange={(e) => handleNameChange(e.target.value)}
                   className="w-full px-4 py-2.5 bg-[#0b1220] border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-400"
@@ -815,7 +833,7 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="moto-liver"
+                    placeholder="incom-free-bd"
                     value={newSiteSlug}
                     onChange={(e) => {
                       setSlugManuallyEdited(true);
@@ -838,13 +856,21 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
               </div>
 
               {/* Real-time exact Live Link Card */}
-              <div className="p-3 bg-cyan-950/40 border border-cyan-800/60 rounded-xl">
-                <div className="flex items-center gap-1.5 text-xs text-cyan-300 font-semibold mb-1">
-                  <LinkIcon className="w-3.5 h-3.5" />
-                  <span>{lang === 'bn' ? 'তৈরি হওয়ার পর আপনার সাইটের লাইভ লিংক হবে:' : 'Your live website link will be:'}</span>
+              <div className="p-3.5 bg-cyan-950/40 border border-cyan-800/60 rounded-xl">
+                <div className="flex items-center justify-between gap-2 text-xs text-cyan-300 font-semibold mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <LinkIcon className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{lang === 'bn' ? 'তৈরি হওয়ার পর আপনার সাইটের লাইভ লিংক হবে:' : 'Your live website link will be:'}</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                    HTTPS 24/7
+                  </span>
                 </div>
-                <div className="text-xs font-mono text-cyan-100 font-bold break-all bg-black/40 px-2.5 py-1.5 rounded-lg border border-cyan-900/40">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/site/${newSiteSlug || 'your-name'}/` : `/site/${newSiteSlug || 'your-name'}/`}
+                <div className="text-sm font-mono text-cyan-300 font-bold break-all bg-black/50 px-3 py-2 rounded-lg border border-cyan-900/50 flex items-center justify-between gap-2">
+                  <span>{`https://${newSiteSlug || 'incom-free-bd'}.run.app`}</span>
+                  <span className="text-[10px] text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/60 shrink-0 font-sans">
+                    Live Link
+                  </span>
                 </div>
               </div>
 
@@ -946,13 +972,21 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
               </div>
 
               {/* Exact Live Link Preview */}
-              <div className="p-3 bg-cyan-950/40 border border-cyan-800/60 rounded-xl">
-                <div className="flex items-center gap-1.5 text-xs text-cyan-300 font-semibold mb-1">
-                  <LinkIcon className="w-3.5 h-3.5" />
-                  <span>{lang === 'bn' ? 'সেভ করার পর নতুন লাইভ লিংক হবে:' : 'New live website link will be:'}</span>
+              <div className="p-3.5 bg-cyan-950/40 border border-cyan-800/60 rounded-xl">
+                <div className="flex items-center justify-between gap-2 text-xs text-cyan-300 font-semibold mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <LinkIcon className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{lang === 'bn' ? 'সেভ করার পর নতুন লাইভ লিংক হবে:' : 'New live website link will be:'}</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                    HTTPS 24/7
+                  </span>
                 </div>
-                <div className="text-xs font-mono text-cyan-100 font-bold break-all bg-black/40 px-2.5 py-1.5 rounded-lg border border-cyan-900/40">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/site/${editSiteSlug || 'name'}/` : `/site/${editSiteSlug || 'name'}/`}
+                <div className="text-sm font-mono text-cyan-300 font-bold break-all bg-black/50 px-3 py-2 rounded-lg border border-cyan-900/50 flex items-center justify-between gap-2">
+                  <span>{`https://${editSiteSlug || 'your-name'}.run.app`}</span>
+                  <span className="text-[10px] text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/60 shrink-0 font-sans">
+                    Live Link
+                  </span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1.5">
                   ℹ️ {lang === 'bn' ? 'পূর্বের লিংকটিও সুরক্ষিত থাকবে এবং নতুন লিংকেও স্বয়ংক্রিয়ভাবে ভিজিট করা যাবে।' : 'Previous link will also route seamlessly.'}
@@ -1239,7 +1273,7 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
               {/* Address Bar */}
               <div className="flex-1 max-w-md hidden sm:flex items-center bg-[#0e1628] border border-slate-700/60 rounded-xl px-3 py-1.5 text-xs text-slate-300 font-mono truncate">
                 <span className="text-emerald-400 mr-1.5">🔒</span>
-                <span className="truncate">{typeof window !== 'undefined' ? `${window.location.origin}/site/${previewSite.slug}/` : `/site/${previewSite.slug}/`}</span>
+                <span className="truncate">{`https://${previewSite.slug}.run.app`}</span>
               </div>
 
               <div className="flex items-center gap-2 shrink-0">

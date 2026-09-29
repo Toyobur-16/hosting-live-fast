@@ -25,7 +25,7 @@ export function getWebsiteSettings(): WebsiteSettings {
     maxWebsitesPerUser: 5,
     maxStorageMb: 50,
     maxFileSizeMb: 15,
-    baseDomain: process.env.HOSTING_BASE_DOMAIN || 'hostinglivefast.cloud',
+    baseDomain: process.env.HOSTING_BASE_DOMAIN || 'run.app',
     allowedExtensions: [
       'html', 'htm', 'css', 'js', 'mjs', 'png', 'jpg', 'jpeg', 'gif',
       'webp', 'svg', 'ico', 'json', 'woff', 'woff2', 'ttf', 'otf',
@@ -220,7 +220,7 @@ export async function createWebsite(
     <div class="badge">🚀 LIVE ON FAST CLOUD</div>
     <h1>${cleanName}</h1>
     <p>আপনার স্ট্যাটিক ওয়েবসাইট সফলভাবে তৈরি হয়েছে! এখন আপনার নিজস্ব HTML, CSS, JS ফাইল বা ZIP আপলোড করুন।</p>
-    <div class="domain">${slug}.${baseDomain}</div>
+    <div class="domain">https://${slug}.run.app</div>
     <div class="footer">Powered by <strong>hosting live fast</strong></div>
   </div>
 </body>
@@ -236,9 +236,9 @@ export async function createWebsite(
     userEmail,
     name: cleanName,
     slug,
-    subdomainUrl: `https://${slug}.${baseDomain}`,
+    subdomainUrl: `https://${slug}.run.app`,
     directUrl: `/site/${slug}/`,
-    liveUrl: `/site/${slug}/`,
+    liveUrl: `https://${slug}.run.app`,
     status: 'online',
     storageBytes: totalBytes,
     filesCount: fileCount,
@@ -547,10 +547,9 @@ export function updateWebsite(
         website.aliases.push(website.slug);
       }
       website.slug = newSlug;
-      const settings = getWebsiteSettings();
-      website.subdomainUrl = `https://${newSlug}.${settings.baseDomain}`;
+      website.subdomainUrl = `https://${newSlug}.run.app`;
       website.directUrl = `/site/${newSlug}/`;
-      website.liveUrl = `/site/${newSlug}/`;
+      website.liveUrl = `https://${newSlug}.run.app`;
     }
   }
 

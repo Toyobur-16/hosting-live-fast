@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image as ImageIcon, Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Sliders, Upload, Loader2, Trash2 } from 'lucide-react';
+import { Image as ImageIcon, Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Sliders, Upload, Loader2, Trash2, Film, Play, ExternalLink } from 'lucide-react';
 import { SiteSettings } from '../../types';
+import { getEmbedVideoUrl } from '../HostingTutorialSection';
 
 export function AdminSiteSettingsManager() {
   const [settings, setSettings] = useState<SiteSettings>({
@@ -357,6 +358,67 @@ export function AdminSiteSettingsManager() {
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500"
             />
           </div>
+        </div>
+
+        {/* Video Tutorial Settings */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#080e1b] border border-slate-200 dark:border-[#162035] space-y-4">
+          <div className="flex items-center gap-2 text-xs font-black uppercase text-amber-500 tracking-wider">
+            <Film className="w-4 h-4" />
+            <span>হোস্টিং ভিডিও টিউটোরিয়াল সেটিংস (Video Tutorials)</span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              🎬 কিভাবে হোস্টিং নিবেন - ভিডিও লিংক (YouTube URL)
+            </label>
+            <input
+              type="text"
+              value={settings.hostingVideoUrl || ''}
+              onChange={(e) => setSettings({ ...settings, hostingVideoUrl: e.target.value })}
+              placeholder="e.g. https://www.youtube.com/watch?v=YOUR_VIDEO_ID বা https://youtu.be/..."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500 font-mono"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              ব্যবহারকারীরা হোস্টিং প্ল্যান পেজে "ভিডিও টিউটোরিয়াল দেখুন" বাটনে চাপলে সরাসরি এই ভিডিওটি দেখতে পারবে।
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              🌐 কিভাবে ওয়েবসাইট হোস্ট করবেন - ভিডিও লিংক (YouTube URL)
+            </label>
+            <input
+              type="text"
+              value={settings.websiteVideoUrl || ''}
+              onChange={(e) => setSettings({ ...settings, websiteVideoUrl: e.target.value })}
+              placeholder="e.g. https://www.youtube.com/watch?v=YOUR_VIDEO_ID"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500 font-mono"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              ওয়েবসাইট পেজের ইউজাররা এই ভিডিও দেখে কিভাবে HTML/ZIP ফাইল দিয়ে ওয়েবসাইট তৈরি করতে হয় তা শিখতে পারবে।
+            </p>
+          </div>
+
+          {/* Video Preview if URL is set */}
+          {(settings.hostingVideoUrl || settings.websiteVideoUrl) && (
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+              <span className="text-[11px] font-bold text-slate-400 block mb-2">লাইভ ভিডিও প্রিভিউ:</span>
+              <div className="relative aspect-video rounded-xl overflow-hidden bg-black max-w-sm">
+                {getEmbedVideoUrl(settings.hostingVideoUrl || settings.websiteVideoUrl) ? (
+                  <iframe
+                    src={getEmbedVideoUrl(settings.hostingVideoUrl || settings.websiteVideoUrl)!}
+                    title="Video Preview"
+                    className="w-full h-full border-0"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xs text-slate-500">
+                    অবৈধ ভিডিও ইউআরএল (সঠিক ইউটিউব লিংক দিন)
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <button

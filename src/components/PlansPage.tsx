@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { HostingPlan, AuthUser, FreeTrialSettings } from '../types';
 import { FAQAccordion } from './FAQAccordion';
+import { HostingTutorialSection } from './HostingTutorialSection';
 
 interface PlansPageProps {
   user: AuthUser | null;
@@ -34,6 +35,7 @@ export const PlansPage: React.FC<PlansPageProps> = ({
   const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
+  const [hostingVideoUrl, setHostingVideoUrl] = useState<string | undefined>(undefined);
 
   // Modal dialog states
   const [confirmPlan, setConfirmPlan] = useState<HostingPlan | null>(null);
@@ -41,6 +43,14 @@ export const PlansPage: React.FC<PlansPageProps> = ({
 
   useEffect(() => {
     fetchPlans();
+    fetch('/api/site-settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.settings?.hostingVideoUrl) {
+          setHostingVideoUrl(data.settings.hostingVideoUrl);
+        }
+      })
+      .catch(() => {});
 
     const handlePlansUpdated = () => {
       fetchPlans();
@@ -245,6 +255,15 @@ export const PlansPage: React.FC<PlansPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Video Tutorial & How to Take Hosting Guide */}
+      <HostingTutorialSection
+        lang={lang}
+        videoUrl={hostingVideoUrl}
+        onNavigateToWallet={onNavigateToWallet}
+        onNavigateToDeploy={onNavigateToDeploy}
+        type="plans"
+      />
 
       {/* Pricing Header Info & Refresh */}
       <div className="flex flex-wrap items-center justify-between gap-4">

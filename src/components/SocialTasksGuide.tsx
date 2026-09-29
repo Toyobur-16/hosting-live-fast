@@ -15,11 +15,11 @@ interface SocialTasksGuideProps {
   onContactSupport: () => void;
 }
 
-export const SocialTasksGuide: React.FC<SocialTasksGuideProps> = ({
+export function SocialTasksGuide({
   lang = 'bn',
   onNavigateToRewards,
   onContactSupport
-}) => {
+}: SocialTasksGuideProps) {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Hero Banner */}

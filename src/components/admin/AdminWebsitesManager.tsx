@@ -246,7 +246,7 @@ export const AdminWebsitesManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 
         ) : (
           filtered.map((site) => {
             const sizeMb = ((site.storageBytes || 0) / (1024 * 1024)).toFixed(2);
-            const liveUrl = site.liveUrl || `/site/${site.slug}/`;
+            const liveUrl = site.directUrl || `/site/${site.slug}/`;
 
             return (
               <div
@@ -262,7 +262,7 @@ export const AdminWebsitesManager: React.FC<{ lang?: 'bn' | 'en' }> = ({ lang = 
                     />
                     <h4 className="text-sm font-bold text-white truncate">{site.name}</h4>
                     <span className="px-2 py-0.5 rounded-md bg-[#131f34] text-[11px] font-mono text-cyan-300 border border-[#233758]">
-                      /{site.slug}
+                      https://{site.slug}.run.app
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-black ${

@@ -4664,7 +4664,7 @@ app.post('/api/admin/site-settings', (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const { siteName, logoUrl, taglineBn, taglineEn } = req.body;
+  const { siteName, logoUrl, taglineBn, taglineEn, hostingVideoUrl, websiteVideoUrl } = req.body;
   let finalLogoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : undefined;
 
   // If user pasted a Kommodo share link like https://kommodo.ai/i/ID, convert to direct image URL
@@ -4681,7 +4681,9 @@ app.post('/api/admin/site-settings', (req, res) => {
     ...(typeof siteName === 'string' ? { siteName: siteName.trim() } : {}),
     ...(finalLogoUrl !== undefined ? { logoUrl: finalLogoUrl } : {}),
     ...(typeof taglineBn === 'string' ? { taglineBn: taglineBn.trim() } : {}),
-    ...(typeof taglineEn === 'string' ? { taglineEn: taglineEn.trim() } : {})
+    ...(typeof taglineEn === 'string' ? { taglineEn: taglineEn.trim() } : {}),
+    ...(typeof hostingVideoUrl === 'string' ? { hostingVideoUrl: hostingVideoUrl.trim() } : {}),
+    ...(typeof websiteVideoUrl === 'string' ? { websiteVideoUrl: websiteVideoUrl.trim() } : {})
   };
   saveSiteSettings(updated);
   res.json({ success: true, settings: updated });

@@ -34,6 +34,21 @@ export interface FAQItem {
 
 export const FAQ_DATA: FAQItem[] = [
   {
+    id: 'how-to-buy-hosting',
+    category: 'plans',
+    questionBn: 'কিভাবে হোস্টিং প্ল্যান কিনব ও ওয়েবসাইট বা বট চালু করব?',
+    questionEn: 'How do I purchase a hosting plan and activate my services?',
+    answerBn: 'সহজ ৪টি ধাপে হোস্টিং চালু করুন: ১. আপনার ওয়ালেটে বিকাশ, নগদ বা Binance Pay দিয়ে প্রয়োজনীয় ব্যালেন্স ডিপোজিট করুন। ২. "প্ল্যান পেজ" এ গিয়ে আপনার বাজেট অনুযায়ী ১ মাস, ৩ মাস, ৬ মাস বা ১ বছরের প্ল্যান পছন্দ করুন। ৩. "প্ল্যান চালু করুন" এ ক্লিক করলেই স্বয়ংক্রিয়ভাবে সাথে সাথে সক্রিয় হয়ে যাবে। ৪. এরপর নতুন ওয়েবসাইট তৈরি করে https://{name}.run.app লাইভ লিংক নিন অথবা টেলিগ্রাম বট আপলোড করে ২৪/৭ চালান। সম্পূর্ণ প্রক্রিয়াটি সাইটের ভিডিও টিউটোরিয়ালেও দেখানো আছে।',
+    answerEn: 'Activate hosting in 4 simple steps: 1. Deposit balance to your wallet via bKash, Nagad, or Binance Pay. 2. Visit the Plans page and select 1 Month, 3 Months, 6 Months, or 1 Year package. 3. Click "Activate Plan" for instant activation with your wallet balance. 4. Deploy your website with https://{name}.run.app or upload Telegram bot files. A full video tutorial is also available on the page!',
+    highlightsBn: ['ইনস্ট্যান্ট অটো অ্যাক্টিভেশন', 'বিকাশ, নগদ ও ক্রিপ্টো ডিপোজিট', 'ভিডিও টিউটোরিয়াল গাইড সহ'],
+    highlightsEn: ['Instant auto activation', 'bKash, Nagad & Crypto payments', 'Full video tutorial guide'],
+    actionLink: {
+      labelBn: 'প্ল্যানসমূহ দেখুন',
+      labelEn: 'View Plans',
+      actionType: 'plans'
+    }
+  },
+  {
     id: 'how-to-deploy',
     category: 'deployment',
     questionBn: 'টেলিগ্রাম বা অন্যান্য বট কীভাবে ডিপ্লয় ও চালু করব?',
