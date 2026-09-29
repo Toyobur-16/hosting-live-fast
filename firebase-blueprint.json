@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "Account": {
+      "title": "Account",
+      "description": "User account profile, wallet balances, and plan subscription",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user ID" },
+        "name": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User role" },
+        "plan": { "type": "string", "description": "Active hosting plan ID" },
+        "balanceUsd": { "type": "number", "description": "USD wallet balance" },
+        "balanceBdt": { "type": "number", "description": "BDT wallet balance" },
+        "emailVerified": { "type": "boolean", "description": "Whether user email is verified" },
+        "isVerified": { "type": "boolean", "description": "Verification flag" }
+      },
+      "required": ["id", "email"]
+    },
+    "PlanRequest": {
+      "title": "PlanRequest",
+      "description": "Deposit and plan subscription purchase requests submitted by users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Request unique ID" },
+        "type": { "type": "string", "enum": ["deposit", "plan_purchase"], "description": "Request type" },
+        "userId": { "type": "string", "description": "ID of requesting user" },
+        "userName": { "type": "string", "description": "Name of requesting user" },
+        "userEmail": { "type": "string", "format": "email", "description": "Email of requesting user" },
+        "amount": { "type": "number", "description": "Deposit amount in USD or BDT" },
+        "currency": { "type": "string", "enum": ["USD", "BDT"], "description": "Currency of payment" },
+        "method": { "type": "string", "description": "Payment gateway or network method" },
+        "senderIdentifier": { "type": "string", "description": "Sender phone number or Binance UID" },
+        "transactionId": { "type": "string", "description": "TrxID, order ID, or transaction hash" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Status of the deposit" },
+        "note": { "type": "string", "description": "Optional notes from user or admin" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "reviewedAt": { "type": "string", "description": "Review timestamp" },
+        "reviewedBy": { "type": "string", "description": "Admin who reviewed the request" }
+      },
+      "required": ["id", "userId", "amount", "transactionId", "status"]
+    },
+    "DepositMethod": {
+      "title": "DepositMethod",
+      "description": "Deposit payment gateway configuration managed exclusively by admins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique method ID" },
+        "name": { "type": "string", "description": "Display name of the method" },
+        "subtitle": { "type": "string", "description": "Subtitle or network specification" },
+        "category": { "type": "string", "enum": ["mfs", "crypto", "custom"], "description": "Method category" },
+        "currency": { "type": "string", "enum": ["USDT", "USD", "BDT"], "description": "Currency code" },
+        "accountValue": { "type": "string", "description": "Wallet address or phone number" },
+        "accountLabel": { "type": "string", "description": "Label displayed to users" },
+        "memoOrTag": { "type": "string", "description": "Optional memo or tag" },
+        "instructions": { "type": "string", "description": "Instructions for user payment" },
+        "logoType": { "type": "string", "description": "Logo style key" },
+        "qrImageUrl": { "type": "string", "description": "Direct QR image or logo URL" },
+        "enabled": { "type": "boolean", "description": "Whether the method is active" },
+        "rateToBdt": { "type": "number", "description": "Exchange rate from USD to BDT" }
+      },
+      "required": ["id", "name", "accountValue", "enabled"]
+    }
+  },
+  "firestore": {
+    "/accounts/{userId}": {
+      "schema": "Account",
+      "description": "User accounts and balances"
+    },
+    "/plan_requests/{reqId}": {
+      "schema": "PlanRequest",
+      "description": "User deposit requests and plan orders"
+    },
+    "/deposits/{depId}": {
+      "schema": "PlanRequest",
+      "description": "Wallet deposits collection"
+    },
+    "/config/{docId}": {
+      "schema": "DepositMethod",
+      "description": "System configurations including deposit_methods and site settings"
+    }
+  }
+}

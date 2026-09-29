@@ -13,6 +13,11 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    match /deposits/{depId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Site settings & branding (logo, title, taglines)
     match /site_settings/{docId} {
       allow read, write: if true;

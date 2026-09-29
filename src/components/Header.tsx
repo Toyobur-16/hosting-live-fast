@@ -1,6 +1,7 @@
 import React from 'react';
 import { Terminal, Settings, Globe, Plus, LogOut, User, CheckCircle2, Moon, Sun, ShieldCheck, Crown, ShieldAlert, Wallet } from 'lucide-react';
 import { HostedBot, AuthUser, SiteSettings } from '../types';
+import { checkIsAdmin } from '../utils/adminCheck';
 
 interface HeaderProps {
   bots: HostedBot[];
@@ -44,14 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
   siteSettings
 }) => {
   const runningCount = bots.filter((b) => b.status === 'running').length;
-  const isAdmin = Boolean(
-    user && (
-      user.role === 'admin' ||
-      user.email?.toLowerCase().trim() === 'toyoburrahman9090@gmail.com' ||
-      user.email?.toLowerCase().trim() === 'mdtayburrahman1111@gmail.com' ||
-      user.email?.toLowerCase().trim() === 'toyobur@telegram.bot'
-    )
-  );
+  const isAdmin = checkIsAdmin(user);
 
   const hasActivePlan = Boolean(
     user && (

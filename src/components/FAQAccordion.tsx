@@ -12,12 +12,12 @@ import {
   Layers,
   ArrowRight,
   CheckCircle2,
-  Film
+  Share2
 } from 'lucide-react';
 
 export interface FAQItem {
   id: string;
-  category: 'deployment' | 'plans' | 'technical' | 'security' | 'reward_ads';
+  category: 'deployment' | 'plans' | 'technical' | 'security' | 'social_tasks';
   questionBn: string;
   questionEn: string;
   answerBn: string;
@@ -124,34 +124,34 @@ export const FAQ_DATA: FAQItem[] = [
     highlightsEn: ['SQLite and local file persistence', 'External MongoDB / MySQL support', 'Data retained across restarts']
   },
   {
-    id: 'which-ad-networks-best',
-    category: 'reward_ads',
-    questionBn: 'আমাদের অঞ্চলে (বাংলাদেশ ও দক্ষিণ এশিয়া) কোন ভিডিও অ্যাড নেটওয়ার্কগুলো সবচেয়ে ভালো পারফর্ম করে?',
-    questionEn: 'Which reward video ad networks perform best in our region (Bangladesh & South Asia)?',
-    answerBn: 'আমাদের অঞ্চলে ১০০% ট্রাফিকে হাই ফিল রেট ও দ্রুততম এপ্রুভালের জন্য Monetag (পূর্বে PropellerAds) এবং Adsterra সবচেয়ে বেশি ফলপ্রসূ। Monetag মাত্র $5 মিনিমাম পেআউটে পেমেন্ট দেয় এবং Rewarded Interstitial/Video-তে বেশি রেভিনিউ এনে দেয়। আর দীর্ঘমেয়াদী সর্বোচ্চ ইনকামের জন্য Google AdSense (H5 Web Rewarded) অদ্বিতীয়, যার পেমেন্ট সরাসরি বাংলাদেশি লোকাল ব্যাংকে পাওয়া যায়।',
-    answerEn: 'For our regional traffic, Monetag (formerly PropellerAds) and Adsterra provide the highest fill rates (near 100%) and instant account approval. Monetag requires only a $5 minimum cashout and excels in Rewarded Interstitial format. For long-term maximum CPM, Google AdSense (Web Rewarded) is superior with direct local bank payouts.',
-    highlightsBn: ['Monetag: ইনস্ট্যান্ট অনুমোদন ও $5 মিনিমাম পেআউট', 'Adsterra: ক্রিপ্টো/ব্যাংক পেআউট ও নো-ট্রাফিক রিকোয়ারমেন্ট', 'Google AdSense: সর্বোচ্চ CPM ও সরাসরি ব্যাংক ডিপোজিট'],
-    highlightsEn: ['Monetag: Instant approval & $5 min payout', 'Adsterra: Crypto/wire payouts & zero traffic barriers', 'Google AdSense: Top CPM & direct bank deposits']
+    id: 'how-to-earn-social-tasks',
+    category: 'social_tasks',
+    questionBn: 'সোশ্যাল টাস্ক সম্পন্ন করে কীভাবে রিওয়ার্ড বা ফ্রি ব্যালেন্স আর্ন করব?',
+    questionEn: 'How can I earn rewards and wallet balance by completing social tasks?',
+    answerBn: 'খুব সহজ! সোশ্যাল টাস্ক পেজে যান এবং সেখানে থাকা অফিসিয়াল টেলিগ্রাম চ্যানেল ও গ্রুপে জয়েন করুন, ইউটিউব চ্যানেল সাবস্ক্রাইব করুন অথবা ফেসবুক পেজ ফলো করুন। টাস্ক সম্পন্ন করে আপনার টেলিগ্রাম ইউজারনেম বা প্রমাণ সাবমিট করলেই এডমিন ভেরিফিকেশনের পর সরাসরি আপনার ওয়ালেটে রিওয়ার্ড জমা হয়ে যাবে।',
+    answerEn: 'It is very simple! Go to the Social Tasks page, join our official Telegram channel and group, subscribe to our YouTube channel, or follow our Facebook page. After completing, submit your username or handle as proof. Upon verification, rewards will be credited directly to your wallet.',
+    highlightsBn: ['টেলিগ্রাম ও ইউটিউব সাবস্ক্রিপশনে রিওয়ার্ড', 'সহজ প্রুফ সাবমিশন সিস্টেম', 'সরাসরি ওয়ালেট ব্যালেন্সে ক্রেডিট'],
+    highlightsEn: ['Earn by joining Telegram & YouTube', 'Easy proof submission', 'Direct wallet balance crediting']
   },
   {
-    id: 'how-to-integrate-reward-ads',
-    category: 'reward_ads',
-    questionBn: 'ওয়েবসাইটে বা এই হোস্টিং প্ল্যাটফর্মে রিওয়ার্ড ভিডিও অ্যাড কীভাবে ইন্টিগ্রেট করব?',
-    questionEn: 'How do I integrate rewarded video ads into the platform?',
-    answerBn: 'সহজ ৪টি ধাপে ইন্টিগ্রেশন সম্পন্ন হয়: ১. Monetag বা Adsterra-তে অ্যাকাউন্ট খুলে ডোমেইন যোগ করুন এবং "Rewarded Video / Interstitial" ট্যাগ কোড সংগ্রহ করুন। ২. এই প্ল্যাটফর্মের অ্যাডমিন প্যানেলে প্রবেশ করে "Ad Settings"-এ যান। ৩. প্রোভাইডার হিসেবে Monetag বা Adsterra নির্বাচন করে আপনার Ad Unit ID বা স্ক্রিপ্ট কোড বসিয়ে সেভ করুন। ৪. ইউজারের প্রতি ভিডিও দেখার রিওয়ার্ড (যেমন $0.01) ও কুলডাউন নির্ধারণ করুন। সাথে সাথে "Watch & Earn" পেজে লাইভ অ্যাড চালু হয়ে যাবে।',
-    answerEn: 'Integration requires only 4 easy steps: 1. Register on Monetag or Adsterra, register your domain, and generate a "Rewarded Video / Interstitial" tag. 2. Navigate to Admin Panel > Ad Settings. 3. Select Monetag or Adsterra and input your Ad Unit ID / script snippet. 4. Set the reward per view (e.g. $0.01) and cooldown timer. Live ads will immediately activate on the Watch & Earn page.',
-    highlightsBn: ['অ্যাডমিন প্যানেল থেকে ১-ক্লিকে প্রোভাইডার সিলেক্ট', 'কাস্টম রিওয়ার্ড মান ও দৈনিক লিমিট নির্ধারণ', 'লাইভ টেস্ট ও ইনস্ট্যান্ট ইউজার ক্রেডিট'],
-    highlightsEn: ['1-click provider select from Admin Panel', 'Custom reward value & daily caps', 'Instant user wallet crediting']
+    id: 'what-can-i-do-with-social-rewards',
+    category: 'social_tasks',
+    questionBn: 'সোশ্যাল টাস্ক থেকে উপার্জিত ব্যালেন্স দিয়ে কী কী করা যায়?',
+    questionEn: 'What can I do with the balance earned from social tasks?',
+    answerBn: 'সোশ্যাল টাস্ক থেকে অর্জিত রিয়েল ব্যালেন্স দিয়ে আপনি প্ল্যাটফর্মের যেকোনো প্রিমিয়াম টেলিগ্রাম বট হোস্টিং প্ল্যান ও ওয়েবসাইট হোস্টিং কিনতে পারবেন। এর ফলে নিজের পকেট থেকে কোনো টাকা খরচ ছাড়াই সম্পূর্ণ বিনামূল্যে ২৪/৭ ক্লাউড বট হোস্টিং চালানো সম্ভব।',
+    answerEn: 'With the real balance earned from social tasks, you can purchase premium Telegram bot hosting and website hosting plans. This allows you to run 24/7 cloud bots completely free without spending personal money.',
+    highlightsBn: ['বিনামূল্যে হোস্টিং প্ল্যান ক্রয়', '২৪/৭ ক্লাউড বট রানিং সুবিধা', 'পকেট থেকে টাকা ছাড়াই প্রিমিয়াম ফিচার'],
+    highlightsEn: ['Free hosting plan purchase', '24/7 cloud bot hosting', 'Premium features without personal spending']
   },
   {
-    id: 'reward-fraud-prevention',
-    category: 'reward_ads',
-    questionBn: 'ইউজাররা যাতে ফেক ক্লিক বা স্ক্রিপ্ট দিয়ে প্রতারণা না করতে পারে সেজন্য কী সিকিউরিটি আছে?',
-    questionEn: 'How does the system prevent fake clicks and fraudulent ad claims?',
-    answerBn: 'আমাদের সিস্টেমে কঠোর সার্ভার-সাইড ভ্যালিডেশন রয়েছে: ১. প্রতিটি অ্যাড দেখার পূর্বে ইউনিক ক্রিপ্টোগ্রাফিক সেশন আইডি ইস্যু করা হয়। ২. ভিডিও শেষ হওয়ার নির্ধারিত সময়ের (যেমন ১৫-৩০ সেকেন্ড) পূর্বে কোনো রিওয়ার্ড রিকোয়েস্ট গ্রহণ করা হয় না। ৩. প্রতি অ্যাডের মাঝে বাধ্যতামুলক ৪৫-৬০ সেকেন্ড কুলডাউন পিরিয়ড থাকে। ৪. দৈনিক লিমিট (Daily Limit) অতিক্রম করলে স্বয়ংক্রিয়ভাবে ভিডিও ব্লক হয়ে যায়।',
-    answerEn: 'Our system enforces strict multi-layered server security: 1. Unique cryptographic session tokens issued per ad. 2. Exact watch-time enforcement (requests before duration elapsed are rejected). 3. Mandatory cooldown pauses (45-60 seconds) between ads. 4. Daily per-user caps to prevent automated spamming.',
-    highlightsBn: ['সার্ভার-সাইড সেশন টোকেন ভ্যালিডেশন', 'মিনিমাম ওয়াচ টাইম গার্ড (স্কিপ করলে নো-রিওয়ার্ড)', 'অটোমেটিক কুলডাউন ও ডেইলি ক্যাপ'],
-    highlightsEn: ['Server-side session validation', 'Strict watch duration guard', 'Automated cooldowns & daily caps']
+    id: 'task-review-time',
+    category: 'social_tasks',
+    questionBn: 'সোশ্যাল টাস্ক সাবমিট করার পর কতক্ষণ সময়ের মধ্যে রিওয়ার্ড অনুমোদন হয়?',
+    questionEn: 'How long does it take for social task rewards to be approved?',
+    answerBn: 'আমাদের এডমিন টিম নিয়মিত টাস্ক ভ্যালিডেশন করে থাকে। সাধারণত সাবমিট করার কয়েক ঘণ্টার মধ্যে এবং সর্বোচ্চ ২৪ ঘণ্টার মধ্যে টাস্ক রিভিউ সম্পন্ন হয়ে ওয়ালেটে ডলার/টাকা যুক্ত হয়ে যায়।',
+    answerEn: 'Our admin team reviews task submissions on an ongoing basis. Usually within a few hours and up to 24 hours, verification is complete and reward is added to your account.',
+    highlightsBn: ['দ্রুত এডমিন রিভিউ ও ভেরিফিকেশন', 'স্বচ্ছ ওয়ালেট ট্রানজেকশন হিস্ট্রি', '২৪ ঘণ্টার মধ্যে নিশ্চয়তা'],
+    highlightsEn: ['Fast admin review', 'Transparent wallet transaction logs', 'Guaranteed within 24 hours']
   }
 ];
 
@@ -178,7 +178,7 @@ export function FAQAccordion({
 
   const categories = [
     { id: 'all', labelBn: 'সকল প্রশ্ন', labelEn: 'All Questions', icon: Layers },
-    { id: 'reward_ads', labelBn: 'ভিডিও অ্যাড ও ইনকাম', labelEn: 'Reward Ads & Income', icon: Film },
+    { id: 'social_tasks', labelBn: 'সোশ্যাল টাস্ক ও আর্ন', labelEn: 'Social Tasks & Earn', icon: Share2 },
     { id: 'deployment', labelBn: 'বট ডিপ্লয়মেন্ট', labelEn: 'Bot Deployment', icon: Bot },
     { id: 'plans', labelBn: 'হোস্টিং প্ল্যান ও পেমেন্ট', labelEn: 'Plans & Pricing', icon: CreditCard },
     { id: 'technical', labelBn: 'টেকনিক্যাল ও রানিং', labelEn: 'Technical & Runtime', icon: Cpu },

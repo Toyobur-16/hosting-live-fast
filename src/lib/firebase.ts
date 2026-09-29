@@ -19,7 +19,11 @@ import {
   setDoc,
   updateDoc,
   collection,
-  onSnapshot
+  onSnapshot,
+  getDocs,
+  query,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 
 import firebaseAppletConfig from '../../firebase-applet-config.json';
@@ -76,5 +80,9 @@ export {
   setDoc,
   updateDoc,
   collection,
-  onSnapshot
+  onSnapshot,
+  getDocs,
+  query,
+  orderBy,
+  limit
 };

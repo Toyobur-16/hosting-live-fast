@@ -224,7 +224,7 @@ export async function claimSocialTaskReward(
   const walletResult = modifyUserWallet(
     userId,
     reward,
-    'add',
+    'task_reward',
     `সোশ্যাল টাস্ক রিওয়ার্ড: ${task.titleBn || task.title} (+${reward} USD)`,
     'reward'
   );
@@ -258,6 +258,6 @@ export async function claimSocialTaskReward(
     success: true,
     task,
     rewardUsd: reward,
-    newBalance: walletResult.user?.balanceUsd
+    newBalance: walletResult.newBalanceUsd
   };
 }

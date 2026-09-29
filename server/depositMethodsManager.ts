@@ -148,3 +148,22 @@ export function resetDepositMethods(): DepositMethodItem[] {
   saveDepositMethods(DEFAULT_DEPOSIT_METHODS);
   return DEFAULT_DEPOSIT_METHODS;
 }
+
+let hasTriedCloudLoad = false;
+export async function initDepositMethodsFromCloud(): Promise<void> {
+  if (hasTriedCloudLoad) return;
+  hasTriedCloudLoad = true;
+  try {
+    const cloudMethods = await FirebaseSync.loadDepositMethodsFromCloud();
+    if (Array.isArray(cloudMethods) && cloudMethods.length > 0) {
+      if (!fs.existsSync(HOSTED_BOTS_DIR)) {
+        fs.mkdirSync(HOSTED_BOTS_DIR, { recursive: true });
+      }
+      fs.writeFileSync(DEPOSIT_METHODS_FILE, JSON.stringify(cloudMethods, null, 2) + '\n', 'utf-8');
+      console.log(`[DepositMethods] Synced ${cloudMethods.length} deposit methods from Firebase Cloud.`);
+    }
+  } catch (err) {
+    console.warn('[DepositMethods] Failed loading from Firebase Cloud:', err);
+  }
+}
+

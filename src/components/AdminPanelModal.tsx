@@ -15,7 +15,9 @@ import { AdminSiteSettingsManager } from './admin/AdminSiteSettingsManager';
 import { AdminSmtpManager } from './admin/AdminSmtpManager';
 import { AdminSocialTasksManager } from './admin/AdminSocialTasksManager';
 import { AdminWebsitesManager } from './admin/AdminWebsitesManager';
+import { AdminDepositMethodsManager } from './admin/AdminDepositMethodsManager';
 import { Mail, Globe, Share2 } from 'lucide-react';
+import { db, collection, getDocs } from '../lib/firebase';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -26,7 +28,7 @@ interface AdminPanelModalProps {
   onPlansUpdated?: () => void;
 }
 
-export type AdminTabType = 'requests' | 'users' | 'pricing' | 'banners' | 'notices' | 'support' | 'payments' | 'bots' | 'site' | 'websites' | 'social-tasks' | 'smtp';
+export type AdminTabType = 'requests' | 'deposit-methods' | 'users' | 'pricing' | 'banners' | 'notices' | 'support' | 'payments' | 'bots' | 'site' | 'websites' | 'social-tasks' | 'smtp';
 
 export const PAYMENT_ICON_PRESETS = [
   {
@@ -343,11 +345,49 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         setOverview(ovData);
       }
 
-      // 2. Plan requests
+      // 2. Plan & Deposit requests (Backend + Firestore Dual Fetch)
+      let combinedRequests: PlanRequest[] = [];
       const reqRes = await fetch('/api/admin/plan-requests', { headers });
       if (reqRes.ok) {
         const reqData = await reqRes.json();
-        setRequests(reqData.requests || []);
+        combinedRequests = reqData.requests || [];
+      }
+
+      // Also query Firestore client-side to ensure any newly submitted deposits instantly appear
+      try {
+        const reqMap = new Map<string, PlanRequest>();
+        for (const r of combinedRequests) {
+          if (r && r.id) reqMap.set(r.id, r);
+        }
+
+        const [planSnap, depSnap] = await Promise.all([
+          getDocs(collection(db, 'plan_requests')).catch(() => null),
+          getDocs(collection(db, 'deposits')).catch(() => null)
+        ]);
+
+        if (planSnap && !planSnap.empty) {
+          planSnap.forEach((d) => {
+            const data = d.data() as PlanRequest;
+            if (data && data.id && !reqMap.has(data.id)) {
+              reqMap.set(data.id, data);
+            }
+          });
+        }
+
+        if (depSnap && !depSnap.empty) {
+          depSnap.forEach((d) => {
+            const data = d.data() as PlanRequest;
+            if (data && data.id && !reqMap.has(data.id)) {
+              reqMap.set(data.id, data);
+            }
+          });
+        }
+
+        const finalReqs = Array.from(reqMap.values());
+        finalReqs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setRequests(finalReqs);
+      } catch (fbErr) {
+        setRequests(combinedRequests);
       }
 
       // 3. Users
@@ -880,6 +920,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             >
               {[
                 { id: 'requests' as AdminTabType, labelBn: 'অনুরোধ ও ডিপোজিট', labelEn: 'Requests & Deposits', icon: Clock, iconColor: 'text-sky-400', badge: overview?.pendingRequestsCount },
+                { id: 'deposit-methods' as AdminTabType, labelBn: 'ডিপোজিট মেথড ও নাম্বার', labelEn: 'Deposit Methods', icon: CreditCard, iconColor: 'text-amber-400' },
                 { id: 'users' as AdminTabType, labelBn: 'ইউজার ও ওয়ালেট', labelEn: 'Users & Wallets', icon: Users, iconColor: 'text-indigo-400' },
                 { id: 'pricing' as AdminTabType, labelBn: 'প্যাকেজ ও প্রাইসিং', labelEn: 'Packages & Pricing', icon: DollarSign, iconColor: 'text-amber-400' },
                 { id: 'banners' as AdminTabType, labelBn: 'ব্যানার স্লাইডার', labelEn: 'Banners', icon: Sparkles, iconColor: 'text-pink-400' },
@@ -1072,6 +1113,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Dedicated Deposit Methods Manager Tab */}
+        {activeTab === 'deposit-methods' && (
+          <div className="space-y-4 pr-1">
+            <AdminDepositMethodsManager lang={lang} />
           </div>
         )}
 

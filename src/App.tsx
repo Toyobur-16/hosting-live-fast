@@ -22,6 +22,7 @@ import { WebsitesPage } from './components/WebsitesPage';
 import { SocialTasksPage } from './components/SocialTasksPage';
 import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
+import { checkIsAdmin } from './utils/adminCheck';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'wallet' | 'support' | 'profile' | 'plans' | 'bots' | 'terminal' | 'deposit-store' | 'websites' | 'rewards'>('home');
@@ -255,16 +256,7 @@ export default function App() {
     }
   }, [currentUser]);
 
-  const isAdmin = Boolean(
-    currentUser && (
-      currentUser.role === 'admin' ||
-      currentUser.email?.toLowerCase().trim() === 'toyoburrahman9090@gmail.com' ||
-      currentUser.email?.toLowerCase().trim() === 'toyoburrahman526@gmail.com' ||
-      currentUser.email?.toLowerCase().trim() === 'mdtayburrahman1111@gmail.com' ||
-      currentUser.email?.toLowerCase().trim() === 'badsharahmanbd@gmail.com' ||
-      currentUser.email?.toLowerCase().trim() === 'toyobur@telegram.bot'
-    )
-  );
+  const isAdmin = checkIsAdmin(currentUser);
 
   const hasActivePlan = Boolean(
     currentUser && (

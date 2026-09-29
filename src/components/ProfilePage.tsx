@@ -185,59 +185,6 @@ export function ProfilePage({
         </div>
       </div>
 
-      {/* Purchased Files & Source Code Section */}
-      <div className="p-6 rounded-3xl bg-[#0d1424] border border-[#1e293b] space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-[#00d293]" />
-            <h3 className="text-base font-black text-white">আমার কেনা ফাইল ও সোর্স কোড (Purchased Files)</h3>
-          </div>
-          <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#1e293b] text-slate-300 font-bold">
-            {user.purchasedItems?.length || user.purchasedItemIds?.length || 0} টি ফাইল
-          </span>
-        </div>
-
-        {user.purchasedItems && user.purchasedItems.length > 0 ? (
-          <div className="space-y-3">
-            {user.purchasedItems.map((p, idx) => (
-              <div
-                key={`${p.itemId}_${idx}`}
-                className="p-4 rounded-2xl bg-[#070b14] border border-[#1e293b] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-              >
-                <div>
-                  <h4 className="text-sm font-bold text-white">{p.title}</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5">
-                    <Clock className="w-3 h-3 text-slate-500" />
-                    <span>কেনা হয়েছে: {new Date(p.purchasedAt).toLocaleDateString()}</span>
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    const token = localStorage.getItem('bot_auth_token') || '';
-                    if (p.fileUrl && (p.fileUrl.startsWith('http://') || p.fileUrl.startsWith('https://'))) {
-                      window.open(p.fileUrl, '_blank');
-                    } else {
-                      window.open(`/api/store/items/${p.itemId}/download?token=${encodeURIComponent(token)}`, '_blank');
-                    }
-                  }}
-                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer shadow-md flex items-center justify-center gap-1.5 transition-all hover:scale-102"
-                >
-                  <span>📥 ফাইল ডাউনলোড করুন</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="p-6 rounded-2xl bg-[#070b14] border border-[#1e293b] text-center space-y-2">
-            <p className="text-xs text-slate-400">আপনি এখনও কোনো প্রিমিয়াম ফাইল বা সোর্স কোড ক্রয় করেননি।</p>
-            <p className="text-[11px] text-slate-500">
-              হোমপেজ বা মার্কেটপ্লেস থেকে যেকোনো ফাইল ক্রয় করলে তা এখানে যুক্ত হবে এবং সরাসরি ডাউনলোড করতে পারবেন।
-            </p>
-          </div>
-        )}
-      </div>
-
       {/* Logout button */}
       <button
         onClick={onLogout}

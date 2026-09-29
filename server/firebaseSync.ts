@@ -421,25 +421,164 @@ export class FirebaseSync {
     }
   }
 
+  // ==========================================
+  // PLAN & DEPOSIT REQUESTS FIRESTORE SYNC
+  // ==========================================
   static async syncPlanRequestToCloud(planReq: any): Promise<boolean> {
     if (!planReq || !planReq.id) return false;
     try {
-      const docId = encodeURIComponent(planReq.id);
+      const docId = encodeURIComponent(String(planReq.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+
       const fields: Record<string, any> = {};
       for (const [key, val] of Object.entries(planReq)) {
-        if (val !== undefined) {
+        if (val !== undefined && val !== null) {
           fields[key] = toFirestoreValue(val);
         }
       }
-      const url = `${BASE_URL}/plan_requests/${docId}?key=${API_KEY}`;
-      fetch(url, {
+      fields['updatedAt'] = toFirestoreValue(Date.now());
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      const bodyStr = JSON.stringify({ fields });
+
+      // 1. Sync to /plan_requests collection
+      const url1 = `${BASE_URL}/plan_requests/${docId}?key=${API_KEY}`;
+      const res1 = await fetch(url1, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields })
-      }).catch(() => {});
-      return true;
-    } catch {
+        headers,
+        body: bodyStr
+      }).catch((e) => {
+        console.warn('syncPlanRequestToCloud fetch error (/plan_requests):', e?.message || e);
+        return null;
+      });
+
+      // 2. If it's a deposit request, also sync to /deposits collection for 100% redundancy
+      let res2Ok = true;
+      if (planReq.type === 'deposit' || planReq.planId === 'wallet_deposit' || !planReq.planId) {
+        const url2 = `${BASE_URL}/deposits/${docId}?key=${API_KEY}`;
+        const res2 = await fetch(url2, {
+          method: 'PATCH',
+          headers,
+          body: bodyStr
+        }).catch(() => null);
+        res2Ok = Boolean(res2 && res2.ok);
+      }
+
+      const isSuccess = Boolean(res1 && res1.ok) || res2Ok;
+      if (isSuccess) {
+        console.log(`✅ [Firebase Firestore] Saved deposit/plan request ${planReq.id} (Status: ${planReq.status}, Amount: $${planReq.amount})`);
+      } else if (res1 && !res1.ok) {
+        const errText = await res1.text().catch(() => '');
+        console.warn(`⚠️ [Firebase Firestore] syncPlanRequestToCloud failed (${res1.status}):`, errText);
+      }
+      return isSuccess;
+    } catch (err: any) {
+      console.warn('FirebaseSync syncPlanRequestToCloud error:', err.message || err);
       return false;
+    }
+  }
+
+  static async loadPlanRequestsFromCloud(): Promise<any[]> {
+    const collected: any[] = [];
+    const seenIds = new Set<string>();
+
+    try {
+      const idToken = await getAdminIdToken();
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      // 1. Read from /plan_requests
+      const url1 = `${BASE_URL}/plan_requests?pageSize=300&key=${API_KEY}`;
+      const res1 = await fetch(url1, { headers }).catch(() => null);
+      if (res1 && res1.ok) {
+        const data1: any = await res1.json();
+        if (data1.documents && Array.isArray(data1.documents)) {
+          for (const docItem of data1.documents) {
+            const parsed = fromFirestoreFields(docItem.fields || {});
+            if (parsed && parsed.id && !seenIds.has(parsed.id)) {
+              seenIds.add(parsed.id);
+              collected.push(parsed);
+            }
+          }
+        }
+      }
+
+      // 2. Read from /deposits
+      const url2 = `${BASE_URL}/deposits?pageSize=300&key=${API_KEY}`;
+      const res2 = await fetch(url2, { headers }).catch(() => null);
+      if (res2 && res2.ok) {
+        const data2: any = await res2.json();
+        if (data2.documents && Array.isArray(data2.documents)) {
+          for (const docItem of data2.documents) {
+            const parsed = fromFirestoreFields(docItem.fields || {});
+            if (parsed && parsed.id && !seenIds.has(parsed.id)) {
+              seenIds.add(parsed.id);
+              collected.push(parsed);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('FirebaseSync loadPlanRequestsFromCloud error:', err.message || err);
+    }
+
+    return collected;
+  }
+
+  static async initPlanRequestsSync(
+    getRequestsFn: () => any[],
+    saveRequestsFn: (reqs: any[]) => void
+  ): Promise<void> {
+    try {
+      console.log('🔄 Initializing Firebase Firestore sync for deposit & plan requests...');
+      const remoteRequests = await this.loadPlanRequestsFromCloud();
+      const localRequests = getRequestsFn() || [];
+
+      const mergedMap = new Map<string, any>();
+
+      // Put local requests into map
+      for (const loc of localRequests) {
+        if (loc && loc.id) {
+          mergedMap.set(loc.id, loc);
+        }
+      }
+
+      let hasChanges = false;
+      // Merge remote requests
+      for (const rem of remoteRequests) {
+        if (!rem || !rem.id) continue;
+        const existing = mergedMap.get(rem.id);
+        if (!existing) {
+          mergedMap.set(rem.id, rem);
+          hasChanges = true;
+        } else {
+          // If remote request has updated status (e.g. approved or rejected), update it
+          if (rem.status !== existing.status || (rem.reviewedAt && !existing.reviewedAt)) {
+            mergedMap.set(rem.id, { ...existing, ...rem });
+            hasChanges = true;
+          }
+        }
+      }
+
+      const finalRequests = Array.from(mergedMap.values());
+      finalRequests.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+      if (hasChanges || finalRequests.length > localRequests.length) {
+        saveRequestsFn(finalRequests);
+        console.log(`✅ Restored & synced ${finalRequests.length} deposit/plan requests from Firebase Firestore!`);
+      }
+
+      // Ensure any requests that only existed locally get backed up to Firebase Firestore
+      for (const req of finalRequests) {
+        this.syncPlanRequestToCloud(req).catch(() => {});
+      }
+    } catch (err: any) {
+      console.warn('FirebaseSync initPlanRequestsSync warning:', err.message || err);
     }
   }
 

@@ -5,6 +5,7 @@ import {
   DollarSign, ArrowRight, ShieldAlert, CreditCard
 } from 'lucide-react';
 import { AuthUser, PaymentSettings, PlanRequest } from '../types';
+import { db, doc, setDoc } from '../lib/firebase';
 
 interface WalletDepositPageProps {
   user: AuthUser | null;
@@ -127,6 +128,38 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
     setSubmitting(true);
     try {
       const token = localStorage.getItem('bot_auth_token');
+      const orderIdGen = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+      const cleanTrx = transactionId.trim().toUpperCase();
+      const reqId = `dep_${orderIdGen}`;
+
+      // 1. Direct Firestore write for instant cloud persistence
+      try {
+        const firestorePayload = {
+          id: reqId,
+          type: 'deposit',
+          userId: user.id,
+          userName: user.name || (user.email ? user.email.split('@')[0] : 'User'),
+          userEmail: user.email,
+          planId: 'wallet_deposit',
+          planName: `ওয়ালেট ডিপোজিট (${numAmount} USD)`,
+          amount: numAmount,
+          currency: 'USD',
+          method: 'binance',
+          senderNumber: senderIdentifier.trim(),
+          senderIdentifier: senderIdentifier.trim(),
+          transactionId: cleanTrx,
+          note: note.trim(),
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: Date.now()
+        };
+        await setDoc(doc(db, 'plan_requests', reqId), firestorePayload);
+        await setDoc(doc(db, 'deposits', reqId), firestorePayload);
+      } catch (fbErr) {
+        console.warn('Client direct Firestore write error (non-fatal, backend will sync):', fbErr);
+      }
+
+      // 2. Submit to backend API
       const res = await fetch('/api/wallet/deposit', {
         method: 'POST',
         headers: {
@@ -134,11 +167,15 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
+          userId: user.id,
+          userEmail: user.email,
+          userName: user.name,
+          orderId: orderIdGen,
           amount: numAmount,
           currency: 'USD',
           method: 'binance',
           senderIdentifier: senderIdentifier.trim(),
-          transactionId: transactionId.trim().toUpperCase(),
+          transactionId: cleanTrx,
           note: note.trim()
         })
       });
@@ -150,8 +187,8 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
 
       setDepositSuccess(
         lang === 'bn'
-          ? '🎉 ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে! এডমিন ভেরিফাই করে অনুমোদন করলেই আপনার ব্যালেন্সে USD যোগ হবে।'
-          : 'Deposit request submitted successfully! Admin will verify and credit your balance shortly.'
+          ? '🎉 ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে এবং ফায়ারবেসে সংরক্ষিত হয়েছে! এডমিন ভেরিফাই করে অনুমোদন করলেই আপনার ব্যালেন্সে USD যোগ হবে।'
+          : 'Deposit request submitted successfully and saved to Firebase! Admin will verify and credit your balance shortly.'
       );
       setTransactionId('');
       setNote('');

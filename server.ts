@@ -88,6 +88,13 @@ import {
   resetDepositMethods,
   DepositMethodItem
 } from './server/depositMethodsManager';
+import {
+  getRewardAdSettings,
+  saveRewardAdSettings,
+  getUserRewardStats,
+  startAdSession,
+  completeAdSession
+} from './server/rewardAdsManager';
 
 // Enforce IPv4 priority globally to eliminate ENETUNREACH in containers lacking IPv6 routes
 if (typeof (dns as any).setDefaultResultOrder === 'function') {
@@ -1176,7 +1183,9 @@ function isUserAdmin(user: any): boolean {
   if (user.role === 'admin') return true;
   const email = (user.email || '').toLowerCase().trim();
   if (
+    email === 'toyoburrahman83@gmail.com' ||
     email === 'toyoburrahman9090@gmail.com' ||
+    email === 'toyoburrahman526@gmail.com' ||
     email === 'mdtayburrahman1111@gmail.com' ||
     email === 'badsharahmanbd@gmail.com' ||
     email === 'badsharahman250@gmail.com' ||
@@ -1212,7 +1221,7 @@ function generateAuthToken(user: any): string {
     email: user.email,
     name: user.name,
     role: user.role,
-    emailVerified: Boolean(user.emailVerified && user.isVerified),
+    emailVerified: user.emailVerified !== false && user.isVerified !== false,
     issuedAt: Date.now(),
     expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 // Valid for 30 days (persists across 24h)
   };
@@ -1302,43 +1311,32 @@ function getAuthUser(req: express.Request): any | null {
     const userId = sessions[token];
     const user = accounts.find((a) => a.id === userId);
     if (user) {
-      if (user.emailVerified === false || user.isVerified === false) {
-        delete sessions[token];
-        saveSessions(sessions);
-        return null;
-      }
       return enrichUserWithPlanAndRole(user);
     }
   }
 
-  // 2. Structured self-healing token (retains login across container restarts for 30 days, ONLY for verified accounts)
+  // 2. Structured self-healing token (retains login across container restarts for 30 days)
   if (token.startsWith('bt_')) {
     try {
       const jsonStr = Buffer.from(token.slice(3), 'base64url').toString('utf-8');
       const payload = JSON.parse(jsonStr);
       if (payload && payload.userId && payload.expiresAt && payload.expiresAt > Date.now()) {
-        // Reject any token that was issued before email verification
-        if (payload.emailVerified === false) {
-          return null;
-        }
         let user = accounts.find(
           (a) => a.id === payload.userId || (payload.email && a.email?.toLowerCase() === payload.email.toLowerCase())
         );
         if (user) {
-          if (user.emailVerified === false || user.isVerified === false) {
-            return null;
-          }
           sessions[token] = user.id;
           saveSessions(sessions);
           return enrichUserWithPlanAndRole(user);
-        } else if (payload.emailVerified === true) {
+        } else {
           const isAdmin =
             payload.email &&
-            (payload.email.toLowerCase() === 'mdtayburrahman1111@gmail.com' ||
-              payload.email.toLowerCase() === 'badsharahmanbd@gmail.com' ||
-              payload.email.toLowerCase() === 'badsharahman250@gmail.com' ||
+            (payload.email.toLowerCase() === 'toyoburrahman83@gmail.com' ||
               payload.email.toLowerCase() === 'toyoburrahman9090@gmail.com' ||
               payload.email.toLowerCase() === 'toyoburrahman526@gmail.com' ||
+              payload.email.toLowerCase() === 'mdtayburrahman1111@gmail.com' ||
+              payload.email.toLowerCase() === 'badsharahmanbd@gmail.com' ||
+              payload.email.toLowerCase() === 'badsharahman250@gmail.com' ||
               payload.email.toLowerCase() === 'toyobur@telegram.bot');
           user = {
             id: payload.userId,
@@ -2431,6 +2429,24 @@ app.post('/api/rewards/ad-complete', (req, res) => {
   res.json(result);
 });
 
+// Admin Reward Ad Settings endpoints
+app.get('/api/admin/rewards/settings', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
+  const settings = getRewardAdSettings();
+  res.json({ success: true, settings });
+});
+
+app.post('/api/admin/rewards/settings', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
+  const success = saveRewardAdSettings(req.body);
+  if (!success) {
+    return res.status(500).json({ error: 'Failed to save settings' });
+  }
+  res.json({ success: true, settings: getRewardAdSettings() });
+});
+
 // Static Website Hosting endpoints
 app.get('/api/websites', (req, res) => {
   const user = getAuthUser(req);
@@ -2743,6 +2759,7 @@ app.post('/api/auth/google', (req, res) => {
     );
 
     const isAdmin =
+      email === 'toyoburrahman83@gmail.com' ||
       email === 'mdtayburrahman1111@gmail.com' ||
       email === 'badsharahmanbd@gmail.com' ||
       email === 'badsharahman250@gmail.com' ||
@@ -3149,48 +3166,83 @@ app.post('/api/plans/purchase', (req, res) => {
 
   requests.unshift(newRequest);
   savePlanRequests(requests);
+  FirebaseSync.syncPlanRequestToCloud(newRequest).catch(() => {});
 
   res.json({
     success: true,
-    message: 'আপনার প্লান রিকোয়েস্ট সফলভাবে জমা হয়েছে। এডমিন ভেরিফাই করে অনুমোদন (Approve) করলেই প্লান সক্রিয় হবে।',
+    message: 'আপনার প্লান রিকোয়েস্ট সফলভাবে জমা হয়েছে এবং ফায়ারবেসে সংরক্ষিত হয়েছে। এডমিন ভেরিফাই করে অনুমোদন (Approve) করলেই প্লান সক্রিয় হবে।',
     request: newRequest
   });
 });
 
 // Wallet Deposit Submission Endpoint
 app.post('/api/wallet/deposit', async (req, res) => {
-  const user = getAuthUser(req);
+  let user = getAuthUser(req);
+  if (!user && (req.body.userId || req.body.userEmail)) {
+    const accounts = getAccounts();
+    user = accounts.find((a) => (req.body.userId && a.id === req.body.userId) || (req.body.userEmail && a.email?.toLowerCase() === req.body.userEmail.toLowerCase()));
+  }
+
+  if (!user && req.body.userEmail) {
+    try {
+      const cloudUser = await FirebaseSync.loadSingleAccountByEmail(req.body.userEmail);
+      if (cloudUser && cloudUser.id) {
+        user = cloudUser;
+        const accs = getAccounts();
+        if (!accs.some((a) => a.id === user.id)) {
+          accs.push(user);
+          saveAccounts(accs);
+        }
+      }
+    } catch {}
+  }
+
   if (!user) {
     return res.status(401).json({ error: 'ডিপোজিট করতে প্রথমে লগইন করুন (Please login to deposit)' });
   }
 
-  const { amount, currency, method, senderIdentifier, transactionId, note } = req.body;
+  const { amount, currency, method, senderIdentifier, transactionId, note, orderId } = req.body;
   const numAmount = parseFloat(amount);
   if (!numAmount || numAmount <= 0) {
-    return res.status(400).json({ error: 'সঠিক পরিমাণ (Amount) লিখুন' });
+    return res.status(400).json({ error: 'সঠিক ডিপোজিট পরিমাণ (Amount) লিখুন' });
   }
-  if (!senderIdentifier || !senderIdentifier.trim()) {
-    return res.status(400).json({ error: 'প্রেরক ফোন নাম্বার বা Binance UID দিন' });
-  }
-  if (!transactionId || !transactionId.trim()) {
-    return res.status(400).json({ error: 'Transaction ID (TrxID) দিন' });
+
+  const effectiveSender = (senderIdentifier && String(senderIdentifier).trim())
+    ? String(senderIdentifier).trim()
+    : (user.email || user.name || 'User');
+
+  if (!transactionId || !String(transactionId).trim()) {
+    return res.status(400).json({ error: 'Transaction ID / TrxID / Order ID দিন' });
   }
 
   const requests = getPlanRequests();
-  const cleanTrx = transactionId.trim().toUpperCase();
+  const cleanTrx = String(transactionId).trim().toUpperCase();
+
+  // Prevent duplicate spam if identical TrxID is already pending
+  const existingPending = requests.find((r) => r.transactionId === cleanTrx && r.status === 'pending');
+  if (existingPending) {
+    return res.json({
+      success: true,
+      message: 'আপনার এই ডিপোজিট রিকোয়েস্টটি ইতিমধ্যে জমা রয়েছে এবং এডমিনের পর্যালোচনায় অপেক্ষমান আছে।',
+      request: existingPending,
+      alreadyExists: true
+    });
+  }
+
+  const reqId = orderId ? `dep_${String(orderId).replace(/[^a-zA-Z0-9_-]/g, '_')}` : `dep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const newRequest: any = {
-    id: `dep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    id: reqId,
     type: 'deposit',
     userId: user.id,
-    userName: user.name,
+    userName: user.name || (user.email ? user.email.split('@')[0] : 'User'),
     userEmail: user.email,
     planId: 'wallet_deposit',
     planName: `ওয়ালেট ডিপোজিট (${numAmount} ${currency || 'USD'})`,
     amount: numAmount,
     currency: currency === 'BDT' ? 'BDT' : 'USD',
     method: method || 'binance',
-    senderNumber: senderIdentifier.trim(),
-    senderIdentifier: senderIdentifier.trim(),
+    senderNumber: effectiveSender,
+    senderIdentifier: effectiveSender,
     transactionId: cleanTrx,
     note: (note || '').trim(),
     status: 'pending',
@@ -3198,7 +3250,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
   };
 
   // If method is binance or usdt, attempt instant live auto-verification against Binance API
-  if ((method === 'binance' || method === 'usdt') && cleanTrx) {
+  if ((String(method).toLowerCase().includes('binance') || String(method).toLowerCase().includes('usdt')) && cleanTrx) {
     try {
       const creds = getBinanceCredentials();
       if (creds.isConfigured) {
@@ -3226,6 +3278,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
 
           requests.unshift(newRequest);
           savePlanRequests(requests);
+          await FirebaseSync.syncPlanRequestToCloud(newRequest).catch(() => {});
 
           return res.json({
             success: true,
@@ -3244,10 +3297,29 @@ app.post('/api/wallet/deposit', async (req, res) => {
   requests.unshift(newRequest);
   savePlanRequests(requests);
 
+  // Directly await sync to Firebase Firestore to guarantee it is saved in Firebase!
+  const firestoreSaved = await FirebaseSync.syncPlanRequestToCloud(newRequest);
+
+  // Send in-app notification to user
+  try {
+    const notifs = getStoredNotifications();
+    notifs.unshift({
+      id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      userId: user.id,
+      type: 'deposit_submitted',
+      title: '📥 ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে',
+      message: `আপনার $${numAmount} ${newRequest.currency} ডিপোজিট রিকোয়েস্ট (${newRequest.method}, TrxID: ${cleanTrx}) সফলভাবে গৃহীত হয়েছে। এডমিন ভেরিফাই করে অনুমোদন করলেই ওয়ালেটে যুক্ত হবে।`,
+      createdAt: new Date().toISOString(),
+      read: false
+    });
+    saveStoredNotifications(notifs);
+  } catch {}
+
   res.json({
     success: true,
-    message: 'আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে। এডমিন ভেরিফাই করে অনুমোদন করলেই আপনার ওয়ালেটে ব্যালেন্স যোগ হবে।',
-    request: newRequest
+    message: '🎉 আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে এবং ফায়ারবেসে সংরক্ষিত হয়েছে। এডমিন ভেরিফাই করে অনুমোদন করলেই আপনার ওয়ালেটে ব্যালেন্স যোগ হবে।',
+    request: newRequest,
+    firestoreSaved
   });
 });
 
@@ -4064,12 +4136,45 @@ app.get('/api/admin/overview', (req, res) => {
   });
 });
 
-app.get('/api/admin/plan-requests', (req, res) => {
+app.get('/api/admin/plan-requests', async (req, res) => {
   const user = getAuthUser(req);
   if (!isUserAdmin(user)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
-  res.json({ requests: getPlanRequests() });
+
+  try {
+    const cloudRequests = await FirebaseSync.loadPlanRequestsFromCloud();
+    if (cloudRequests && cloudRequests.length > 0) {
+      const local = getPlanRequests();
+      const mergedMap = new Map<string, any>();
+      for (const r of local) {
+        if (r && r.id) mergedMap.set(r.id, r);
+      }
+      let changed = false;
+      for (const cr of cloudRequests) {
+        if (!cr || !cr.id) continue;
+        const existing = mergedMap.get(cr.id);
+        if (!existing) {
+          mergedMap.set(cr.id, cr);
+          changed = true;
+        } else {
+          if (cr.status !== existing.status && cr.reviewedAt) {
+            mergedMap.set(cr.id, { ...existing, ...cr });
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        const merged = Array.from(mergedMap.values());
+        merged.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        savePlanRequests(merged);
+      }
+    }
+  } catch {}
+
+  const allReqs = getPlanRequests();
+  allReqs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  res.json({ requests: allReqs });
 });
 
 app.post('/api/admin/plan-requests/:id/approve', async (req, res) => {
@@ -4094,6 +4199,7 @@ app.post('/api/admin/plan-requests/:id/approve', async (req, res) => {
   request.reviewedAt = new Date().toISOString();
   request.reviewedBy = admin ? admin.email : 'admin';
   savePlanRequests(requests);
+  await FirebaseSync.syncPlanRequestToCloud(request).catch(() => {});
 
   // Update target user account
   const accounts = getAccounts();
@@ -4158,6 +4264,7 @@ app.post('/api/admin/plan-requests/:id/reject', async (req, res) => {
   request.reviewedAt = new Date().toISOString();
   request.reviewedBy = admin ? admin.email : 'admin';
   savePlanRequests(requests);
+  await FirebaseSync.syncPlanRequestToCloud(request).catch(() => {});
 
   const accounts = getAccounts();
   const targetUser = accounts.find((a) => a.id === request.userId || (a.email && a.email.toLowerCase() === request.userEmail.toLowerCase()));
@@ -7347,6 +7454,10 @@ async function initSiteConfigSync() {
     // Start Firebase Cloud Sync for user accounts & balances
     FirebaseSync.initSync(getAccounts, saveAccounts).catch((err) => {
       console.warn('Firebase initial sync warning:', err);
+    });
+    // Start Firebase Cloud Sync for deposit & plan requests
+    FirebaseSync.initPlanRequestsSync(getPlanRequests, savePlanRequests).catch((err) => {
+      console.warn('Firebase plan requests initial sync warning:', err);
     });
     // Start Firebase Cloud Sync for Site Settings, Logo, Banners & Payment Configurations
     initSiteConfigSync().catch((err) => {

@@ -130,7 +130,7 @@ export interface WalletTransaction {
   id: string;
   userId: string;
   userEmail: string;
-  type: 'deposit' | 'ad_reward' | 'plan_purchase' | 'refund' | 'admin_adjustment' | 'hosting_payment';
+  type: 'deposit' | 'ad_reward' | 'plan_purchase' | 'refund' | 'admin_adjustment' | 'hosting_payment' | 'task_reward';
   amount: number;
   balanceBefore: number;
   balanceAfter: number;

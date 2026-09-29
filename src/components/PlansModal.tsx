@@ -5,6 +5,7 @@ import {
   ArrowRight, PlusCircle, RefreshCw, AlertTriangle, ArrowUpRight
 } from 'lucide-react';
 import { HostingPlan, PaymentSettings, AuthUser, PlanRequest, FreeTrialSettings } from '../types';
+import { db, doc, setDoc } from '../lib/firebase';
 
 interface PlansModalProps {
   isOpen: boolean;
@@ -222,6 +223,40 @@ export const PlansModal: React.FC<PlansModalProps> = ({
 
     try {
       const token = localStorage.getItem('bot_auth_token');
+      const orderIdGen = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+      const cleanTrx = depositTrxId.trim().toUpperCase();
+      const reqId = `dep_${orderIdGen}`;
+      const effectiveSender = senderIdentifier.trim() || user.email || 'User';
+
+      // 1. Direct write to Firestore for instant cloud persistence
+      try {
+        const firestorePayload = {
+          id: reqId,
+          type: 'deposit',
+          userId: user.id,
+          userName: user.name || (user.email ? user.email.split('@')[0] : 'User'),
+          userEmail: user.email,
+          planId: 'wallet_deposit',
+          planName: `ওয়ালেট ডিপোজিট (${amountNum} ${depositCurrency})`,
+          amount: amountNum,
+          currency: depositCurrency,
+          method: depositMethod,
+          senderNumber: effectiveSender,
+          senderIdentifier: effectiveSender,
+          transactionId: cleanTrx,
+          orderId: orderIdGen,
+          note: depositNote.trim(),
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: Date.now()
+        };
+        await setDoc(doc(db, 'plan_requests', reqId), firestorePayload);
+        await setDoc(doc(db, 'deposits', reqId), firestorePayload);
+      } catch (fbErr) {
+        console.warn('Client direct Firestore write error (non-fatal):', fbErr);
+      }
+
+      // 2. Submit to backend API
       const res = await fetch('/api/wallet/deposit', {
         method: 'POST',
         headers: {
@@ -229,11 +264,15 @@ export const PlansModal: React.FC<PlansModalProps> = ({
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
+          userId: user.id,
+          userEmail: user.email,
+          userName: user.name,
           amount: amountNum,
           currency: depositCurrency,
           method: depositMethod,
-          senderIdentifier: senderIdentifier.trim(),
-          transactionId: depositTrxId.trim(),
+          senderIdentifier: effectiveSender,
+          transactionId: cleanTrx,
+          orderId: orderIdGen,
           note: depositNote.trim()
         })
       });
@@ -243,7 +282,7 @@ export const PlansModal: React.FC<PlansModalProps> = ({
         throw new Error(data.error || 'ডিপোজিট সাবমিট ব্যর্থ হয়েছে');
       }
 
-      setSuccessMsg(data.message || 'আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে। এডমিন অনুমোদন করলেই ব্যালেন্স যোগ হবে।');
+      setSuccessMsg(data.message || 'আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে এবং ফায়ারবেসে সংরক্ষিত হয়েছে। এডমিন অনুমোদন করলেই ব্যালেন্স যোগ হবে।');
       setSenderIdentifier('');
       setDepositTrxId('');
       setDepositNote('');

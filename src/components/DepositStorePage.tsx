@@ -27,7 +27,8 @@ import {
 } from 'lucide-react';
 import { AuthUser, DepositMethodItem } from '../types';
 import { playDepositSuccessSound } from '../utils/audioAlert';
-import { DepositMethodsManagerModal } from './DepositMethodsManagerModal';
+import { checkIsAdmin } from '../utils/adminCheck';
+import { db, doc, setDoc, onSnapshot } from '../lib/firebase';
 
 export interface DepositStorePageProps {
   user: AuthUser | null;
@@ -123,7 +124,6 @@ export function DepositStorePage({
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Modal states
-  const [showManageModal, setShowManageModal] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submittedReceipt, setSubmittedReceipt] = useState<{
@@ -142,19 +142,7 @@ export function DepositStorePage({
   const [activeTab, setActiveTab] = useState<'deposit' | 'history'>('deposit');
 
   // Check if current user is admin
-  const isAdmin = useMemo(() => {
-    if (!user) return false;
-    if (user.role === 'admin') return true;
-    const email = (user.email || '').toLowerCase().trim();
-    return (
-      email === 'mdtayburrahman1111@gmail.com' ||
-      email === 'badsharahmanbd@gmail.com' ||
-      email === 'badsharahman250@gmail.com' ||
-      email === 'toyoburrahman9090@gmail.com' ||
-      email === 'toyoburrahman526@gmail.com' ||
-      email === 'toyobur@telegram.bot'
-    );
-  }, [user]);
+  const isAdmin = useMemo(() => checkIsAdmin(user), [user]);
 
   // Fetch deposit methods from backend
   const fetchMethods = async () => {
@@ -226,10 +214,27 @@ export function DepositStorePage({
   };
 
   useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    try {
+      const configDocRef = doc(db, 'config', 'deposit_methods');
+      unsubscribe = onSnapshot(configDocRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (Array.isArray(data?.methods) && data.methods.length > 0) {
+            setMethods(data.methods);
+          }
+        }
+      });
+    } catch {}
+
     fetchMethods();
     if (user) {
       handleAutoSync(true);
     }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [user?.id]);
 
   // Ensure a valid selectedMethodId is always selected
@@ -307,6 +312,40 @@ export function DepositStorePage({
     try {
       const token = localStorage.getItem('bot_auth_token');
       const orderIdGen = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+      const cleanTrx = transactionId.trim().toUpperCase();
+      const reqId = `dep_${orderIdGen}`;
+      const effectiveSender = senderIdentifier.trim() || user.email || 'User';
+      const effectiveNote = note.trim() || `Deposit (${selectedMethod.name} - $${parsedAmountUsd} ${selectedMethod.currency || 'USD'})`;
+
+      // 1. Direct write to Firestore for instant cloud persistence
+      try {
+        const firestorePayload = {
+          id: reqId,
+          type: 'deposit',
+          userId: user.id,
+          userName: user.name || (user.email ? user.email.split('@')[0] : 'User'),
+          userEmail: user.email,
+          planId: 'wallet_deposit',
+          planName: `ওয়ালেট ডিপোজিট (${parsedAmountUsd} ${selectedMethod.currency || 'USD'})`,
+          amount: parsedAmountUsd,
+          currency: selectedMethod.currency || 'USD',
+          method: selectedMethod.name,
+          senderNumber: effectiveSender,
+          senderIdentifier: effectiveSender,
+          transactionId: cleanTrx,
+          orderId: orderIdGen,
+          note: effectiveNote,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: Date.now()
+        };
+        await setDoc(doc(db, 'plan_requests', reqId), firestorePayload);
+        await setDoc(doc(db, 'deposits', reqId), firestorePayload);
+      } catch (fbErr) {
+        console.warn('Client direct Firestore write error (non-fatal, backend will sync):', fbErr);
+      }
+
+      // 2. Submit to backend API
       const res = await fetch('/api/wallet/deposit', {
         method: 'POST',
         headers: {
@@ -314,13 +353,16 @@ export function DepositStorePage({
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
+          userId: user.id,
+          userEmail: user.email,
+          userName: user.name,
           amount: parsedAmountUsd,
           currency: selectedMethod.currency || 'USD',
           method: selectedMethod.name,
-          senderIdentifier: senderIdentifier.trim() || user.email || 'User',
-          transactionId: transactionId.trim().toUpperCase(),
+          senderIdentifier: effectiveSender,
+          transactionId: cleanTrx,
           orderId: orderIdGen,
-          note: note.trim() || `Deposit (${selectedMethod.name} - $${parsedAmountUsd} USDT)`
+          note: effectiveNote
         })
       });
 
@@ -465,32 +507,30 @@ export function DepositStorePage({
       {/* VIEW 1: DEPOSIT STORE (Exact layout matching the Screenshot!) */}
       {activeTab === 'deposit' && (
         <div className="space-y-5">
-          {/* Header with [+] button (Opens Manage Modal) and Title */}
+          {/* Clean Title Header without non-admin manage buttons */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setShowManageModal(true)}
-                className="w-9 h-9 rounded-xl bg-[#00d293]/15 hover:bg-[#00d293]/30 text-[#00d293] flex items-center justify-center cursor-pointer transition-all active:scale-95 shadow-md"
-                title="মেথড যোগ বা ডিলিট করুন"
-              >
-                <Plus className="w-5 h-5 stroke-[2.5]" />
-              </button>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                ডিপোজিট মেথড নির্বাচন করুন
-              </h2>
+              <div className="w-9 h-9 rounded-xl bg-[#00d293]/15 text-[#00d293] flex items-center justify-center shadow-md shrink-0">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  ডিপোজিট মেথড নির্বাচন করুন
+                </h2>
+                <p className="text-[11px] text-slate-400 hidden sm:block">
+                  পছন্দের পেমেন্ট মাধ্যম সিলেক্ট করে উল্লেখিত একাউন্টে সরাসরি ডিপোজিট করুন
+                </p>
+              </div>
             </div>
 
-            {/* Quick Manage / Customize Button */}
-            <button
-              type="button"
-              onClick={() => setShowManageModal(true)}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-[11px] font-bold text-amber-400 border border-amber-400/20 flex items-center gap-1.5 cursor-pointer transition-colors"
-            >
-              <Settings className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">মেথড ম্যানেজ / কাস্টমাইজ</span>
-              <span className="sm:hidden">ম্যানেজ</span>
-            </button>
+            {/* If user is admin, show a subtle admin badge indicating methods are controlled from Admin Panel */}
+            {isAdmin && (
+              <div className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">এডমিন মোড (মেথডসমূহ এডমিন প্যানেল থেকে নিয়ন্ত্রিত)</span>
+                <span className="sm:hidden">এডমিন মোড</span>
+              </div>
+            )}
           </div>
 
           {/* Gateways Grid: bKash, Nagad, Binance Pay / UID, USDT (BEP-20), USDT (TRC-20), Custom */}
@@ -959,16 +999,6 @@ export function DepositStorePage({
         </div>
       )}
 
-      {/* MANAGE / ADD / DELETE DEPOSIT METHODS MODAL */}
-      <DepositMethodsManagerModal
-        isOpen={showManageModal}
-        onClose={() => setShowManageModal(false)}
-        methods={methods}
-        onMethodsUpdated={(updated) => {
-          setMethods(updated);
-        }}
-        isAdmin={isAdmin}
-      />
     </div>
   );
 }
