@@ -18,7 +18,7 @@ import {
   Moon,
   Languages,
   Globe,
-  Film
+  Share2
 } from 'lucide-react';
 import { AuthUser, SiteSettings } from '../types';
 
@@ -114,10 +114,10 @@ export function SidebarDrawer({
     },
     {
       id: 'rewards',
-      label: lang === 'bn' ? 'অ্যাড দেখে আয়' : 'Watch & Earn',
-      icon: Film,
-      badge: 'USD',
-      color: 'pink'
+      label: lang === 'bn' ? 'সোশ্যাল টাস্ক (USD আর্ন)' : 'Social Tasks (Earn USD)',
+      icon: Share2,
+      badge: 'EARN',
+      color: 'purple'
     },
     {
       id: 'terminal',

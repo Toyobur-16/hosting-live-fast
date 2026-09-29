@@ -350,6 +350,7 @@ export function AdminBannersManager() {
                 >
                   <option value="plans">Hosting Plans (প্ল্যান কিনুন)</option>
                   <option value="bots">My Bots (হোস্টেড বট দেখুন)</option>
+                  <option value="websites">Websites (স্ট্যাটিক ওয়েবসাইট হোস্টিং)</option>
                   <option value="wallet">Wallet / Deposit (ওয়ালেট)</option>
                   <option value="support">Support Center (সাপোর্ট)</option>
                 </select>

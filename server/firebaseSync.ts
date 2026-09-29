@@ -113,6 +113,22 @@ async function signInExistingAuthSession(email: string, password: string): Promi
   return null;
 }
 
+let cachedAdminIdToken: string | null = null;
+let adminTokenExpiresAt = 0;
+
+async function getAdminIdToken(): Promise<string | null> {
+  if (cachedAdminIdToken && Date.now() < adminTokenExpiresAt - 60000) {
+    return cachedAdminIdToken;
+  }
+  const { shardEmail, shardPassword } = getMasterShardIdentity(0);
+  const token = await getOrCreateAuthSession(shardEmail, shardPassword);
+  if (token) {
+    cachedAdminIdToken = token;
+    adminTokenExpiresAt = Date.now() + 50 * 60 * 1000;
+  }
+  return token;
+}
+
 async function writeVaultData(email: string, password: string, label: string, payload: any): Promise<boolean> {
   try {
     const idToken = await getOrCreateAuthSession(email, password);
@@ -425,5 +441,319 @@ export class FirebaseSync {
     } catch {
       return false;
     }
+  }
+
+  // ==========================================
+  // SITE SETTINGS, LOGO & BRANDING SYNC
+  // ==========================================
+  static async syncSiteSettingsToCloud(settings: any): Promise<boolean> {
+    if (!settings) return false;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return false;
+
+      const fields: Record<string, any> = {};
+      for (const [key, val] of Object.entries(settings)) {
+        if (val !== undefined) {
+          fields[key] = toFirestoreValue(val);
+        }
+      }
+      fields['updatedAt'] = toFirestoreValue(Date.now());
+
+      const url = `${BASE_URL}/site_settings/general`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ fields })
+      });
+      return res.ok;
+    } catch (err: any) {
+      console.warn('FirebaseSync syncSiteSettingsToCloud error:', err.message || err);
+      return false;
+    }
+  }
+
+  static async loadSiteSettingsFromCloud(): Promise<any | null> {
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return null;
+
+      const url = `${BASE_URL}/site_settings/general`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (data && data.fields) {
+        return fromFirestoreFields(data.fields);
+      }
+    } catch (err: any) {
+      console.warn('FirebaseSync loadSiteSettingsFromCloud error:', err.message || err);
+    }
+    return null;
+  }
+
+  // ==========================================
+  // BANNERS SYNC
+  // ==========================================
+  static async syncBannersToCloud(banners: any[]): Promise<boolean> {
+    if (!Array.isArray(banners)) return false;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return false;
+
+      const url = `${BASE_URL}/config/banners`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          fields: {
+            banners: toFirestoreValue(banners),
+            updatedAt: toFirestoreValue(Date.now())
+          }
+        })
+      });
+      return res.ok;
+    } catch (err: any) {
+      console.warn('FirebaseSync syncBannersToCloud error:', err.message || err);
+      return false;
+    }
+  }
+
+  static async loadBannersFromCloud(): Promise<any[] | null> {
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return null;
+
+      const url = `${BASE_URL}/config/banners`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (data && data.fields?.banners) {
+        const val = fromFirestoreValue(data.fields.banners);
+        if (Array.isArray(val)) return val;
+      }
+    } catch {}
+    return null;
+  }
+
+  // ==========================================
+  // PAYMENT SETTINGS SYNC
+  // ==========================================
+  static async syncPaymentSettingsToCloud(settings: any): Promise<boolean> {
+    if (!settings) return false;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return false;
+
+      const fields: Record<string, any> = {};
+      for (const [key, val] of Object.entries(settings)) {
+        if (val !== undefined) {
+          fields[key] = toFirestoreValue(val);
+        }
+      }
+      fields['updatedAt'] = toFirestoreValue(Date.now());
+
+      const url = `${BASE_URL}/config/payment_settings`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ fields })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async loadPaymentSettingsFromCloud(): Promise<any | null> {
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return null;
+
+      const url = `${BASE_URL}/config/payment_settings`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (data && data.fields) {
+        return fromFirestoreFields(data.fields);
+      }
+    } catch {}
+    return null;
+  }
+
+  // ==========================================
+  // CUSTOM DEPOSIT METHODS SYNC
+  // ==========================================
+  static async syncDepositMethodsToCloud(methods: any[]): Promise<boolean> {
+    if (!Array.isArray(methods)) return false;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return false;
+
+      const url = `${BASE_URL}/config/deposit_methods`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          fields: {
+            methods: toFirestoreValue(methods),
+            updatedAt: toFirestoreValue(Date.now())
+          }
+        })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async loadDepositMethodsFromCloud(): Promise<any[] | null> {
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return null;
+
+      const url = `${BASE_URL}/config/deposit_methods`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (data && data.fields?.methods) {
+        const val = fromFirestoreValue(data.fields.methods);
+        if (Array.isArray(val)) return val;
+      }
+    } catch {}
+    return null;
+  }
+
+  // ==========================================
+  // PERSISTENT SITE IMAGES (Logos, Banners, QR codes)
+  // Stored permanently in Firestore so container rebuilds NEVER lose them!
+  // ==========================================
+  static async saveSiteImageToCloud(
+    imageId: string,
+    fileName: string,
+    contentType: string,
+    base64Data: string
+  ): Promise<boolean> {
+    if (!imageId || !base64Data) return false;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return false;
+
+      const rawBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+      const safeId = encodeURIComponent(imageId.replace(/[^a-zA-Z0-9_-]/g, '_'));
+
+      const url = `${BASE_URL}/site_images/${safeId}`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          fields: {
+            id: { stringValue: imageId },
+            fileName: { stringValue: fileName || imageId },
+            contentType: { stringValue: contentType || 'image/png' },
+            base64: { stringValue: rawBase64 },
+            updatedAt: { integerValue: String(Date.now()) }
+          }
+        })
+      });
+      return res.ok;
+    } catch (err: any) {
+      console.warn('FirebaseSync saveSiteImageToCloud error:', err.message || err);
+      return false;
+    }
+  }
+
+  static async loadSiteImageFromCloud(imageId: string): Promise<{ base64: string; contentType: string } | null> {
+    if (!imageId) return null;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return null;
+
+      const safeId = encodeURIComponent(imageId.replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const url = `${BASE_URL}/site_images/${safeId}`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (data && data.fields?.base64?.stringValue) {
+        return {
+          base64: data.fields.base64.stringValue,
+          contentType: data.fields.contentType?.stringValue || 'image/png'
+        };
+      }
+    } catch {}
+    return null;
+  }
+
+  // ==========================================
+  // SOCIAL TASKS SYNC
+  // ==========================================
+  static async syncSocialTasksToCloud(tasks: any[]): Promise<boolean> {
+    if (!Array.isArray(tasks)) return false;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return false;
+
+      const url = `${BASE_URL}/config/social_tasks`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          fields: {
+            tasks: toFirestoreValue(tasks),
+            updatedAt: toFirestoreValue(Date.now())
+          }
+        })
+      });
+      return res.ok;
+    } catch (err: any) {
+      console.warn('FirebaseSync syncSocialTasksToCloud error:', err.message || err);
+      return false;
+    }
+  }
+
+  static async loadSocialTasksFromCloud(): Promise<any[] | null> {
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return null;
+
+      const url = `${BASE_URL}/config/social_tasks`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (data && data.fields?.tasks) {
+        const val = fromFirestoreValue(data.fields.tasks);
+        if (Array.isArray(val)) return val;
+      }
+    } catch {}
+    return null;
   }
 }

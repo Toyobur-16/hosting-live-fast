@@ -21,7 +21,7 @@ import {
   ExternalLink,
   Code2,
   Globe,
-  Film
+  Share2
 } from 'lucide-react';
 import { StoreBanner, AuthUser, SiteSettings } from '../types';
 
@@ -467,22 +467,22 @@ export function StoreHomePage({
           </span>
         </div>
 
-        {/* Card 4: Watch Ads & Earn USD */}
+        {/* Card 4: Social Tasks & Earn USD */}
         <div
           onClick={onNavigateToRewards}
-          className="p-5 rounded-2xl border border-slate-200 dark:border-[#1e2d48] bg-white dark:bg-[#0d1527] hover:border-pink-400/50 hover:shadow-lg transition-all cursor-pointer group"
+          className="p-5 rounded-2xl border border-slate-200 dark:border-[#1e2d48] bg-white dark:bg-[#0d1527] hover:border-purple-400/50 hover:shadow-lg transition-all cursor-pointer group"
         >
-          <div className="w-10 h-10 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-            <Film className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+            <Share2 className="w-5 h-5" />
           </div>
           <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-1">
-            {lang === 'bn' ? 'ভিডিও অ্যাড ও আর্ন' : 'Watch Ads & Earn'}
+            {lang === 'bn' ? 'সোশ্যাল টাস্ক ও আর্ন' : 'Social Tasks & Earn'}
           </h4>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {lang === 'bn' ? 'পুরস্কৃত ভিডিও বিজ্ঞাপন দেখে সরাসরি USD আর্ন করুন' : 'Watch verified rewarded video ads & earn real USD balance'}
+            {lang === 'bn' ? 'টেলিগ্রাম, ইউটিউব ও ফেসবুক টাস্ক সম্পন্ন করে সরাসরি USD আয় করুন' : 'Complete social media tasks & earn instant USD in your wallet'}
           </p>
-          <span className="text-[11px] font-bold text-pink-400 group-hover:underline flex items-center gap-1 mt-3">
-            {lang === 'bn' ? 'ভিডিও দেখুন →' : 'Watch & Earn →'}
+          <span className="text-[11px] font-bold text-purple-400 group-hover:underline flex items-center gap-1 mt-3">
+            {lang === 'bn' ? 'টাস্ক শুরু করুন →' : 'Start Tasks →'}
           </span>
         </div>
 

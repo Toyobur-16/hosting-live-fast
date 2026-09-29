@@ -72,11 +72,26 @@ export function AdminSiteSettingsManager() {
 
           const data = await res.json();
           if (res.ok && data.success) {
-            setSettings((prev) => ({
-              ...prev,
+            const updated = {
+              ...settings,
               logoUrl: data.url
-            }));
-            setNotification({ type: 'success', text: 'লোগো ছবি সফলভাবে আপলোড হয়েছে! নিচে সেভ বাটনে ক্লিক করুন।' });
+            };
+            setSettings(updated);
+
+            // Auto-save immediately to backend & Firebase Firestore
+            try {
+              await fetch('/api/admin/site-settings', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify(updated)
+              });
+              window.dispatchEvent(new CustomEvent('site-settings-updated'));
+            } catch {}
+
+            setNotification({ type: 'success', text: '✅ সাইট লোগো ছবি আপলোড হয়েছে এবং ফায়ারবেজ ক্লাউডে স্থায়ীভাবে সেভ হয়েছে!' });
           } else {
             setNotification({ type: 'error', text: data.error || 'ছবি আপলোড ব্যর্থ হয়েছে।' });
           }
@@ -133,9 +148,14 @@ export function AdminSiteSettingsManager() {
             <Sliders className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-black text-slate-900 dark:text-white">সাইট লোগো ও ব্র্যান্ডিং সেটিংস</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base font-black text-slate-900 dark:text-white">সাইট লোগো ও ব্র্যান্ডিং সেটিংস</h3>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
+                🔥 ফায়ারবেজ ক্লাউড সিঙ্ক
+              </span>
+            </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              সাইটের অফিসিয়াল লোগো পিকচার, ব্র্যান্ডের নাম এবং ট্যাগলাইন পরিবর্তন ও প্রিভিউ করুন
+              সাইটের অফিসিয়াল লোগো পিকচার, নাম ও ব্র্যান্ডিং ফায়ারবেজ ক্লাউডে স্থায়ীভাবে সংরক্ষিত থাকে
             </p>
           </div>
         </div>

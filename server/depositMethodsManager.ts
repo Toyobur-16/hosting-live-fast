@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { FirebaseSync } from './firebaseSync';
 
 export interface DepositMethodItem {
   id: string;
@@ -118,6 +119,7 @@ export function saveDepositMethods(methods: DepositMethodItem[]): void {
       fs.mkdirSync(HOSTED_BOTS_DIR, { recursive: true });
     }
     fs.writeFileSync(DEPOSIT_METHODS_FILE, JSON.stringify(methods, null, 2) + '\n', 'utf-8');
+    FirebaseSync.syncDepositMethodsToCloud(methods).catch(() => {});
   } catch (err) {
     console.error('Error saving deposit methods:', err);
   }

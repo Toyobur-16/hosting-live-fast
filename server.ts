@@ -46,12 +46,13 @@ import {
 } from './server/emailVerification';
 import { modifyUserWallet, getTransactions as getWalletTransactions, getUserTransactions } from './server/walletManager';
 import {
-  getRewardAdSettings,
-  saveRewardAdSettings,
-  getUserRewardStats,
-  startAdSession,
-  completeAdSession
-} from './server/rewardAdsManager';
+  getSocialTasks,
+  saveSocialTasks,
+  getTaskCompletions,
+  getUserCompletedTaskIds,
+  claimSocialTaskReward,
+  SocialTask
+} from './server/socialTasksManager';
 import {
   getWebsites,
   getWebsiteById,
@@ -437,8 +438,8 @@ const DEFAULT_BANNERS = [
     "id": "banner_2",
     "title": "স্ট্যাটিক ওয়েবসাইট ও ওয়েব অ্যাপ হোস্টিং",
     "titleBn": "স্ট্যাটিক ওয়েবসাইট ও ওয়েব অ্যাপ হোস্টিং",
-    "subtitle": "HTML, CSS, JS ও ফ্রন্টএন্ড কোড ফাইল সহজে হোস্ট ও পরিচালনা করুন",
-    "subtitleBn": "HTML, CSS, JS ও ফ্রন্টএন্ড কোড ফাইল সহজে হোস্ট ও পরিচালনা করুন",
+    "subtitle": "HTML, CSS, JS ও ফ্রন্টএন্ড ওয়েবসাইট সহজে লাইভ হোস্ট ও পরিচালনা করুন",
+    "subtitleBn": "HTML, CSS, JS ও ফ্রন্টএন্ড ওয়েবসাইট সহজে লাইভ হোস্ট ও পরিচালনা করুন",
     "badge": "লাইভ হোস্টিং",
     "imageUrl": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80",
     "link": "websites",
@@ -451,12 +452,7 @@ if (!fs.existsSync(BANNERS_FILE)) {
   fs.writeFileSync(BANNERS_FILE, JSON.stringify(DEFAULT_BANNERS, null, 2), 'utf-8');
 }
 
-const DEFAULT_CATEGORIES = [
-  { id: 'vip_file', name: 'VIP FILE', nameBn: 'ভিআইপি ফাইল', icon: 'folder', count: 12, active: true },
-  { id: 'telegram_bots', name: 'Telegram Bots', nameBn: 'টেলিগ্রাম বটস', icon: 'bot', count: 8, active: true },
-  { id: 'mini_apps', name: 'Mini Apps', nameBn: 'মিনি অ্যাপস', icon: 'sparkles', count: 15, active: true },
-  { id: 'hosting_plans', name: 'Hosting Plans', nameBn: 'হোস্টিং প্লান', icon: 'crown', count: 4, active: true }
-];
+const DEFAULT_CATEGORIES: any[] = [];
 
 if (!fs.existsSync(CATEGORIES_FILE)) {
   fs.writeFileSync(CATEGORIES_FILE, JSON.stringify(DEFAULT_CATEGORIES, null, 2), 'utf-8');
@@ -800,7 +796,12 @@ function getPaymentSettings(): any {
 }
 
 function savePaymentSettings(data: any) {
-  fs.writeFileSync(PAYMENT_SETTINGS_FILE, JSON.stringify(data, null, 2) + '\n', 'utf-8');
+  try {
+    fs.writeFileSync(PAYMENT_SETTINGS_FILE, JSON.stringify(data, null, 2) + '\n', 'utf-8');
+    FirebaseSync.syncPaymentSettingsToCloud(data).catch(() => {});
+  } catch (err) {
+    console.error('Failed to save payment settings:', err);
+  }
 }
 
 function getBinanceOrders(): any[] {
@@ -1069,7 +1070,12 @@ function getSiteSettings(): any {
 }
 
 function saveSiteSettings(data: any) {
-  fs.writeFileSync(SITE_SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  try {
+    fs.writeFileSync(SITE_SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    FirebaseSync.syncSiteSettingsToCloud(data).catch(() => {});
+  } catch (err) {
+    console.error('Failed to save site settings:', err);
+  }
 }
 
 function getBanners(): any[] {
@@ -1083,6 +1089,7 @@ function getBanners(): any[] {
 function saveBanners(data: any[]) {
   try {
     fs.writeFileSync(BANNERS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    FirebaseSync.syncBannersToCloud(data).catch(() => {});
   } catch (err) {
     console.error('Failed to save banners:', err);
   }
@@ -2610,22 +2617,9 @@ app.get('/api/export-project-zip', (req, res) => {
   }
 });
 
-// Admin Rewards, Websites & User Wallet adjustment endpoints
-app.get('/api/admin/rewards/settings', (req, res) => {
-  const admin = getAuthUser(req);
-  if (!isUserAdmin(admin)) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  res.json({ success: true, settings: getRewardAdSettings() });
-});
-
-app.post('/api/admin/rewards/settings', (req, res) => {
-  const admin = getAuthUser(req);
-  if (!isUserAdmin(admin)) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  const saved = saveRewardAdSettings(req.body);
-  res.json({ success: saved, settings: getRewardAdSettings() });
+// Reward Ad settings disabled (Replaced with Social Tasks System)
+app.get(['/api/admin/rewards/settings', '/api/rewards/settings'], (req, res) => {
+  res.json({ success: true, settings: { enabled: false } });
 });
 
 app.get('/api/admin/websites', (req, res) => {
@@ -4728,9 +4722,9 @@ app.post('/api/admin/banners', (req, res) => {
     titleBn: titleBn || title || 'অফার',
     subtitle: subtitle || subtitleBn || '',
     subtitleBn: subtitleBn || subtitle || '',
-    badge: badge || 'অল্প দামে',
+    badge: badge || 'সুপারফাস্ট',
     imageUrl: imageUrl || 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
-    link: link || 'market',
+    link: link || 'plans',
     active: active !== false,
     order: parseInt(order, 10) || 1
   };
@@ -4755,97 +4749,40 @@ app.delete('/api/admin/banners/:id', (req, res) => {
   res.json({ success: true, banners });
 });
 
-// Categories
-app.get('/api/store/categories', (req, res) => {
-  const categories = getCategories();
-  const activeCats = categories.filter((c) => c.active !== false);
-  res.json({ categories: activeCats });
+// Categories (File selling store is removed - Hosting only)
+app.get(['/api/store/categories', '/api/admin/categories'], (_req, res) => {
+  res.json({ categories: [] });
 });
 
-app.get('/api/admin/categories', (req, res) => {
-  const admin = getAuthUser(req);
-  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
-  res.json({ categories: getCategories() });
-});
-
-app.post('/api/admin/categories', (req, res) => {
-  const admin = getAuthUser(req);
-  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
-
-  const { id, name, nameBn, icon, count, active } = req.body;
-  if (!name) return res.status(400).json({ error: 'Category name is required' });
-
-  const categories = getCategories();
-  const catId = (id || name.toLowerCase().replace(/[^a-z0-9]+/g, '_')).trim();
-  const existingIdx = categories.findIndex((c) => c.id === catId);
-
-  const catData = {
-    id: catId,
-    name: name.trim(),
-    nameBn: (nameBn || name).trim(),
-    icon: icon || 'folder',
-    count: parseInt(count, 10) || 0,
-    active: active !== false
-  };
-
-  if (existingIdx >= 0) {
-    categories[existingIdx] = catData;
-  } else {
-    categories.push(catData);
-  }
-
-  saveCategories(categories);
-  res.json({ success: true, category: catData, categories });
-});
-
-app.delete('/api/admin/categories/:id', (req, res) => {
-  const admin = getAuthUser(req);
-  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
-
-  let categories = getCategories();
-  categories = categories.filter((c) => c.id !== req.params.id);
-  saveCategories(categories);
-  res.json({ success: true, categories });
-});
-
-// Store Items / Files
-app.get('/api/store/items', (req, res) => {
-  const items = getStoreItems();
-  const { category, search, featured } = req.query;
-
-  let filtered = items.filter((i) => i.active !== false);
-  if (category && category !== 'all') {
-    filtered = filtered.filter((i) => i.categoryId === category);
-  }
-  if (featured === 'true') {
-    filtered = filtered.filter((i) => i.featured);
-  }
-  if (search && typeof search === 'string') {
-    const q = search.toLowerCase().trim();
-    filtered = filtered.filter(
-      (i) =>
-        i.title.toLowerCase().includes(q) ||
-        (i.titleBn && i.titleBn.toLowerCase().includes(q)) ||
-        (i.description && i.description.toLowerCase().includes(q))
-    );
-  }
-
-  res.json({ items: filtered });
-});
-
-// Serve uploaded store thumbnails
-app.get('/api/store/thumbnails/:filename', (req, res) => {
+// Serve uploaded image thumbnails (banners, logos, payment QR)
+// Auto-restores from Firebase Firestore if file is missing from local container disk!
+app.get(['/api/store/thumbnails/:filename', '/api/site-images/:filename'], async (req, res) => {
   const filename = path.basename(req.params.filename);
   const filePath = path.join(STORE_THUMBNAILS_DIR, filename);
   if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).send('Thumbnail not found');
+    return res.sendFile(filePath);
   }
+
+  // Not on local disk (container was updated or restarted) - Restore from Firebase Firestore!
+  try {
+    const cloudImg = await FirebaseSync.loadSiteImageFromCloud(filename);
+    if (cloudImg && cloudImg.base64) {
+      const buffer = Buffer.from(cloudImg.base64, 'base64');
+      try {
+        fs.writeFileSync(filePath, buffer);
+      } catch {}
+      res.setHeader('Content-Type', cloudImg.contentType || 'image/png');
+      return res.send(buffer);
+    }
+  } catch (err) {
+    console.warn('Error fetching image from Firebase Firestore:', err);
+  }
+
+  res.status(404).send('Image not found');
 });
 
-// Admin direct file and thumbnail upload endpoint
-app.post('/api/admin/upload-file', (req, res) => {
+// Admin image and logo upload endpoint (for banners, site logos, payment QR codes)
+app.post('/api/admin/upload-file', async (req, res) => {
   const admin = getAuthUser(req);
   if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
 
@@ -4861,318 +4798,64 @@ app.post('/api/admin/upload-file', (req, res) => {
     const timestamp = Date.now();
 
     const isImage = fileType === 'thumbnail' || fileType === 'image' || fileType === 'payment_qr' || fileType === 'site_logo' || fileType === 'logo' || /\.(png|jpe?g|webp|gif|svg|ico)$/i.test(fileName);
-    if (isImage) {
-      const storedFileName = `img_${timestamp}_${cleanName}`;
-      const destPath = path.join(STORE_THUMBNAILS_DIR, storedFileName);
-      fs.writeFileSync(destPath, buffer);
-
-      // If it's a site logo, also mirror it to public/site-logo.png
-      if (fileType === 'site_logo') {
-        try {
-          const publicLogo = path.join(process.cwd(), 'public', 'site-logo.png');
-          fs.writeFileSync(publicLogo, buffer);
-        } catch {}
-      }
-
-      return res.json({
-        success: true,
-        url: `/api/store/thumbnails/${storedFileName}`,
-        storedFileName,
-        originalFileName: fileName
-      });
-    } else {
-      // product file / script / zip / rar / code
-      const storedFileName = `product_${timestamp}_${cleanName}`;
-      const destPath = path.join(STORE_UPLOADS_DIR, storedFileName);
-      fs.writeFileSync(destPath, buffer);
-
-      const bytes = buffer.length;
-      let sizeFormatted = `${(bytes / 1024).toFixed(1)} KB`;
-      if (bytes >= 1024 * 1024) {
-        sizeFormatted = `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-      }
-
-      return res.json({
-        success: true,
-        storedFileName,
-        originalFileName: fileName,
-        fileSizeFormatted: sizeFormatted
-      });
+    if (!isImage) {
+      return res.status(400).json({ error: 'শুধুমাত্র ইমেজ/লোগো ফাইল আপলোড করা যাবে।' });
     }
+
+    const ext = path.extname(cleanName).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon'
+    };
+    const contentType = mimeMap[ext] || 'image/png';
+
+    const storedFileName = `img_${timestamp}_${cleanName}`;
+    const destPath = path.join(STORE_THUMBNAILS_DIR, storedFileName);
+    fs.writeFileSync(destPath, buffer);
+
+    // 100% Guaranteed Cloud Persistence: Save image to Firebase Firestore
+    FirebaseSync.saveSiteImageToCloud(storedFileName, fileName, contentType, base64Data).catch(() => {});
+
+    if (fileType === 'site_logo') {
+      FirebaseSync.saveSiteImageToCloud('site_logo', fileName, contentType, base64Data).catch(() => {});
+      try {
+        const publicLogo = path.join(process.cwd(), 'public', 'site-logo.png');
+        fs.writeFileSync(publicLogo, buffer);
+      } catch {}
+    }
+
+    return res.json({
+      success: true,
+      url: `/api/store/thumbnails/${storedFileName}`,
+      storedFileName,
+      originalFileName: fileName,
+      firebasePersisted: true
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'File upload failed' });
   }
 });
 
-app.get('/api/admin/store-items', (req, res) => {
-  const admin = getAuthUser(req);
-  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
-  res.json({ items: getStoreItems() });
+// Store Items & File Selling is permanently disabled (Hosting-Only Platform)
+app.get(['/api/store/items', '/api/admin/store-items'], (_req, res) => {
+  res.json({ items: [] });
 });
 
-app.post('/api/admin/store-items', (req, res) => {
-  const admin = getAuthUser(req);
-  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
-
-  const {
-    id,
-    title,
-    titleBn,
-    categoryId,
-    categoryName,
-    priceBdt,
-    priceUsd,
-    rating,
-    downloads,
-    badge,
-    imageUrl,
-    description,
-    planId,
-    fileUrl,
-    originalFileName,
-    fileStorageName,
-    fileSizeFormatted,
-    featured,
-    active
-  } = req.body;
-
-  if (!title) return res.status(400).json({ error: 'Item title is required' });
-
-  const items = getStoreItems();
-  const itemId = id || `item_${Date.now()}`;
-  const existingIdx = items.findIndex((i) => i.id === itemId);
-
-  const itemData = {
-    id: itemId,
-    title: title.trim(),
-    titleBn: (titleBn || title).trim(),
-    categoryId: categoryId || 'vip_file',
-    categoryName: categoryName || 'VIP FILE',
-    priceBdt: parseFloat(priceBdt) || 0,
-    priceUsd: parseFloat(priceUsd) || 0,
-    rating: typeof rating !== 'undefined' ? parseFloat(rating) : 5,
-    downloads: parseInt(downloads, 10) || 0,
-    badge: badge || 'সাশ্রয়ী দামে',
-    imageUrl: imageUrl || '',
-    description: description || '',
-    planId: planId || '',
-    fileUrl: fileUrl || '',
-    originalFileName: originalFileName || (existingIdx >= 0 ? items[existingIdx].originalFileName : ''),
-    fileStorageName: fileStorageName || (existingIdx >= 0 ? items[existingIdx].fileStorageName : ''),
-    fileSizeFormatted: fileSizeFormatted || (existingIdx >= 0 ? items[existingIdx].fileSizeFormatted : ''),
-    featured: Boolean(featured),
-    active: active !== false,
-    createdAt: items[existingIdx]?.createdAt || new Date().toISOString()
-  };
-
-  if (existingIdx >= 0) {
-    items[existingIdx] = itemData;
-  } else {
-    items.push(itemData);
-  }
-
-  saveStoreItems(items);
-  res.json({ success: true, item: itemData, items });
+app.post(['/api/admin/store-items', '/api/store/items/:id/buy'], (_req, res) => {
+  res.status(403).json({ error: 'ফাইল বিক্রি সিস্টেম নিষ্ক্রিয়। এটি শুধুমাত্র ক্লাউড টেলিগ্রাম বট ও ওয়েবসাইট হোস্টিং প্ল্যাটফর্ম।' });
 });
 
-app.delete('/api/admin/store-items/:id', (req, res) => {
-  const admin = getAuthUser(req);
-  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
-
-  let items = getStoreItems();
-  items = items.filter((i) => i.id !== req.params.id);
-  saveStoreItems(items);
-  res.json({ success: true, items });
+app.delete('/api/admin/store-items/:id', (_req, res) => {
+  res.json({ success: true, items: [] });
 });
 
-// Buy Store Item with Wallet Balance
-app.post('/api/store/items/:id/buy', (req, res) => {
-  const user = getAuthUser(req);
-  if (!user) return res.status(401).json({ error: 'Please login to purchase files or plans' });
-
-  const { currency } = req.body;
-  const items = getStoreItems();
-  const item = items.find((i) => i.id === req.params.id);
-  if (!item) return res.status(404).json({ error: 'Item not found' });
-
-  const payCurrency = currency === 'BDT' ? 'BDT' : 'USD';
-  const price = payCurrency === 'BDT' ? item.priceBdt : item.priceUsd;
-
-  const accounts = getAccounts();
-  const targetUser = accounts.find((a) => a.id === user.id);
-  if (!targetUser) return res.status(404).json({ error: 'User not found' });
-
-  targetUser.balanceBdt = typeof targetUser.balanceBdt === 'number' ? targetUser.balanceBdt : 0;
-  targetUser.balanceUsd = typeof targetUser.balanceUsd === 'number' ? targetUser.balanceUsd : 0;
-
-  if (payCurrency === 'USD') {
-    if (targetUser.balanceUsd < price) {
-      return res.status(400).json({
-        error: `পর্যাপ্ত USD ব্যালেন্স নেই। প্রয়োজন: $${price} USD, বর্তমান: $${targetUser.balanceUsd.toFixed(2)} USD। ডিপোজিট করুন।`,
-        needsDeposit: true,
-        requiredAmount: price,
-        currentBalance: targetUser.balanceUsd,
-        currency: 'USD'
-      });
-    }
-    targetUser.balanceUsd = parseFloat((targetUser.balanceUsd - price).toFixed(2));
-  } else {
-    if (targetUser.balanceBdt < price) {
-      return res.status(400).json({
-        error: `পর্যাপ্ত BDT ব্যালেন্স নেই। প্রয়োজন: ৳${price} BDT, বর্তমান: ৳${targetUser.balanceBdt.toFixed(2)} BDT। ডিপোজিট করুন।`,
-        needsDeposit: true,
-        requiredAmount: price,
-        currentBalance: targetUser.balanceBdt,
-        currency: 'BDT'
-      });
-    }
-    targetUser.balanceBdt = parseFloat((targetUser.balanceBdt - price).toFixed(2));
-  }
-
-  // Increment item download / purchase count
-  item.downloads = (item.downloads || 0) + 1;
-  saveStoreItems(items);
-
-  // Record user purchased items
-  targetUser.purchasedItemIds = targetUser.purchasedItemIds || [];
-  if (!targetUser.purchasedItemIds.includes(item.id)) {
-    targetUser.purchasedItemIds.push(item.id);
-  }
-  targetUser.purchasedItems = targetUser.purchasedItems || [];
-  targetUser.purchasedItems.push({
-    itemId: item.id,
-    title: item.title,
-    titleBn: item.titleBn,
-    priceBdt: item.priceBdt,
-    priceUsd: item.priceUsd,
-    fileUrl: item.fileUrl || '',
-    purchasedAt: Date.now()
-  });
-
-  // If item corresponds to a hosting plan, activate it!
-  if (item.planId) {
-    const plans = getPlans();
-    const matchedPlan = plans.find((p) => p.id === item.planId);
-    if (matchedPlan) {
-      const durationDays = matchedPlan.durationDays || 30;
-      targetUser.plan = matchedPlan.id;
-      targetUser.maxBots = matchedPlan.maxBots || 3;
-      const currentExpiry = (targetUser.planExpiresAt && targetUser.planExpiresAt > Date.now()) ? targetUser.planExpiresAt : Date.now();
-      targetUser.planExpiresAt = currentExpiry + durationDays * 24 * 60 * 60 * 1000;
-    }
-  }
-
-  saveAccounts(accounts);
-
-  // Send notification & email alert
-  sendEmailAlert({
-    to: targetUser.email,
-    userId: targetUser.id,
-    type: 'plan_purchased',
-    subject: `🎉 সফল কেনাকাটা: ${item.titleBn || item.title}`,
-    html: `<p>প্রিয় ${targetUser.name}, আপনি সফলভাবে <strong>${item.titleBn || item.title}</strong> ক্রয় করেছেন। ওয়ালেট থেকে ${price} ${payCurrency} কাটা হয়েছে।</p>`,
-    text: `আপনি সফলভাবে ${item.titleBn || item.title} ক্রয় করেছেন।`
-  });
-
-  const downloadUrl = item.fileUrl || `/api/store/items/${item.id}/download`;
-
-  res.json({
-    success: true,
-    message: `🎉 অভিনন্দন! "${item.titleBn || item.title}" সফলভাবে ক্রয় সম্পন্ন হয়েছে।`,
-    user: enrichUserWithPlanAndRole(targetUser),
-    item,
-    downloadUrl
-  });
-});
-
-// Authenticated Download Endpoint for Store Files
-app.get('/api/store/items/:id/download', (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1] || (req.query.token as string);
-  let user: any = null;
-  if (token) {
-    try {
-      if (token.startsWith('bt_')) {
-        const payloadStr = Buffer.from(token.replace('bt_', ''), 'base64url').toString('utf-8');
-        const payload = JSON.parse(payloadStr);
-        const accounts = getAccounts();
-        user = accounts.find((a) => a.id === payload.userId) || null;
-      }
-    } catch {}
-  }
-
-  const items = getStoreItems();
-  const item = items.find((i) => i.id === req.params.id);
-  if (!item) return res.status(404).send('Item not found');
-
-  const isAdmin = isUserAdmin(user);
-  const hasPurchased = user && Array.isArray(user.purchasedItemIds) && user.purchasedItemIds.includes(item.id);
-
-  if (!isAdmin && !hasPurchased) {
-    return res.status(403).send('এই ফাইলটি ডাউনলোড করার আগে আপনাকে ক্রয় করতে হবে (Purchase required to download)');
-  }
-
-  // 1. If admin uploaded an actual file (zip, rar, py, json, etc.), stream it directly!
-  if (item.fileStorageName) {
-    const uploadedFilePath = path.join(STORE_UPLOADS_DIR, item.fileStorageName);
-    if (fs.existsSync(uploadedFilePath)) {
-      const clientFileName = item.originalFileName || `${(item.title || 'download').replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`;
-      return res.download(uploadedFilePath, clientFileName);
-    }
-  }
-
-  // 2. If external fileUrl is specified, redirect to it
-  if (item.fileUrl && (item.fileUrl.startsWith('http://') || item.fileUrl.startsWith('https://'))) {
-    return res.redirect(item.fileUrl);
-  }
-
-  // Provide a clean ready-to-use Telegram Bot / Mini App Source Code Bundle
-  const safeFilename = (item.title || 'telegram_source_bundle').replace(/[^a-zA-Z0-9_-]/g, '_');
-  res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}.py"`);
-  res.setHeader('Content-Type', 'text/x-python; charset=utf-8');
-
-  const sampleSourceCode = `# ========================================================
-# ${item.title}
-# Downloaded from App Store Premium Portal
-# Customer: ${user?.name || 'Authorized Buyer'} (${user?.email || ''})
-# Generated at: ${new Date().toISOString()}
-# ========================================================
-
-import os
-import sys
-import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-
-logging.basicConfig(level=logging.INFO)
-
-# Mini App Configuration
-WEB_APP_URL = "https://ai.studio/build"
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_name = update.effective_user.first_name
-    keyboard = [
-        [InlineKeyboardButton("🚀 Open Mini App", web_app=WebAppInfo(url=WEB_APP_URL))],
-        [InlineKeyboardButton("💰 Check Wallet Balance", callback_data="wallet")],
-        [InlineKeyboardButton("💬 24/7 Support", url="https://t.me/toyoburrahman")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        f"👋 Welcome {user_name}! Your Telegram Mini App is ready to run.",
-        reply_markup=reply_markup
-    )
-
-def main():
-    token = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
-    app = ApplicationBuilder().token(token).build()
-    app.add_handler(CommandHandler("start", start))
-    print("🤖 Bot started successfully on 24/7 Cloud Host!")
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
-`;
-
-  res.send(sampleSourceCode);
+app.get('/api/store/items/:id/download', (_req, res) => {
+  res.status(404).send('Not Found');
 });
 
 // ==========================================
@@ -5251,42 +4934,12 @@ app.post('/api/admin/support-messages/:id/reply', (req, res) => {
 // ==========================================
 // WISHLIST API
 // ==========================================
-app.get('/api/wishlist', (req, res) => {
-  const user = getAuthUser(req);
-  if (!user) return res.json({ items: [] });
-
-  const map = getWishlistMap();
-  const itemIds = map[user.id] || [];
-  const allItems = getStoreItems();
-  const wishlistItems = allItems.filter((i) => itemIds.includes(i.id));
-
-  res.json({ itemIds, items: wishlistItems });
+app.get('/api/wishlist', (_req, res) => {
+  res.json({ itemIds: [], items: [] });
 });
 
-app.post('/api/wishlist/toggle', (req, res) => {
-  const user = getAuthUser(req);
-  if (!user) return res.status(401).json({ error: 'Please login to save wishlist' });
-
-  const { itemId } = req.body;
-  if (!itemId) return res.status(400).json({ error: 'Item ID required' });
-
-  const map = getWishlistMap();
-  const list = map[user.id] || [];
-  const idx = list.indexOf(itemId);
-
-  let inWishlist = false;
-  if (idx >= 0) {
-    list.splice(idx, 1);
-    inWishlist = false;
-  } else {
-    list.push(itemId);
-    inWishlist = true;
-  }
-
-  map[user.id] = list;
-  saveWishlistMap(map);
-
-  res.json({ success: true, inWishlist, itemIds: list });
+app.post('/api/wishlist/toggle', (_req, res) => {
+  res.json({ success: true, inWishlist: false, itemIds: [] });
 });
 
 app.get('/api/admin/all-bots', (req, res) => {
@@ -6984,67 +6637,169 @@ setInterval(async () => {
   }
 }, 30000);
 
-// Google AdMob & AdSense verification routes (app-ads.txt & ads.txt)
-app.get(['/app-ads.txt', '/ads.txt'], (req, res) => {
-  const settings = getRewardAdSettings();
-  const rawId = settings.appId || settings.adUnitId || 'ca-app-pub-2943337025131771~1508810719';
-  const match = rawId.match(/pub-\d{16}/);
-  const pubId = match ? match[0] : 'pub-2943337025131771';
-  res.type('text/plain');
-  res.send(`google.com, ${pubId}, DIRECT, f08c47fec0942fa0\n`);
+// ==========================================
+// SOCIAL TASKS API (Earn Real USD by Completing Tasks)
+// ==========================================
+
+// Get all active social tasks + user's completion status
+app.get('/api/social-tasks', (req, res) => {
+  const user = getAuthUser(req);
+  const tasks = getSocialTasks();
+  const completedIds = user ? getUserCompletedTaskIds(user.id) : [];
+
+  const tasksWithStatus = tasks
+    .filter((t) => t.enabled !== false)
+    .sort((a, b) => (a.order || 99) - (b.order || 99))
+    .map((t) => ({
+      ...t,
+      completed: completedIds.includes(t.id)
+    }));
+
+  res.json({
+    success: true,
+    tasks: tasksWithStatus,
+    completedCount: completedIds.length,
+    totalCount: tasksWithStatus.length
+  });
 });
 
-// ExoClick Site Ownership Verification routes (.html, .txt, and bare path)
-app.get(
-  [
-    '/b7642159c47d7c756e6ebb61ef9767d2.html',
-    '/b7642159c47d7c756e6ebb61ef9767d2.txt',
-    '/b7642159c47d7c756e6ebb61ef9767d2'
-  ],
-  (req, res) => {
-    res.type(req.path.endsWith('.html') ? 'text/html' : 'text/plain');
-    res.send('b7642159c47d7c756e6ebb61ef9767d2');
+// User claims reward for completing a social task
+app.post('/api/social-tasks/:id/claim', async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'টাস্ক সম্পন্ন করতে প্রথমে লগইন করুন (Please login to claim)' });
   }
-);
 
-// HilltopAds Site Ownership Verification routes (.txt, .html, bare path, and dynamic hex token fallback)
-app.get(
-  [
-    '/a1761586c89975927ec2ae0ce1900ccdde020982.txt',
-    '/a1761586c89975927ec2ae0ce1900ccdde020982.html',
-    '/a1761586c89975927ec2ae0ce1900ccdde020982',
-    '/a1761586c89975927ec2.txt',
-    '/a1761586c89975927ec2.html',
-    '/a1761586c89975927ec2',
-    '/ae0ce1900ccdde020982.txt',
-    '/ae0ce1900ccdde020982.html',
-    '/ae0ce1900ccdde020982'
-  ],
-  (req, res) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.type(req.path.endsWith('.html') ? 'text/html' : 'text/plain');
-    res.send('hilltopads');
-  }
-);
+  const { proofNote } = req.body;
+  const result = await claimSocialTaskReward(
+    user.id,
+    user.name || 'User',
+    user.email || '',
+    req.params.id,
+    proofNote
+  );
 
-// Dynamic wildcard route for HilltopAds (20/40-char hex) and ExoClick (32-char hex) root verification files
-app.get(/^\/([a-f0-9]{16,64})(\.txt|\.html)?$/i, (req, res, next) => {
-  const hash = req.params[0];
-  const ext = (req.params[1] || '').toLowerCase();
-  // Only intercept .txt, .html, or exact 20/32/40 char hex verification paths
-  if (!ext && hash.length !== 20 && hash.length !== 32 && hash.length !== 40) {
-    return next();
+  if (!result.success) {
+    return res.status(400).json({ error: result.error || 'টাস্ক ক্লেইম ব্যর্থ হয়েছে।' });
   }
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.type(ext === '.html' ? 'text/html' : 'text/plain');
-  if (hash.length === 32) {
-    res.send(hash);
+
+  const accounts = getAccounts();
+  const updatedUser = accounts.find((a) => a.id === user.id);
+
+  res.json({
+    success: true,
+    message: `🎉 অভিনন্দন! "${result.task?.titleBn || result.task?.title}" সফলভাবে সম্পন্ন হয়েছে। ওয়ালেটে $${result.rewardUsd} USD যুক্ত হয়েছে!`,
+    rewardUsd: result.rewardUsd,
+    user: updatedUser ? enrichUserWithPlanAndRole(updatedUser) : undefined
+  });
+});
+
+// ==========================================
+// ADMIN SOCIAL TASKS MANAGEMENT API
+// ==========================================
+
+// List all social tasks for admin management
+app.get('/api/admin/social-tasks', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
+
+  const tasks = getSocialTasks();
+  const logs = getTaskCompletions();
+  const totalDistributedUsd = logs.reduce((sum, l) => sum + (Number(l.rewardUsd) || 0), 0);
+
+  res.json({
+    success: true,
+    tasks,
+    stats: {
+      totalTasks: tasks.length,
+      activeTasks: tasks.filter((t) => t.enabled !== false).length,
+      totalCompletions: logs.length,
+      totalDistributedUsd: parseFloat(totalDistributedUsd.toFixed(2))
+    }
+  });
+});
+
+// Create or update a social task
+app.post('/api/admin/social-tasks', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
+
+  const {
+    id,
+    platform,
+    title,
+    titleBn,
+    description,
+    descriptionBn,
+    link,
+    rewardUsd,
+    badgeText,
+    timerSeconds,
+    requiresProof,
+    enabled,
+    order
+  } = req.body;
+
+  if (!title || !link) {
+    return res.status(400).json({ error: 'টাস্ক শিরোনাম ও লিংক দেওয়া আবশ্যক (Title and link required)' });
+  }
+
+  const tasks = getSocialTasks();
+  const taskId = id || `task_${Date.now()}`;
+  const existingIdx = tasks.findIndex((t) => t.id === taskId);
+
+  const parsedReward = parseFloat(rewardUsd);
+  const finalReward = isNaN(parsedReward) || parsedReward <= 0 ? 0.05 : parseFloat(parsedReward.toFixed(4));
+
+  const taskData: SocialTask = {
+    id: taskId,
+    platform: platform || 'telegram',
+    title: title.trim(),
+    titleBn: (titleBn || title).trim(),
+    description: (description || '').trim(),
+    descriptionBn: (descriptionBn || description || '').trim(),
+    link: link.trim(),
+    rewardUsd: finalReward,
+    badgeText: badgeText?.trim() || '',
+    timerSeconds: parseInt(timerSeconds, 10) || 8,
+    requiresProof: Boolean(requiresProof),
+    enabled: enabled !== false,
+    order: parseInt(order, 10) || (existingIdx >= 0 ? tasks[existingIdx].order : tasks.length + 1),
+    totalCompletions: existingIdx >= 0 ? tasks[existingIdx].totalCompletions || 0 : 0,
+    createdAt: existingIdx >= 0 ? tasks[existingIdx].createdAt : new Date().toISOString()
+  };
+
+  if (existingIdx >= 0) {
+    tasks[existingIdx] = taskData;
   } else {
-    res.send('hilltopads');
+    tasks.push(taskData);
   }
+
+  saveSocialTasks(tasks);
+  res.json({ success: true, task: taskData, tasks });
 });
+
+// Delete a social task
+app.delete('/api/admin/social-tasks/:id', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
+
+  let tasks = getSocialTasks();
+  tasks = tasks.filter((t) => t.id !== req.params.id);
+  saveSocialTasks(tasks);
+  res.json({ success: true, tasks });
+});
+
+// Get recent task completions log for admin
+app.get('/api/admin/social-tasks/submissions', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
+
+  const logs = getTaskCompletions();
+  res.json({ success: true, logs: logs.slice(0, 100) });
+});
+
+
 
 // ExoClick VAST XML Resolver & Proxy (handles Client Hints forwarding, Wrapper chains, and MediaFile extraction)
 function extractCdataOrText(xmlChunk: string): string {
@@ -7523,11 +7278,79 @@ async function start() {
     });
   }
 
+async function initSiteConfigSync() {
+  try {
+    console.log('🔄 Syncing Site Settings, Logo & Banners with Firebase Firestore...');
+    const remoteSettings = await FirebaseSync.loadSiteSettingsFromCloud();
+    if (remoteSettings && remoteSettings.siteName) {
+      saveSiteSettings(remoteSettings);
+      console.log('✅ Restored site_settings from Firebase Firestore:', remoteSettings.siteName);
+
+      if (remoteSettings.logoUrl && remoteSettings.logoUrl.startsWith('/api/store/thumbnails/')) {
+        const imgName = path.basename(remoteSettings.logoUrl);
+        const diskPath = path.join(STORE_THUMBNAILS_DIR, imgName);
+        if (!fs.existsSync(diskPath)) {
+          const cloudImg = await FirebaseSync.loadSiteImageFromCloud(imgName);
+          if (cloudImg && cloudImg.base64) {
+            fs.writeFileSync(diskPath, Buffer.from(cloudImg.base64, 'base64'));
+            try {
+              fs.writeFileSync(path.join(process.cwd(), 'public', 'site-logo.png'), Buffer.from(cloudImg.base64, 'base64'));
+            } catch {}
+            console.log('✅ Restored custom site logo from Firebase Firestore to local disk!');
+          }
+        }
+      }
+    } else {
+      const local = getSiteSettings();
+      FirebaseSync.syncSiteSettingsToCloud(local).catch(() => {});
+    }
+
+    const remoteBanners = await FirebaseSync.loadBannersFromCloud();
+    if (remoteBanners && Array.isArray(remoteBanners) && remoteBanners.length > 0) {
+      saveBanners(remoteBanners);
+      console.log(`✅ Restored ${remoteBanners.length} banners from Firebase Firestore!`);
+      for (const b of remoteBanners) {
+        if (b.imageUrl && b.imageUrl.startsWith('/api/store/thumbnails/')) {
+          const imgName = path.basename(b.imageUrl);
+          const diskPath = path.join(STORE_THUMBNAILS_DIR, imgName);
+          if (!fs.existsSync(diskPath)) {
+            const cloudImg = await FirebaseSync.loadSiteImageFromCloud(imgName);
+            if (cloudImg && cloudImg.base64) {
+              fs.writeFileSync(diskPath, Buffer.from(cloudImg.base64, 'base64'));
+            }
+          }
+        }
+      }
+    } else {
+      const localBanners = getBanners();
+      FirebaseSync.syncBannersToCloud(localBanners).catch(() => {});
+    }
+
+    const remotePay = await FirebaseSync.loadPaymentSettingsFromCloud();
+    if (remotePay && remotePay.binanceUid) {
+      savePaymentSettings(remotePay);
+      console.log('✅ Restored payment settings from Firebase Firestore!');
+    }
+
+    const remoteMethods = await FirebaseSync.loadDepositMethodsFromCloud();
+    if (remoteMethods && Array.isArray(remoteMethods) && remoteMethods.length > 0) {
+      saveDepositMethods(remoteMethods);
+      console.log(`✅ Restored ${remoteMethods.length} deposit methods from Firebase Firestore!`);
+    }
+  } catch (err: any) {
+    console.warn('initSiteConfigSync error:', err.message || err);
+  }
+}
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Bot-Host server running on http://0.0.0.0:${PORT}`);
     // Start Firebase Cloud Sync for user accounts & balances
     FirebaseSync.initSync(getAccounts, saveAccounts).catch((err) => {
       console.warn('Firebase initial sync warning:', err);
+    });
+    // Start Firebase Cloud Sync for Site Settings, Logo, Banners & Payment Configurations
+    initSiteConfigSync().catch((err) => {
+      console.warn('Firebase site config sync warning:', err);
     });
     // Start Cloud SMTP Relay Worker to dispatch any emails queued over HTTPS Port 443
     startCloudSmtpRelayWorker();

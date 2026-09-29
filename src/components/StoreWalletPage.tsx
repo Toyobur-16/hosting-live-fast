@@ -48,7 +48,7 @@ export function StoreWalletPage({
   onUserUpdated
 }: StoreWalletPageProps) {
   const [view, setView] = useState<'overview' | 'deposit' | 'history'>('overview');
-  const [activeHistoryTab, setActiveHistoryTab] = useState<'all' | 'deposits' | 'purchases'>('all');
+  const [activeHistoryTab, setActiveHistoryTab] = useState<'all' | 'deposits'>('all');
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({
     binanceUid: '922593999',
     binancePayId: '922593999',
@@ -649,10 +649,10 @@ export function StoreWalletPage({
             <button
               onClick={onNavigateToDepositStore}
               className="px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center bg-amber-400/15 hover:bg-amber-400/25 text-amber-300 border border-amber-400/30"
-              title="ডিপোজিট স্টোর পেজ খুলুন"
+              title="ডিপোজিট মেথডস পেজ খুলুন"
             >
               <Coins className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="truncate">ডিপোজিট স্টোর</span>
+              <span className="truncate">ডিপোজিট মেথডস</span>
             </button>
           )}
         </div>
@@ -727,7 +727,7 @@ export function StoreWalletPage({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1 leading-snug">
-                  এই ব্যালেন্স দিয়ে যেকোনো বট ফাইল, স্ক্রিপ্ট ও হোস্টিং প্লান কিনতে পারবেন।
+                  এই ব্যালেন্স দিয়ে যেকোনো টেলিগ্রাম বট ও ওয়েবসাইট হোস্টিং প্ল্যান চালু করতে পারবেন।
                 </p>
               </div>
 

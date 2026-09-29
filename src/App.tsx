@@ -19,7 +19,7 @@ import { SafeUploadModal } from './components/SafeUploadModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { NotificationsModal } from './components/NotificationsModal';
 import { WebsitesPage } from './components/WebsitesPage';
-import { WatchAndEarnPage } from './components/WatchAndEarnPage';
+import { SocialTasksPage } from './components/SocialTasksPage';
 import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 
@@ -770,14 +770,13 @@ export default function App() {
           />
         )}
 
-        {/* 11. Watch Ads & Earn USD Page */}
+        {/* 11. Social Tasks & Earn USD Page */}
         {activeTab === 'rewards' && (
-          <WatchAndEarnPage
+          <SocialTasksPage
             user={currentUser}
             onOpenAuthModal={openAuthModal}
             onNavigateToWallet={() => setActiveTab('wallet')}
             onNavigateToPlans={() => setActiveTab('plans')}
-            onUserUpdated={(u) => setCurrentUser(u)}
             lang={lang}
           />
         )}

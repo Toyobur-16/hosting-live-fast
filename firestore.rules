@@ -4,25 +4,44 @@ service cloud.firestore {
     // User accounts collection
     match /accounts/{userId} {
       allow read: if true;
-      allow write: if (request.auth != null && (request.auth.uid == userId || request.auth.token.email == 'mdtayburrahman1111@gmail.com' || request.auth.token.email == 'badsharahmanbd@gmail.com'))
-                   || (request.resource.data.keys().hasAll(['id', 'email']) && request.resource.data.id is string && request.resource.data.email is string);
+      allow write: if true;
     }
 
     // Plan & deposit requests collection
     match /plan_requests/{reqId} {
       allow read: if true;
-      allow write: if request.auth != null || (request.resource.data.keys().hasAll(['id']) && request.resource.data.id is string);
+      allow write: if true;
     }
 
-    // Cloud SMTP Email Relay Outbox (allows Render or restricted hosts to queue emails over HTTPS 443 to be dispatched by Cloud Run SMTP worker)
+    // Site settings & branding (logo, title, taglines)
+    match /site_settings/{docId} {
+      allow read, write: if true;
+    }
+
+    // Site configurations (site_settings, banners, payment_settings, deposit_methods)
+    match /config/{docId} {
+      allow read, write: if true;
+    }
+
+    // Banners collection
+    match /banners/{bannerId} {
+      allow read, write: if true;
+    }
+
+    // Site uploaded images collection (stores base64 logos and pictures permanently in Firestore)
+    match /site_images/{imageId} {
+      allow read, write: if true;
+    }
+
+    // Cloud SMTP Email Relay Outbox
     match /email_outbox/{jobId} {
       allow read, write: if true;
     }
 
-    // Default allow read for public site collections, write authenticated
+    // Default allow read for public site collections, write allowed
     match /{document=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if true;
     }
   }
 }

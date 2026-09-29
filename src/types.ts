@@ -507,3 +507,46 @@ export interface OtpRecord {
   full_sms?: string;
   timestamp: string;
 }
+
+export type SocialPlatform =
+  | 'telegram'
+  | 'youtube'
+  | 'facebook'
+  | 'instagram'
+  | 'twitter'
+  | 'tiktok'
+  | 'website'
+  | 'discord'
+  | 'custom';
+
+export interface SocialTask {
+  id: string;
+  platform: SocialPlatform;
+  title: string;
+  titleBn?: string;
+  description: string;
+  descriptionBn?: string;
+  link: string;
+  rewardUsd: number;
+  badgeText?: string;
+  timerSeconds?: number;
+  requiresProof?: boolean;
+  enabled: boolean;
+  order: number;
+  totalCompletions: number;
+  createdAt: string;
+  completed?: boolean;
+}
+
+export interface TaskCompletionLog {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName?: string;
+  userEmail?: string;
+  platform: SocialPlatform;
+  taskTitle: string;
+  rewardUsd: number;
+  completedAt: string;
+  proofNote?: string;
+}

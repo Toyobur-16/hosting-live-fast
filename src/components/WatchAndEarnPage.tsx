@@ -697,8 +697,8 @@ export const WatchAndEarnPage = ({
             </h1>
             <p className="text-sm text-slate-400 mt-2 max-w-xl leading-relaxed">
               {lang === 'bn'
-                ? 'প্রতিটি ১৫ সেকেন্ডের স্পন্সরড ভিডিও বিজ্ঞাপন দেখলে সাথে সাথে পাবেন $০.০১ USD ওয়ালেট রিওয়ার্ড। অর্জিত ব্যালেন্স দিয়ে কিনুন প্রিমিয়াম বট ও ওয়েবসাইট হোস্টিং প্ল্যান!'
-                : 'Watch short 15-second sponsored rewarded video ads and get $0.01 USD instantly added to your wallet balance. Use your earnings to buy premium bot and website hosting plans!'}
+                ? 'প্রতিটি ১৫ সেকেন্ডের স্পন্সরড ভিডিও বিজ্ঞাপন দেখলে সাথে সাথে পাবেন $০.০১ USD ওয়ালেট রিওয়ার্ড। অর্জিত ব্যালেন্স দিয়ে প্রিমিয়াম বট ও ওয়েবসাইট হোস্টিং প্ল্যান সক্রিয় করুন!'
+                : 'Watch short 15-second sponsored rewarded video ads and get $0.01 USD instantly added to your wallet balance. Use your earnings to activate premium bot and website hosting plans!'}
             </p>
           </div>
 
