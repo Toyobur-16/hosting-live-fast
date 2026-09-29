@@ -105,7 +105,8 @@ import {
 import { askAiSupport } from './server/aiSupportService';
 import {
   scanAndAutoFixBotDirectory,
-  inspectZipAndDetectMissing
+  inspectZipAndDetectMissing,
+  extractZipSafely
 } from './server/botAutoFixService';
 
 // Enforce IPv4 priority globally to eliminate ENETUNREACH in containers lacking IPv6 routes
@@ -1458,6 +1459,9 @@ function getAuthUser(req: express.Request): any | null {
   return null;
 }
 
+// In-memory restart tracker to prevent infinite loops while ensuring auto-healing resilience
+const botRestartAttempts = new Map<string, { count: number; firstAttempt: number }>();
+
 // Bot runner
 function launchBotProcess(bot: any): boolean {
   const botDir = path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id);
@@ -1511,11 +1515,18 @@ function launchBotProcess(bot: any): boolean {
     }
   }
 
+  // Clear Telegram webhook conflict prior to polling start
+  if (bot.token) {
+    try {
+      fetch(`https://api.telegram.org/bot${bot.token}/deleteWebhook?drop_pending_updates=true`).catch(() => {});
+    } catch {}
+  }
+
   // Auto install requirements.txt if present
   const reqFile = path.join(botDir, 'requirements.txt');
   if (fs.existsSync(reqFile)) {
     try {
-      runPipInstall(`-r "${reqFile}"`, botDir, 60000);
+      runPipInstall(`-r "${reqFile}"`, botDir, 30000);
     } catch {}
   }
 
@@ -1578,7 +1589,7 @@ function launchBotProcess(bot: any): boolean {
         if (line.trim()) {
           appendLog(bot.id, 'warn', line);
 
-          // Auto-heal missing python modules or packages
+          // 1. Auto-heal missing python modules or packages
           let missingPkg: string | null = null;
           const modMatch = line.match(/(?:ModuleNotFoundError|ImportError): No module named ['"]([^'"]+)['"]/);
           if (modMatch && modMatch[1]) {
@@ -1597,22 +1608,62 @@ function launchBotProcess(bot: any): boolean {
             const pkgAliases: Record<string, string> = {
               telebot: 'pyTelegramBotAPI',
               telegram: 'python-telegram-bot',
-              PIL: 'pillow',
+              PIL: 'Pillow',
               bs4: 'beautifulsoup4',
-              cv2: 'opencv-python',
-              dotenv: 'python-dotenv'
+              cv2: 'opencv-python-headless',
+              dotenv: 'python-dotenv',
+              dateutil: 'python-dateutil',
+              yaml: 'pyyaml'
             };
             const targetPkg = pkgAliases[missingPkg] || missingPkg;
-            appendLog(bot.id, 'info', `Auto-healing: Installing missing library '${targetPkg}' via python pip...`);
+            appendLog(bot.id, 'info', `[Auto-Healer] Installing missing library '${targetPkg}' via python pip...`);
             try {
               runPipInstall(`"${targetPkg}"`, botDir, 45000);
-              appendLog(bot.id, 'info', `Library '${targetPkg}' installed! Re-launching bot process...`);
+              appendLog(bot.id, 'info', `[Auto-Healer] Library '${targetPkg}' installed! Re-launching bot process...`);
               setTimeout(() => {
                 launchBotProcess(bot);
               }, 1500);
             } catch (instErr: any) {
               appendLog(bot.id, 'warn', `Could not auto-install '${targetPkg}': ${instErr.message}`);
             }
+          }
+
+          // 2. Auto-heal FileNotFoundError for images, data, or files
+          const fnfMatch = line.match(/(?:FileNotFoundError:.*No such file or directory:\s*['"]([^'"]+)['"]|open\s*\(\s*['"]([^'"]+)['"])/i);
+          if (fnfMatch) {
+            const missingRel = fnfMatch[1] || fnfMatch[2];
+            if (missingRel && !missingRel.startsWith('/') && !missingRel.startsWith('http')) {
+              const fullMissing = path.join(botDir, missingRel);
+              try {
+                fs.mkdirSync(path.dirname(fullMissing), { recursive: true });
+                const ext = path.extname(missingRel).toLowerCase();
+                if (['.jpg', '.jpeg'].includes(ext)) {
+                  fs.writeFileSync(fullMissing, Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64'));
+                } else if (['.png', '.webp', '.gif', '.ico', '.svg'].includes(ext)) {
+                  fs.writeFileSync(fullMissing, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
+                } else if (ext === '.json') {
+                  fs.writeFileSync(fullMissing, '{}', 'utf-8');
+                } else {
+                  fs.writeFileSync(fullMissing, '', 'utf-8');
+                }
+                appendLog(bot.id, 'info', `[Auto-Healer] Created missing file '${missingRel}'. Re-launching bot...`);
+                setTimeout(() => {
+                  launchBotProcess(bot);
+                }, 1500);
+              } catch {}
+            }
+          }
+
+          // 3. Auto-heal Telegram Polling/Webhook Conflicts
+          if (line.includes('terminated by other getUpdates request') || line.includes('can\'t use getUpdates method while webhook is active') || line.includes('Error code: 409')) {
+            appendLog(bot.id, 'warn', '[Auto-Healer] Telegram 409 Conflict detected. Flushing webhook and reconnecting in 2s...');
+            if (bot.token) {
+              fetch(`https://api.telegram.org/bot${bot.token}/deleteWebhook?drop_pending_updates=true`).catch(() => {});
+              fetch(`https://api.telegram.org/bot${bot.token}/close`).catch(() => {});
+            }
+            setTimeout(() => {
+              launchBotProcess(bot);
+            }, 2500);
           }
         }
       }
@@ -1621,6 +1672,33 @@ function launchBotProcess(bot: any): boolean {
     child.on('close', (code: number) => {
       appendLog(bot.id, code === 0 ? 'info' : 'error', `Process exited with code ${code}`);
       runningProcesses.delete(bot.id);
+
+      // Auto-Recovery on unexpected crash
+      if (code !== 0 && bot.autoRestart !== false) {
+        const now = Date.now();
+        const entry = botRestartAttempts.get(bot.id) || { count: 0, firstAttempt: now };
+        if (now - entry.firstAttempt > 60000) {
+          entry.count = 0;
+          entry.firstAttempt = now;
+        }
+        entry.count++;
+        botRestartAttempts.set(bot.id, entry);
+
+        if (entry.count <= 5) {
+          appendLog(bot.id, 'info', `[Auto-Fix Engine] Bot exited with error code ${code}. Auto-diagnosing and recovering (Attempt ${entry.count}/5)...`);
+          // Re-scan and auto-fix directory to patch whatever crashed
+          scanAndAutoFixBotDirectory(botDir, { defaultToken: bot.token, requestedEntry: bot.entryFile });
+          setTimeout(() => {
+            launchBotProcess(bot);
+          }, 2000);
+          return;
+        }
+      }
+
+      if (code === 0) {
+        botRestartAttempts.delete(bot.id);
+      }
+
       const reg = getRegistry();
       const idx = reg.findIndex((b) => b.id === bot.id);
       if (idx !== -1) {
@@ -5375,7 +5453,7 @@ app.get('/api/bots', (req, res) => {
 });
 
 app.post('/api/bots', (req, res) => {
-  const { name, entryFile, token, files, zipBase64, autoStart } = req.body;
+  let { name, entryFile, token, files, zipBase64, autoStart } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'Bot name is required' });
   }
@@ -5443,24 +5521,10 @@ app.post('/api/bots', (req, res) => {
     const zipPath = path.join(botDir, '_archive.zip');
     fs.writeFileSync(zipPath, Buffer.from(zipBase64, 'base64'));
     try {
-      execSync(`python3 -m zipfile -e "${zipPath}" "${botDir}"`);
+      const extracted = extractZipSafely(zipPath, botDir);
       try { fs.unlinkSync(zipPath); } catch {}
-
-      // If the zip contained a single enclosing directory (e.g. repo-main/bot.py), flatten it
-      const currentItems = fs.readdirSync(botDir).filter((f) => f !== '_archive.zip');
-      if (currentItems.length === 1) {
-        const singleItemPath = path.join(botDir, currentItems[0]);
-        if (fs.statSync(singleItemPath).isDirectory()) {
-          const subItems = fs.readdirSync(singleItemPath);
-          for (const sub of subItems) {
-            const src = path.join(singleItemPath, sub);
-            const dest = path.join(botDir, sub);
-            if (!fs.existsSync(dest)) {
-              fs.renameSync(src, dest);
-            }
-          }
-          try { fs.rmdirSync(singleItemPath); } catch {}
-        }
+      if (!extracted) {
+        appendLog(botId, 'error', 'জিপ ফাইল আনজিপ করতে সমস্যা হয়েছে (Failed to extract ZIP)');
       }
     } catch (err: any) {
       appendLog(botId, 'error', `Zip extraction error: ${err.message}`);
@@ -5476,6 +5540,9 @@ app.post('/api/bots', (req, res) => {
     });
     appliedFixes = fixRes.fixesApplied;
     resolvedEntry = fixRes.resolvedEntry;
+    if (!token && fixRes.detectedToken) {
+      token = fixRes.detectedToken;
+    }
     for (const fix of appliedFixes) {
       appendLog(botId, 'info', `[Auto-Fix] ${fix}`);
     }
@@ -6149,8 +6216,11 @@ app.post('/api/bots/:id/safe-update', (req, res) => {
     fs.writeFileSync(tempZipPath, Buffer.from(zipBase64, 'base64'));
 
     try {
-      execSync(`python3 -m zipfile -e "${tempZipPath}" "${tempExtractDir}"`);
+      const extracted = extractZipSafely(tempZipPath, tempExtractDir);
       try { fs.unlinkSync(tempZipPath); } catch {}
+      if (!extracted) {
+        appendLog(id, 'warn', 'Zip extraction notice: Could not extract with standard unzipper');
+      }
 
       const copySafe = (srcDir: string, destDir: string) => {
         const items = fs.readdirSync(srcDir);

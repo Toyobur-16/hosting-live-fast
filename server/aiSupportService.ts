@@ -118,10 +118,10 @@ export async function askAiSupport(
         parts: [{ text: cleanMsg }]
       });
 
-      // Only use currently supported modern models per Gemini API guidelines
+      // Supported modern models per Gemini API guidelines
       const candidateModels = [
         'gemini-2.5-flash',
-        'gemini-3.8-flash'
+        'gemini-2.5-flash-lite'
       ];
 
       for (const modelName of candidateModels) {
