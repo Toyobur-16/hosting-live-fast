@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthUser, PaymentSettings, DepositRequest, BinancePayOrder, CustomDepositMethod } from '../types';
+import { db, doc, setDoc } from '../lib/firebase';
 import { DepositStorePage } from './DepositStorePage';
 
 interface StoreWalletPageProps {
@@ -305,6 +306,35 @@ export function StoreWalletPage({
       setModalSubmitting(true);
       setModalErrorMsg(null);
       const token = localStorage.getItem('bot_auth_token');
+      const cleanTrx = modalTrxId.trim().toUpperCase();
+      const reqId = `dep_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+      // 1. Write directly to Firebase Firestore
+      try {
+        const firestorePayload = {
+          id: reqId,
+          type: 'deposit',
+          userId: user.id,
+          userName: user.name || user.email || 'User',
+          userEmail: user.email,
+          planId: 'wallet_deposit',
+          planName: `ওয়ালেট ডিপোজিট (${activeBinanceOrder.amount} USD)`,
+          amount: activeBinanceOrder.amount,
+          currency: 'USD',
+          method: 'binance',
+          senderIdentifier: user.name || user.email || 'Binance User',
+          transactionId: cleanTrx,
+          note: `Binance Pay Order #${activeBinanceOrder.orderId}`,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: Date.now()
+        };
+        await setDoc(doc(db, 'plan_requests', reqId), firestorePayload);
+        await setDoc(doc(db, 'deposits', reqId), firestorePayload);
+      } catch (fbErr) {
+        console.warn('Client direct Firestore write error (non-fatal):', fbErr);
+      }
+
       const res = await fetch('/api/wallet/deposit', {
         method: 'POST',
         headers: {
@@ -312,11 +342,12 @@ export function StoreWalletPage({
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
+          orderId: reqId,
           amount: activeBinanceOrder.amount,
           currency: 'USD',
           method: 'binance',
           senderIdentifier: user.name || user.email || 'Binance User',
-          transactionId: modalTrxId.trim(),
+          transactionId: cleanTrx,
           note: `Binance Pay Order #${activeBinanceOrder.orderId}`
         })
       });
@@ -443,6 +474,35 @@ export function StoreWalletPage({
       setSubmitSuccess(null);
 
       const token = localStorage.getItem('bot_auth_token');
+      const cleanTrx = transactionId.trim().toUpperCase();
+      const reqId = `dep_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+      // 1. Direct write to Firebase Firestore
+      try {
+        const firestorePayload = {
+          id: reqId,
+          type: 'deposit',
+          userId: user.id,
+          userName: user.name || user.email || 'User',
+          userEmail: user.email,
+          planId: 'wallet_deposit',
+          planName: `ওয়ালেট ডিপোজিট (${amt} USD)`,
+          amount: amt,
+          currency: 'USD',
+          method: selectedGateway,
+          senderIdentifier: senderIdentifier.trim(),
+          transactionId: cleanTrx,
+          note: depositNote.trim(),
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: Date.now()
+        };
+        await setDoc(doc(db, 'plan_requests', reqId), firestorePayload);
+        await setDoc(doc(db, 'deposits', reqId), firestorePayload);
+      } catch (fbErr) {
+        console.warn('Client direct Firestore write error (non-fatal):', fbErr);
+      }
+
       const res = await fetch('/api/wallet/deposit', {
         method: 'POST',
         headers: {
@@ -450,11 +510,12 @@ export function StoreWalletPage({
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
+          orderId: reqId,
           amount: amt,
           currency: 'USD',
           method: selectedGateway,
           senderIdentifier: senderIdentifier.trim(),
-          transactionId: transactionId.trim(),
+          transactionId: cleanTrx,
           note: depositNote.trim()
         })
       });

@@ -17,7 +17,7 @@ import { AdminSocialTasksManager } from './admin/AdminSocialTasksManager';
 import { AdminWebsitesManager } from './admin/AdminWebsitesManager';
 import { AdminDepositMethodsManager } from './admin/AdminDepositMethodsManager';
 import { Mail, Globe, Share2 } from 'lucide-react';
-import { db, collection, getDocs } from '../lib/firebase';
+import { db, collection, getDocs, onSnapshot, doc, updateDoc } from '../lib/firebase';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -327,9 +327,50 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   }, [activeTab]);
 
   useEffect(() => {
-    if (isOpen) {
-      loadAllAdminData();
-    }
+    if (!isOpen) return;
+    loadAllAdminData();
+
+    // Real-Time live listener: any deposit created anywhere appears immediately
+    const unsubPlan = onSnapshot(collection(db, 'plan_requests'), (snapshot) => {
+      if (!snapshot.empty) {
+        setRequests((prev) => {
+          const map = new Map<string, PlanRequest>();
+          prev.forEach((r) => { if (r && r.id) map.set(r.id, r); });
+          snapshot.forEach((d) => {
+            const data = d.data() as PlanRequest;
+            if (data && data.id) {
+              map.set(data.id, { ...map.get(data.id), ...data });
+            }
+          });
+          const list = Array.from(map.values());
+          list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          return list;
+        });
+      }
+    }, () => {});
+
+    const unsubDep = onSnapshot(collection(db, 'deposits'), (snapshot) => {
+      if (!snapshot.empty) {
+        setRequests((prev) => {
+          const map = new Map<string, PlanRequest>();
+          prev.forEach((r) => { if (r && r.id) map.set(r.id, r); });
+          snapshot.forEach((d) => {
+            const data = d.data() as PlanRequest;
+            if (data && data.id) {
+              map.set(data.id, { ...map.get(data.id), ...data });
+            }
+          });
+          const list = Array.from(map.values());
+          list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          return list;
+        });
+      }
+    }, () => {});
+
+    return () => {
+      unsubPlan();
+      unsubDep();
+    };
   }, [isOpen]);
 
   const loadAllAdminData = async () => {
@@ -447,6 +488,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setActionLoadingId(requestId);
     const token = localStorage.getItem('bot_auth_token');
     try {
+      // 1. Immediate optimistic direct update in Firestore
+      try {
+        await updateDoc(doc(db, 'plan_requests', requestId), {
+          status: 'approved',
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: currentUser?.email || 'admin'
+        });
+        await updateDoc(doc(db, 'deposits', requestId), {
+          status: 'approved',
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: currentUser?.email || 'admin'
+        });
+      } catch (fbErr) {
+        console.warn('Direct Firestore approve update error (non-fatal):', fbErr);
+      }
+
       const res = await fetch(`/api/admin/plan-requests/${requestId}/approve`, {
         method: 'POST',
         headers: {
@@ -477,6 +534,24 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setActionLoadingId(requestId);
     const token = localStorage.getItem('bot_auth_token');
     try {
+      // 1. Immediate direct update in Firestore
+      try {
+        await updateDoc(doc(db, 'plan_requests', requestId), {
+          status: 'rejected',
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: currentUser?.email || 'admin',
+          note: reason
+        });
+        await updateDoc(doc(db, 'deposits', requestId), {
+          status: 'rejected',
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: currentUser?.email || 'admin',
+          note: reason
+        });
+      } catch (fbErr) {
+        console.warn('Direct Firestore reject update error (non-fatal):', fbErr);
+      }
+
       const res = await fetch(`/api/admin/plan-requests/${requestId}/reject`, {
         method: 'POST',
         headers: {

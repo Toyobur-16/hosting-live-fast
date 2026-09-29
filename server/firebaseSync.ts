@@ -447,19 +447,35 @@ export class FirebaseSync {
         ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
       };
 
-      // 1. Read all documents from Firestore /accounts collection
-      const url = `${BASE_URL}/accounts?pageSize=300&key=${API_KEY}`;
-      const res = await fetch(url, { headers }).catch(() => null);
+      // 1. Read all documents from Firestore /accounts collection via :runQuery
+      const runQueryUrl = `${BASE_URL}:runQuery?key=${API_KEY}`;
+      const queryBody = {
+        structuredQuery: {
+          from: [{ collectionId: 'accounts' }],
+          limit: 300
+        }
+      };
+      const res = await fetch(runQueryUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify(queryBody)
+      }).catch(() => null);
+
       if (res && res.ok) {
-        const data: any = await res.json();
-        if (data.documents && Array.isArray(data.documents)) {
-          for (const docItem of data.documents) {
-            const acc = fromFirestoreFields(docItem.fields || {});
-            if (acc && acc.email) {
-              const clean = acc.email.trim().toLowerCase();
-              if (!seenEmails.has(clean)) {
-                seenEmails.add(clean);
-                collected.push(acc);
+        const list: any = await res.json();
+        if (Array.isArray(list)) {
+          for (const item of list) {
+            if (item.document?.fields) {
+              const acc = fromFirestoreFields(item.document.fields);
+              if (acc && acc.email) {
+                const clean = acc.email.trim().toLowerCase();
+                if (!seenEmails.has(clean)) {
+                  seenEmails.add(clean);
+                  collected.push(acc);
+                }
               }
             }
           }
@@ -614,40 +630,69 @@ export class FirebaseSync {
     try {
       const idToken = await getAdminIdToken();
       const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
         ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
       };
 
-      // 1. Read from /plan_requests
-      const url1 = `${BASE_URL}/plan_requests?pageSize=300&key=${API_KEY}`;
-      const res1 = await fetch(url1, { headers }).catch(() => null);
+      const runQueryUrl = `${BASE_URL}:runQuery?key=${API_KEY}`;
+
+      // 1. Read from /plan_requests via :runQuery
+      const queryBody1 = {
+        structuredQuery: {
+          from: [{ collectionId: 'plan_requests' }],
+          limit: 300
+        }
+      };
+      const res1 = await fetch(runQueryUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(queryBody1)
+      }).catch(() => null);
+
       if (res1 && res1.ok) {
-        const data1: any = await res1.json();
-        if (data1.documents && Array.isArray(data1.documents)) {
-          for (const docItem of data1.documents) {
-            const parsed = fromFirestoreFields(docItem.fields || {});
-            if (parsed && parsed.id && !seenIds.has(parsed.id)) {
-              seenIds.add(parsed.id);
-              collected.push(parsed);
+        const list1: any = await res1.json();
+        if (Array.isArray(list1)) {
+          for (const item of list1) {
+            if (item.document?.fields) {
+              const parsed = fromFirestoreFields(item.document.fields);
+              if (parsed && parsed.id && !seenIds.has(parsed.id)) {
+                seenIds.add(parsed.id);
+                collected.push(parsed);
+              }
             }
           }
         }
       }
 
-      // 2. Read from /deposits
-      const url2 = `${BASE_URL}/deposits?pageSize=300&key=${API_KEY}`;
-      const res2 = await fetch(url2, { headers }).catch(() => null);
+      // 2. Read from /deposits via :runQuery
+      const queryBody2 = {
+        structuredQuery: {
+          from: [{ collectionId: 'deposits' }],
+          limit: 300
+        }
+      };
+      const res2 = await fetch(runQueryUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(queryBody2)
+      }).catch(() => null);
+
       if (res2 && res2.ok) {
-        const data2: any = await res2.json();
-        if (data2.documents && Array.isArray(data2.documents)) {
-          for (const docItem of data2.documents) {
-            const parsed = fromFirestoreFields(docItem.fields || {});
-            if (parsed && parsed.id && !seenIds.has(parsed.id)) {
-              seenIds.add(parsed.id);
-              collected.push(parsed);
+        const list2: any = await res2.json();
+        if (Array.isArray(list2)) {
+          for (const item of list2) {
+            if (item.document?.fields) {
+              const parsed = fromFirestoreFields(item.document.fields);
+              if (parsed && parsed.id && !seenIds.has(parsed.id)) {
+                seenIds.add(parsed.id);
+                collected.push(parsed);
+              }
             }
           }
         }
       }
+
+      console.log(`✅ [Firebase Firestore] Loaded ${collected.length} deposit/plan requests from cloud via runQuery!`);
     } catch (err: any) {
       console.warn('FirebaseSync loadPlanRequestsFromCloud error:', err.message || err);
     }

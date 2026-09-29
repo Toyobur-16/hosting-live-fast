@@ -4207,9 +4207,17 @@ app.post('/api/admin/plan-requests/:id/approve', async (req, res) => {
 
   const { id } = req.params;
   const requests = getPlanRequests();
-  const reqIdx = requests.findIndex((r) => r.id === id);
+  let reqIdx = requests.findIndex((r) => r.id === id);
   if (reqIdx === -1) {
-    return res.status(404).json({ error: 'Request not found' });
+    const cloudReqs = await FirebaseSync.loadPlanRequestsFromCloud();
+    const cr = cloudReqs.find((r) => r.id === id);
+    if (cr) {
+      requests.push(cr);
+      savePlanRequests(requests);
+      reqIdx = requests.length - 1;
+    } else {
+      return res.status(404).json({ error: 'Request not found' });
+    }
   }
 
   const request = requests[reqIdx];
@@ -4275,9 +4283,17 @@ app.post('/api/admin/plan-requests/:id/reject', async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
   const requests = getPlanRequests();
-  const reqIdx = requests.findIndex((r) => r.id === id);
+  let reqIdx = requests.findIndex((r) => r.id === id);
   if (reqIdx === -1) {
-    return res.status(404).json({ error: 'Request not found' });
+    const cloudReqs = await FirebaseSync.loadPlanRequestsFromCloud();
+    const cr = cloudReqs.find((r) => r.id === id);
+    if (cr) {
+      requests.push(cr);
+      savePlanRequests(requests);
+      reqIdx = requests.length - 1;
+    } else {
+      return res.status(404).json({ error: 'Request not found' });
+    }
   }
 
   const request = requests[reqIdx];
