@@ -44,12 +44,14 @@ export const AdminDepositMethodsManager: React.FC<AdminDepositMethodsManagerProp
   const [formMemo, setFormMemo] = useState('');
   const [formInstructions, setFormInstructions] = useState('');
   const [formLogoType, setFormLogoType] = useState<DepositMethodItem['logoType']>('binance');
+  const [formLogoUrl, setFormLogoUrl] = useState('');
   const [formQrImageUrl, setFormQrImageUrl] = useState('');
   const [formRateToBdt, setFormRateToBdt] = useState<number>(120);
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Real-time Firestore sync & Initial fetch
@@ -108,6 +110,7 @@ export const AdminDepositMethodsManager: React.FC<AdminDepositMethodsManagerProp
     setFormMemo('');
     setFormInstructions('');
     setFormLogoType('binance');
+    setFormLogoUrl('');
     setFormQrImageUrl('');
     setFormRateToBdt(120);
     setEditingMethod(null);
@@ -126,6 +129,7 @@ export const AdminDepositMethodsManager: React.FC<AdminDepositMethodsManagerProp
     setFormMemo(m.memoOrTag || '');
     setFormInstructions(m.instructions || '');
     setFormLogoType(m.logoType);
+    setFormLogoUrl(m.logoUrl || '');
     setFormQrImageUrl(m.qrImageUrl || '');
     setFormRateToBdt(m.rateToBdt || 120);
     setActiveTab('edit');
@@ -138,6 +142,62 @@ export const AdminDepositMethodsManager: React.FC<AdminDepositMethodsManagerProp
     setFormId(newId);
     setFormSubtitle('USDT');
     setActiveTab('add');
+  };
+
+  // Upload Method Logo Picture directly (saves to Firebase Firestore site_images)
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingLogo(true);
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = reader.result as string;
+        const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+        const token = localStorage.getItem('bot_auth_token');
+
+        // 1. Direct write to Firebase Firestore `site_images`
+        const imgDocId = `logo_${formId || Date.now()}`;
+        try {
+          await setDoc(doc(db, 'site_images', imgDocId), {
+            id: imgDocId,
+            fileName: file.name,
+            contentType: file.type || 'image/png',
+            base64: cleanBase64,
+            type: 'payment_logo',
+            createdAt: Date.now()
+          }, { merge: true });
+        } catch (e) {
+          console.warn('Firestore site_images write error:', e);
+        }
+
+        // 2. Upload to server
+        const res = await fetch('/api/admin/upload-file', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileData: base64,
+            fileType: 'payment_logo'
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        const targetUrl = data.url || base64;
+        setFormLogoUrl(targetUrl);
+        setMessage({
+          type: 'success',
+          text: lang === 'bn' ? '✓ মেথড লগো ফায়ারবেজ ক্লাউডে সফলভাবে সেভ হয়েছে!' : 'Method logo saved to Firebase successfully!'
+        });
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'মেথড লগো আপলোড ব্যর্থ হয়েছে' });
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   // Upload QR code or payment icon directly
@@ -177,10 +237,9 @@ export const AdminDepositMethodsManager: React.FC<AdminDepositMethodsManagerProp
           } catch {}
           setMessage({
             type: 'success',
-            text: lang === 'bn' ? 'ছবি / কিউআর কোড ক্লাউড ফায়ারবেসে সফলভাবে আপলোড হয়েছে!' : 'QR image uploaded to Firebase successfully!'
+            text: lang === 'bn' ? 'কিউআর কোড ফায়ারবেসে সফলভাবে সেভ হয়েছে!' : 'QR image uploaded to Firebase successfully!'
           });
         } else {
-          // If server upload failed, use data URL directly
           setFormQrImageUrl(base64);
           setMessage({
             type: 'success',

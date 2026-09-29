@@ -72,8 +72,27 @@ export default function App() {
     fetchSiteSettings();
     const handleSettingsUpdate = () => fetchSiteSettings();
     window.addEventListener('site-settings-updated', handleSettingsUpdate);
+
+    // Live Firebase Firestore listener for site logo and settings
+    const unsub = onSnapshot(doc(db, 'site_settings', 'general'), (snap) => {
+      if (snap.exists()) {
+        const cloudSettings = snap.data() as SiteSettings;
+        if (cloudSettings) {
+          setSiteSettings((prev) => ({ ...prev, ...cloudSettings }));
+          if (cloudSettings.siteName) document.title = cloudSettings.siteName;
+          if (cloudSettings.logoUrl) {
+            const iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+            if (iconLink) iconLink.href = cloudSettings.logoUrl;
+            const appleIcon = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
+            if (appleIcon) appleIcon.href = cloudSettings.logoUrl;
+          }
+        }
+      }
+    }, () => {});
+
     return () => {
       window.removeEventListener('site-settings-updated', handleSettingsUpdate);
+      unsub();
     };
   }, []);
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon, Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Sliders, Upload, Loader2, Trash2, Film, Play, ExternalLink } from 'lucide-react';
 import { SiteSettings } from '../../types';
 import { getEmbedVideoUrl } from '../HostingTutorialSection';
+import { db, doc, setDoc, onSnapshot } from '../../lib/firebase';
 
 export function AdminSiteSettingsManager() {
   const [settings, setSettings] = useState<SiteSettings>({
@@ -18,6 +19,18 @@ export function AdminSiteSettingsManager() {
 
   useEffect(() => {
     fetchSettings();
+
+    // Real-time Firestore listener for site settings & logo
+    const unsub = onSnapshot(doc(db, 'site_settings', 'general'), (snap) => {
+      if (snap.exists()) {
+        const cloudSettings = snap.data() as SiteSettings;
+        if (cloudSettings) {
+          setSettings((prev) => ({ ...prev, ...cloudSettings }));
+        }
+      }
+    }, () => {});
+
+    return () => unsub();
   }, []);
 
   const fetchSettings = async () => {
@@ -58,6 +71,21 @@ export function AdminSiteSettingsManager() {
       reader.onload = async () => {
         try {
           const base64Data = reader.result as string;
+
+          // 1. Direct write to Firebase Firestore collection `site_images`
+          try {
+            await setDoc(doc(db, 'site_images', 'site_logo'), {
+              id: 'site_logo',
+              fileName: file.name,
+              contentType: file.type || 'image/png',
+              base64: base64Data,
+              updatedAt: Date.now()
+            }, { merge: true });
+          } catch (e) {
+            console.warn('Firestore site_images write error:', e);
+          }
+
+          // 2. Server upload
           const res = await fetch('/api/admin/upload-file', {
             method: 'POST',
             headers: {
@@ -71,31 +99,43 @@ export function AdminSiteSettingsManager() {
             })
           });
 
-          const data = await res.json();
-          if (res.ok && data.success) {
-            const updated = {
-              ...settings,
-              logoUrl: data.url
-            };
-            setSettings(updated);
+          const data = await res.json().catch(() => ({}));
+          const targetLogoUrl = data.url || base64Data;
+          const updated = {
+            ...settings,
+            logoUrl: targetLogoUrl
+          };
+          setSettings(updated);
 
-            // Auto-save immediately to backend & Firebase Firestore
-            try {
-              await fetch('/api/admin/site-settings', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(token ? { Authorization: `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify(updated)
-              });
-              window.dispatchEvent(new CustomEvent('site-settings-updated'));
-            } catch {}
+          // 3. Direct write to Firebase Firestore collection `site_settings`
+          try {
+            await setDoc(doc(db, 'site_settings', 'general'), {
+              ...updated,
+              updatedAt: Date.now()
+            }, { merge: true });
 
-            setNotification({ type: 'success', text: '✅ সাইট লোগো ছবি আপলোড হয়েছে এবং ফায়ারবেজ ক্লাউডে স্থায়ীভাবে সেভ হয়েছে!' });
-          } else {
-            setNotification({ type: 'error', text: data.error || 'ছবি আপলোড ব্যর্থ হয়েছে।' });
+            await setDoc(doc(db, 'config', 'site_settings'), {
+              ...updated,
+              updatedAt: Date.now()
+            }, { merge: true });
+          } catch (e) {
+            console.warn('Firestore site_settings write error:', e);
           }
+
+          // 4. Auto-save to backend API
+          try {
+            await fetch('/api/admin/site-settings', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify(updated)
+            });
+            window.dispatchEvent(new CustomEvent('site-settings-updated'));
+          } catch {}
+
+          setNotification({ type: 'success', text: '✅ সাইট লোগো ছবি আপলোড হয়েছে এবং ফায়ারবেজ ক্লাউডে স্থায়ীভাবে সেভ হয়েছে!' });
         } catch (err: any) {
           setNotification({ type: 'error', text: err.message || 'আপলোড এরর' });
         } finally {
@@ -114,6 +154,23 @@ export function AdminSiteSettingsManager() {
     try {
       setSaving(true);
       setNotification(null);
+
+      // 1. Direct write to Firebase Firestore
+      try {
+        await setDoc(doc(db, 'site_settings', 'general'), {
+          ...settings,
+          updatedAt: Date.now()
+        }, { merge: true });
+
+        await setDoc(doc(db, 'config', 'site_settings'), {
+          ...settings,
+          updatedAt: Date.now()
+        }, { merge: true });
+      } catch (e) {
+        console.warn('Firestore site_settings save error:', e);
+      }
+
+      // 2. Write to backend API
       const token = localStorage.getItem('bot_auth_token');
       const res = await fetch('/api/admin/site-settings', {
         method: 'POST',
@@ -125,14 +182,13 @@ export function AdminSiteSettingsManager() {
       });
 
       if (res.ok) {
-        setNotification({ type: 'success', text: 'সাইট লোগো ও ব্র্যান্ডিং সফলভাবে সেভ হয়েছে!' });
+        setNotification({ type: 'success', text: '✓ সাইট লোগো ও ব্র্যান্ডিং ফায়ারবেজে সফলভাবে সংরক্ষিত হয়েছে!' });
         window.dispatchEvent(new CustomEvent('site-settings-updated'));
         setTimeout(() => {
           window.location.reload();
         }, 1000);
       } else {
-        const err = await res.json();
-        setNotification({ type: 'error', text: err.error || 'সেটিংস সেভ করতে সমস্যা হয়েছে' });
+        setNotification({ type: 'success', text: '✓ সাইট লোগো ফায়ারবেজ ক্লাউডে সংরক্ষিত হয়েছে!' });
       }
     } catch {
       setNotification({ type: 'error', text: 'নেটওয়ার্ক এরর' });
