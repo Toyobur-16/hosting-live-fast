@@ -406,7 +406,7 @@ export class FirebaseSync {
       }
 
       const finalAccounts = Array.from(mergedMap.values());
-      if (hasChanges || finalAccounts.length > localAccounts.length) {
+      if (finalAccounts.length > localAccounts.length) {
         saveAccountsFn(finalAccounts);
         console.log(`✅ Restored & synced ${finalAccounts.length} user accounts from Firebase Cloud Vault!`);
       }

@@ -7506,9 +7506,20 @@ async function initSiteConfigSync() {
   try {
     console.log('🔄 Syncing Site Settings, Logo & Banners with Firebase Firestore...');
     const remoteSettings = await FirebaseSync.loadSiteSettingsFromCloud();
-    if (remoteSettings && remoteSettings.siteName) {
-      saveSiteSettings(remoteSettings);
-      console.log('✅ Restored site_settings from Firebase Firestore:', remoteSettings.siteName);
+    if (remoteSettings && remoteSettings.siteName && (remoteSettings.logoUrl || remoteSettings.taglineBn)) {
+      const current = getSiteSettings();
+      const hasMeaningfulChanges =
+        (remoteSettings.siteName && remoteSettings.siteName !== current.siteName) ||
+        (remoteSettings.logoUrl && remoteSettings.logoUrl !== current.logoUrl) ||
+        (remoteSettings.taglineBn && remoteSettings.taglineBn !== current.taglineBn) ||
+        (remoteSettings.taglineEn && remoteSettings.taglineEn !== current.taglineEn);
+
+      if (hasMeaningfulChanges) {
+        const merged = { ...DEFAULT_SITE_SETTINGS, ...remoteSettings };
+        delete merged.updatedAt;
+        saveSiteSettings(merged);
+        console.log('✅ Restored site_settings from Firebase Firestore:', remoteSettings.siteName);
+      }
 
       if (remoteSettings.logoUrl && remoteSettings.logoUrl.startsWith('/api/store/thumbnails/')) {
         const imgName = path.basename(remoteSettings.logoUrl);
@@ -7531,8 +7542,17 @@ async function initSiteConfigSync() {
 
     const remoteBanners = await FirebaseSync.loadBannersFromCloud();
     if (remoteBanners && Array.isArray(remoteBanners) && remoteBanners.length > 0) {
-      saveBanners(remoteBanners);
-      console.log(`✅ Restored ${remoteBanners.length} banners from Firebase Firestore!`);
+      const currentBanners = getBanners();
+      const hasRealChange =
+        currentBanners.length !== remoteBanners.length ||
+        remoteBanners.some((rb, i) => {
+          const cb = currentBanners[i];
+          return !cb || cb.id !== rb.id || cb.title !== rb.title || cb.imageUrl !== rb.imageUrl || cb.link !== rb.link;
+        });
+      if (hasRealChange) {
+        saveBanners(remoteBanners);
+        console.log(`✅ Restored ${remoteBanners.length} banners from Firebase Firestore!`);
+      }
       for (const b of remoteBanners) {
         if (b.imageUrl && b.imageUrl.startsWith('/api/store/thumbnails/')) {
           const imgName = path.basename(b.imageUrl);
