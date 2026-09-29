@@ -231,6 +231,11 @@ function stripHeavyFields(user: any): any {
   return copy;
 }
 
+function isTestEmail(email: string): boolean {
+  const clean = (email || '').trim().toLowerCase();
+  return clean.includes('cloud_restore_test') || clean.startsWith('demo_') || clean.endsWith('@example.com');
+}
+
 export class FirebaseSync {
   private static isInitialized = false;
   private static shardSyncTimer: NodeJS.Timeout | null = null;
@@ -472,7 +477,7 @@ export class FirebaseSync {
               const acc = fromFirestoreFields(item.document.fields);
               if (acc && acc.email) {
                 const clean = acc.email.trim().toLowerCase();
-                if (!seenEmails.has(clean)) {
+                if (!seenEmails.has(clean) && !isTestEmail(clean)) {
                   seenEmails.add(clean);
                   collected.push(acc);
                 }
@@ -490,7 +495,7 @@ export class FirebaseSync {
         for (const acc of list) {
           if (acc && acc.email) {
             const clean = acc.email.trim().toLowerCase();
-            if (!seenEmails.has(clean)) {
+            if (!seenEmails.has(clean) && !isTestEmail(clean)) {
               seenEmails.add(clean);
               collected.push(acc);
             }
@@ -513,19 +518,19 @@ export class FirebaseSync {
     try {
       console.log('🔄 Initializing Firebase Cloud Vault Sync for user accounts & balances...');
       const remoteAccounts = await this.loadAccountsFromCloud();
-      const localAccounts = getAccountsFn() || [];
+      const localAccounts = (getAccountsFn() || []).filter((a: any) => a && a.email && !isTestEmail(a.email));
 
       const mergedMap = new Map<string, any>();
 
       for (const loc of localAccounts) {
-        if (loc && loc.email) {
+        if (loc && loc.email && !isTestEmail(loc.email)) {
           mergedMap.set(loc.email.trim().toLowerCase(), loc);
         }
       }
 
       let hasChanges = false;
       for (const rem of remoteAccounts) {
-        if (!rem || !rem.email) continue;
+        if (!rem || !rem.email || isTestEmail(rem.email)) continue;
         const emailKey = rem.email.trim().toLowerCase();
         const existing = mergedMap.get(emailKey);
         if (!existing) {
@@ -546,8 +551,8 @@ export class FirebaseSync {
         }
       }
 
-      const finalAccounts = Array.from(mergedMap.values());
-      if (finalAccounts.length > localAccounts.length) {
+      const finalAccounts = Array.from(mergedMap.values()).filter((a: any) => a && a.email && !isTestEmail(a.email));
+      if (finalAccounts.length !== (getAccountsFn() || []).length || hasChanges) {
         saveAccountsFn(finalAccounts);
         console.log(`✅ Restored & synced ${finalAccounts.length} user accounts from Firebase Cloud Vault!`);
       }
