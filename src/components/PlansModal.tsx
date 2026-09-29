@@ -330,6 +330,8 @@ export const PlansModal: React.FC<PlansModalProps> = ({
         setBalanceUsd(data.user.balanceUsd || 0);
         if (onUserUpdated) onUserUpdated(data.user);
         localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+        window.dispatchEvent(new Event('wallet-updated'));
+        window.dispatchEvent(new Event('user-updated'));
       }
       fetchUserStatus();
       setTimeout(() => {

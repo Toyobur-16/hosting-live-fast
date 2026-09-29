@@ -767,9 +767,9 @@ export function buildTransportOptions(options: {
       minVersion: 'TLSv1.2'
     },
     servername: originalHost,
-    connectionTimeout: 3500,
-    greetingTimeout: 3500,
-    socketTimeout: 7000
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000
   } as any;
 }
 
@@ -1445,18 +1445,23 @@ export async function sendTestEmail(toEmail: string): Promise<{
  * Email Alert: Deposit Processed (Approved / Rejected)
  */
 export async function sendDepositProcessedAlert(
-  user: { id: string; email: string; name: string },
-  deposit: { amount: number; currency: string; method: string; transactionId: string; senderIdentifier?: string; senderNumber?: string; planName?: string; rejectReason?: string },
+  user: { id?: string; email?: string; name?: string; balanceUsd?: number },
+  deposit: { amount: number; currency: string; method: string; transactionId: string; senderIdentifier?: string; senderNumber?: string; planName?: string; rejectReason?: string; userEmail?: string },
   status: 'approved' | 'rejected'
 ) {
   const isApproved = status === 'approved';
+  const targetEmail = (user?.email || deposit?.userEmail || '').trim().toLowerCase();
+  if (!targetEmail) {
+    console.warn('[sendDepositProcessedAlert] No recipient email found for deposit', deposit.transactionId);
+    return;
+  }
   const currencySymbol = deposit.currency === 'BDT' ? '৳' : '$';
   const senderId = deposit.senderIdentifier || deposit.senderNumber || 'N/A';
   const isDirectPlan = Boolean(deposit.planName && !deposit.planName.includes('ওয়ালেট ডিপোজিট'));
 
   const subject = isApproved
-    ? `✅ আপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে (${currencySymbol}${deposit.amount} ${deposit.currency}) - hosting-Live Fast`
-    : `❌ আপনার ডিপোজিট রিকোয়েস্ট বাতিল করা হয়েছে - hosting-Live Fast`;
+    ? `✅ আপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে (${currencySymbol}${deposit.amount} ${deposit.currency}) - hosting live fast`
+    : `❌ আপনার ডিপোজিট রিকোয়েস্ট বাতিল করা হয়েছে - hosting live fast`;
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #070b14; color: #f8fafc; padding: 28px; border-radius: 16px; border: 1px solid #162035;">
@@ -1464,7 +1469,7 @@ export async function sendDepositProcessedAlert(
       <!-- Brand Header -->
       <div style="text-align: center; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #1e293b;">
         <div style="display: inline-block; width: 44px; height: 44px; line-height: 44px; background: rgba(0, 210, 147, 0.15); border: 1px solid #00d293; border-radius: 12px; font-size: 22px; margin-bottom: 8px;">⚡</div>
-        <h1 style="color: #00d293; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">hosting-Live Fast</h1>
+        <h1 style="color: #00d293; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">hosting live fast</h1>
         <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 0 0;">২৪/৭ ক্লাউড টেলিগ্রাম বট ও ওয়েবসাইট হোস্টিং</p>
       </div>
 
@@ -1476,7 +1481,7 @@ export async function sendDepositProcessedAlert(
         <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6; margin: 0;">
           প্রিয় <strong>${user.name || 'সম্মানিত গ্রাহক'}</strong>,<br>
           ${isApproved
-            ? `আপনার <strong>${currencySymbol}${deposit.amount} ${deposit.currency}</strong> ডিপোজিট রিকোয়েস্টটি এডমিন দ্বারা সফলভাবে ভেরিফাই ও অনুমোদন করা হয়েছে। আপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে!`
+            ? `আপনার <strong>${currencySymbol}${deposit.amount} ${deposit.currency}</strong> ডিপোজিট রিকোয়েস্টটি এডমিন দ্বারা সফলভাবে ভেরিফাই ও অনুমোদন করা হয়েছে। আপনার রেজিস্ট্রেশনকৃত একাউন্টে (${targetEmail}) ব্যালেন্স যুক্ত হয়েছে!`
             : `আপনার <strong>${currencySymbol}${deposit.amount} ${deposit.currency}</strong> ডিপোজিট রিকোয়েস্টটি এডমিন দ্বারা যাচাইয়ের পর বাতিল করা হয়েছে।`}
         </p>
         ${!isApproved && deposit.rejectReason ? `<p style="color: #fca5a5; font-size: 13px; margin: 10px 0 0 0; padding: 10px; background: rgba(239, 68, 68, 0.15); border-radius: 8px;"><strong>বাতিলের কারণ:</strong> ${deposit.rejectReason}</p>` : ''}
@@ -1486,6 +1491,10 @@ export async function sendDepositProcessedAlert(
       <div style="background: #0d1527; border: 1px solid #1e2d48; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
         <h3 style="color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 12px 0;">ট্রানজেকশন তথ্য (Transaction Details)</h3>
         <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #cbd5e1;">
+          <tr style="border-bottom: 1px solid #1e293b;">
+            <td style="padding: 10px 0; color: #94a3b8;">রেজিস্টার্ড ইমেইল:</td>
+            <td style="padding: 10px 0; font-weight: bold; text-align: right; color: #38bdf8;">${targetEmail}</td>
+          </tr>
           <tr style="border-bottom: 1px solid #1e293b;">
             <td style="padding: 10px 0; color: #94a3b8;">পেমেন্ট মেথড:</td>
             <td style="padding: 10px 0; font-weight: bold; text-align: right; text-transform: uppercase; color: #f1f5f9;">${deposit.method}</td>
@@ -1502,6 +1511,12 @@ export async function sendDepositProcessedAlert(
             <td style="padding: 10px 0; color: #94a3b8;">প্রেরক নাম্বার / UID:</td>
             <td style="padding: 10px 0; font-weight: bold; text-align: right; color: #e2e8f0;">${senderId}</td>
           </tr>
+          ${typeof user.balanceUsd === 'number' ? `
+          <tr style="border-bottom: 1px solid #1e293b;">
+            <td style="padding: 10px 0; color: #94a3b8;">বর্তমান ওয়ালেট ব্যালেন্স:</td>
+            <td style="padding: 10px 0; font-weight: bold; text-align: right; color: #34d399; font-size: 14px;">$${user.balanceUsd.toFixed(2)} USD</td>
+          </tr>
+          ` : ''}
           <tr>
             <td style="padding: 10px 0; color: #94a3b8;">স্ট্যাটাস:</td>
             <td style="padding: 10px 0; font-weight: bold; text-align: right; color: ${isApproved ? '#00d293' : '#ef4444'};">
@@ -1532,15 +1547,15 @@ export async function sendDepositProcessedAlert(
       <!-- Footer -->
       <div style="border-top: 1px solid #1e293b; padding-top: 20px; text-align: center; color: #64748b; font-size: 12px; line-height: 1.6;">
         ধন্যবাদ,<br>
-        <strong>hosting-Live Fast টিম</strong><br>
+        <strong>hosting live fast টিম</strong><br>
         <span style="font-size: 11px; color: #475569;">২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা</span>
       </div>
     </div>
   `;
 
   return sendEmailAlert({
-    to: user.email,
-    userId: user.id,
+    to: targetEmail,
+    userId: user.id || targetEmail,
     subject,
     html,
     text: `${subject} - Amount: ${deposit.amount} ${deposit.currency}, TrxID: ${deposit.transactionId}, Method: ${deposit.method}`,

@@ -178,6 +178,8 @@ export const PlansPage: React.FC<PlansPageProps> = ({
       if (data.user) {
         localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
         onPlanActivated(data.user);
+        window.dispatchEvent(new Event('wallet-updated'));
+        window.dispatchEvent(new Event('user-updated'));
       }
     } catch (err: any) {
       setPurchaseError(err.message || 'Error processing purchase');
