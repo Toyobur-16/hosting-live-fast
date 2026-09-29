@@ -16,13 +16,15 @@ const DUMMY_JPEG_BUFFER = Buffer.from(
 // Comprehensive Python library mappings from import statements
 const IMPORT_TO_PACKAGE: Record<string, string> = {
   telebot: 'pyTelegramBotAPI',
-  telegram: 'python-telegram-bot',
+  telegram: 'python-telegram-bot[all]',
   aiogram: 'aiogram',
   pyrogram: 'pyrogram',
   telethon: 'telethon',
   requests: 'requests',
   aiohttp: 'aiohttp',
-  httpx: 'httpx',
+  httpx: 'httpx[http2]',
+  h2: 'h2',
+  pyotp: 'pyotp',
   dotenv: 'python-dotenv',
   pytz: 'pytz',
   PIL: 'Pillow',
@@ -298,8 +300,14 @@ export function scanAndAutoFixBotDirectory(
           referencedPaths.add(om[1]);
         }
 
-        // Regex for standalone JSON references like open('users.json') or open('config.json')
-        const jsonMatches = code.matchAll(/open\s*\(\s*['"]([a-zA-Z0-9_-]+\.json)['"]/gi);
+        // Regex for variable assignments holding filenames (e.g. USER_DATA_FILE = "users.json", CUSTOM_SERVICES_FILE = "custom_services.json")
+        const varMatches = code.matchAll(/[A-Za-z0-9_]+\s*=\s*['"]([a-zA-Z0-9_./-]+\.(?:json|txt|db|sqlite|sqlite3|csv))['"]/gi);
+        for (const vm of varMatches) {
+          referencedPaths.add(vm[1]);
+        }
+
+        // Regex for standalone JSON references like 'users.json', 'datarange.json', 'custom_services.json'
+        const jsonMatches = code.matchAll(/['"]([a-zA-Z0-9_-]+\.json)['"]/gi);
         for (const jm of jsonMatches) {
           referencedPaths.add(jm[1]);
         }
@@ -375,10 +383,13 @@ export function scanAndAutoFixBotDirectory(
           createdFiles.push(relPath);
         } else if (ext === '.json') {
           // Create valid JSON (never empty string)
-          const initialContent = relPath.toLowerCase().includes('config')
+          const lowerRel = relPath.toLowerCase();
+          const initialContent = lowerRel.includes('config')
             ? JSON.stringify({ token: foundToken || '', admins: [], settings: {} }, null, 2)
-            : relPath.toLowerCase().includes('user') || relPath.toLowerCase().includes('data')
-            ? JSON.stringify({}, null, 2)
+            : lowerRel.includes('logs') || lowerRel.includes('banned') || lowerRel.includes('service')
+            ? '[]'
+            : lowerRel.includes('user') || lowerRel.includes('data') || lowerRel.includes('range') || lowerRel.includes('stats') || lowerRel.includes('withdraw') || lowerRel.includes('settings')
+            ? '{}'
             : '{}';
           fs.writeFileSync(fullPath, initialContent, 'utf-8');
           createdFiles.push(relPath);
@@ -397,12 +408,24 @@ export function scanAndAutoFixBotDirectory(
   }
 
   // Ensure standard default JSON files always exist with valid JSON
-  const standardJsons = ['users.json', 'user_stats.json', 'paid_sms.json', 'banned_users.json', 'activity_logs.json', 'referral_data.json', 'withdraw_requests.json'];
+  const standardJsons = [
+    'users.json',
+    'user_stats.json',
+    'paid_sms.json',
+    'banned_users.json',
+    'activity_logs.json',
+    'referral_data.json',
+    'withdraw_requests.json',
+    'datarange.json',
+    'custom_services.json',
+    'bot_settings.json'
+  ];
   for (const sj of standardJsons) {
     const p = path.join(botDir, sj);
     if (!fs.existsSync(p)) {
       try {
-        fs.writeFileSync(p, sj.includes('logs') || sj.includes('banned') ? '[]' : '{}', 'utf-8');
+        const isArr = sj.includes('logs') || sj.includes('banned') || sj.includes('service');
+        fs.writeFileSync(p, isArr ? '[]' : '{}', 'utf-8');
         createdFiles.push(sj);
       } catch {}
     }

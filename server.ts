@@ -552,8 +552,25 @@ const runningProcesses = new Map<string, BotProcess>();
 const botLogs = new Map<string, Array<{ id: string; timestamp: string; level: 'info' | 'warn' | 'error'; message: string }>>();
 
 // Robust Python Package Installer
-function runPipInstall(args: string, cwd?: string, timeout = 60000): void {
+function ensurePipInstalled(): boolean {
+  try {
+    execSync('python3 -m pip --version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    console.log('[Auto-Fix] Bootstrapping pip for Python 3 environment...');
+    try {
+      execSync('python3 -m ensurepip --default-pip || (curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py && python3 /tmp/get-pip.py --break-system-packages)', { timeout: 90000, stdio: 'ignore' });
+      return true;
+    } catch (err: any) {
+      console.warn('[Auto-Fix] Failed to bootstrap pip:', err?.message);
+      return false;
+    }
+  }
+}
+
+function runPipInstall(args: string, cwd?: string, timeout = 90000): void {
   const dir = cwd || process.cwd();
+  ensurePipInstalled();
   try {
     execSync(`python3 -m pip install --break-system-packages --no-cache-dir ${args}`, { cwd: dir, timeout });
   } catch {
@@ -561,7 +578,7 @@ function runPipInstall(args: string, cwd?: string, timeout = 60000): void {
       execSync(`pip3 install --break-system-packages --no-cache-dir ${args}`, { cwd: dir, timeout });
     } catch {
       try {
-        execSync(`apt-get update && apt-get install -y python3-pip python3-venv`, { timeout: 90000 });
+        ensurePipInstalled();
         execSync(`python3 -m pip install --break-system-packages --no-cache-dir ${args}`, { cwd: dir, timeout });
       } catch (err: any) {
         throw err;
@@ -572,14 +589,15 @@ function runPipInstall(args: string, cwd?: string, timeout = 60000): void {
 
 // Background environment verification ensuring pip and core libraries are ready when bots are hosted
 function ensurePythonBotDependencies() {
-  const reg = getRegistry();
-  if (!reg || reg.length === 0) return;
-  exec('python3 -c "import httpx, telebot, telegram, aiogram, requests"', (err) => {
+  ensurePipInstalled();
+  exec('python3 -c "import httpx, pyotp, telebot, telegram, aiogram, requests"', (err) => {
     if (err) {
-      console.log('Installing core Python bot dependencies...');
-      exec('python3 -m pip install --break-system-packages --no-cache-dir httpx "httpx[http2]" pyTelegramBotAPI python-telegram-bot aiogram requests aiohttp pillow beautifulsoup4 pydantic pytz schedule', (instErr) => {
-        if (instErr) {
-          exec('apt-get update && apt-get install -y python3-pip python3-venv && python3 -m pip install --break-system-packages --no-cache-dir httpx "httpx[http2]" pyTelegramBotAPI python-telegram-bot aiogram requests aiohttp pillow beautifulsoup4 pydantic pytz schedule');
+      console.log('Installing core Python bot dependencies (python-telegram-bot, pyTelegramBotAPI, httpx[http2], pyotp, requests)...');
+      exec('python3 -m pip install --break-system-packages --no-cache-dir "python-telegram-bot[all]" pyTelegramBotAPI "httpx[http2]" pyotp aiogram requests aiohttp pillow beautifulsoup4 pydantic pytz schedule', (instErr) => {
+        if (!instErr) {
+          console.log('✅ Core Python bot libraries ready!');
+        } else {
+          console.warn('⚠️ Pip package installation notice:', instErr.message);
         }
       });
     }
