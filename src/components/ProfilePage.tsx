@@ -253,39 +253,6 @@ export function ProfilePage({
         </div>
       )}
 
-      {/* Firebase Cloud Connection Status Banner */}
-      <div className="p-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-[#0b1424] to-purple-950/40 border border-emerald-500/30 flex items-center justify-between gap-3 shadow-md">
-        <div className="flex items-center gap-2.5">
-          <div className="relative flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping absolute" />
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 relative" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-emerald-300">
-                ফায়ারবেজ ক্লাউড সংযুক্ত (Firebase Firestore Connected)
-              </span>
-              <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/30">
-                LIVE
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400">
-              আপনার প্রোফাইল ও সমস্ত ডকুমেন্টস সার্বক্ষণিক ফায়ারবেজ ক্লাউডের সাথে সংরক্ষিত ও সিঙ্ক হচ্ছে।
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={fetchUserFirestoreDocuments}
-          disabled={syncingDocs}
-          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border border-slate-700 shrink-0"
-          title="ফায়ারবেজ ডকুমেন্টস রিফ্রেশ করুন"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${syncingDocs ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline text-[11px]">সিঙ্ক রিফ্রেশ</span>
-        </button>
-      </div>
-
       {/* Profile Header Card */}
       <div className="p-6 rounded-3xl bg-gradient-to-br from-[#0f1b2b] to-[#070e18] border border-[#1e2e42] shadow-xl flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left relative">
         <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#1e293b] to-[#0f172a] border-3 border-[#00d293] flex items-center justify-center text-white font-black text-2xl shadow-lg shrink-0 overflow-hidden">

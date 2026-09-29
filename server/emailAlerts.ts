@@ -848,12 +848,21 @@ export function getTransporter(): Transporter | null {
   const isGmail = host.toLowerCase().includes('gmail.com') || host.toLowerCase() === 'gmail';
   const effectiveHost = isGmail ? 'smtp.gmail.com' : host;
 
-  const currentKey = `${effectiveHost}:${port}:${user}:${pass.slice(0, 4)}:${secure}`;
+  const currentKey = `${isGmail ? 'gmail-service' : effectiveHost}:${port}:${user}:${pass.slice(0, 4)}:${secure}`;
   if (cachedTransporter && lastTransporterConfigKey === currentKey) {
     return cachedTransporter;
   }
 
   try {
+    if (isGmail) {
+      cachedTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass: (pass || '').replace(/\s+/g, '') }
+      });
+      lastTransporterConfigKey = currentKey;
+      return cachedTransporter;
+    }
+
     const transportOptions = buildTransportOptions({
       hostOrIp: effectiveHost,
       originalHost: effectiveHost,
@@ -1255,8 +1264,8 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
   // 2. Attempt real SMTP sending if configured
   const fileConfig = loadSmtpSettingsFile();
   const transporter = (await getTransporterAsync()) || getTransporter();
-  const rawFrom = (fileConfig?.from || process.env.SMTP_FROM || fileConfig?.user || process.env.SMTP_USER || 'no-reply@hosting-live-fast.cloud').trim();
-  const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting-Live Fast" <${rawFrom}>`;
+  const rawFrom = (fileConfig?.from || process.env.SMTP_FROM || fileConfig?.user || process.env.SMTP_USER || 'hostinglivefast.official@gmail.com').trim();
+  const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
   const plainText = text || html.replace(/<[^>]+>/g, ' ');
 
   if (transporter) {
@@ -1374,15 +1383,15 @@ export async function sendTestEmail(toEmail: string): Promise<{
       </div>
 
       <div style="border-top: 1px solid #1e293b; padding-top: 18px; text-align: center; color: #64748b; font-size: 12px; line-height: 1.5;">
-        © 2026 <strong>hosting-Live Fast</strong>. All rights reserved.<br>
+        © 2026 <strong>hosting live fast</strong>. All rights reserved.<br>
         স্বয়ংক্রিয় সিস্টেম থেকে প্রেরিত বার্তা।
       </div>
     </div>
   `;
 
-  const rawFrom = (fileConfig?.from || process.env.SMTP_FROM || fileConfig?.user || process.env.SMTP_USER || 'no-reply@hosting-live-fast.cloud').trim();
-  const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting-Live Fast" <${rawFrom}>`;
-  const plainText = `hosting-Live Fast SMTP Test Email: Your email notification service is working successfully via ${config.host}:${config.port}!`;
+  const rawFrom = (fileConfig?.from || process.env.SMTP_FROM || fileConfig?.user || process.env.SMTP_USER || 'hostinglivefast.official@gmail.com').trim();
+  const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
+  const plainText = `hosting live fast SMTP Test Email: Your email notification service is working successfully via ${config.host}:${config.port}!`;
 
   const transporter = (await getTransporterAsync()) || getTransporter();
   if (transporter) {
