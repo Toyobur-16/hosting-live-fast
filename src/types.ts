@@ -205,6 +205,10 @@ export interface HostedWebsite {
   subdomainUrl: string;
   directUrl: string;
   liveUrl?: string;
+  netlifySiteId?: string;
+  netlifyUrl?: string;
+  customDomain?: string;
+  customDomainStatus?: 'pending' | 'verified' | 'active' | 'error';
   status: 'online' | 'stopped' | 'suspended';
   storageBytes: number;
   filesCount: number;
@@ -220,6 +224,8 @@ export interface WebsiteSettings {
   maxFileSizeMb: number;
   baseDomain: string;
   allowedExtensions: string[];
+  netlifyToken?: string;
+  enableNetlifyDeploy?: boolean;
 }
 
 export interface DepositRequest {

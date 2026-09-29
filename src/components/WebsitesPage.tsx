@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   ArrowRight,
   Edit3,
+  Sparkles,
   Link as LinkIcon
 } from 'lucide-react';
 import { HostedWebsite, AuthUser } from '../types';
@@ -89,6 +90,45 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
   const [deleteTargetSite, setDeleteTargetSite] = useState<HostedWebsite | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [websiteVideoUrl, setWebsiteVideoUrl] = useState<string | undefined>(undefined);
+
+  // Custom Domain modal states
+  const [domainTargetSite, setDomainTargetSite] = useState<HostedWebsite | null>(null);
+  const [customDomainInput, setCustomDomainInput] = useState('');
+  const [domainSaving, setDomainSaving] = useState(false);
+  const [domainError, setDomainError] = useState<string | null>(null);
+
+  const handleSaveCustomDomain = async () => {
+    if (!domainTargetSite) return;
+    try {
+      setDomainSaving(true);
+      setDomainError(null);
+      const token = localStorage.getItem('bot_auth_token');
+      const res = await fetch(`/api/websites/${domainTargetSite.id}/custom-domain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ customDomain: customDomainInput.trim() || null })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setDomainError(data.error || (lang === 'bn' ? 'ডোমেন আপডেট করতে সমস্যা হয়েছে।' : 'Failed to update custom domain'));
+        return;
+      }
+      setSuccessMsg(
+        customDomainInput.trim()
+          ? (lang === 'bn' ? `✓ কাস্টম ডোমেন https://${customDomainInput.trim()} সফলভাবে যুক্ত হয়েছে!` : `✓ Custom domain updated!`)
+          : (lang === 'bn' ? '✓ কাস্টম ডোমেন সফলভাবে অপসারণ করা হয়েছে।' : '✓ Custom domain removed.')
+      );
+      setDomainTargetSite(null);
+      fetchWebsites();
+    } catch (err: any) {
+      setDomainError(err.message || 'Error updating custom domain');
+    } finally {
+      setDomainSaving(false);
+    }
+  };
 
   const fetchWebsites = async () => {
     if (!user) return;
@@ -629,7 +669,9 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                       </div>
                       <div>
                         <h3 className="text-base font-bold text-white">{site.name}</h3>
-                        <p className="text-xs text-cyan-400 font-mono font-medium">https://{site.slug}.run.app</p>
+                        <p className="text-xs text-cyan-400 font-mono font-medium truncate max-w-[200px] sm:max-w-xs">
+                          {site.customDomain ? `https://${site.customDomain}` : (site.netlifyUrl || `https://${site.slug}.netlify.app`)}
+                        </p>
                       </div>
                     </div>
 
@@ -647,59 +689,72 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                     </div>
                   </div>
 
-                  {/* URL Card - Always provides https://${site.slug}.run.app with direct preview access */}
-                  <div className="bg-[#060c18] border border-cyan-500/30 rounded-2xl p-3.5 mb-4 shadow-inner">
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                        <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-extrabold">
-                          {lang === 'bn' ? 'অফিসিয়াল লাইভ ওয়েবসাইট লিংক' : 'Official Live Website Link'}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/40">
-                        HTTPS 24/7
-                      </span>
-                    </div>
+                  {/* URL Card - Always provides Netlify URL / Custom Domain with direct preview access */}
+                  {(() => {
+                    const primaryLink = site.customDomain ? `https://${site.customDomain}` : (site.netlifyUrl || `https://${site.slug}.netlify.app`);
+                    return (
+                      <div className="bg-[#060c18] border border-cyan-500/30 rounded-2xl p-3.5 mb-4 shadow-inner">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                            <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-extrabold">
+                              {site.customDomain
+                                ? (lang === 'bn' ? '🌐 সক্রিয় কাস্টম ডোমেন' : '🌐 Active Custom Domain')
+                                : (lang === 'bn' ? '⚡ Netlify ক্লাউড লাইভ লিংক' : '⚡ Netlify Cloud Live Link')}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/40">
+                            HTTPS 24/7
+                          </span>
+                        </div>
 
-                    <div className="flex items-center justify-between gap-2 bg-[#091120] border border-slate-800 rounded-xl px-3 py-2">
-                      <a
-                        href={fullLiveUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-cyan-300 hover:text-cyan-200 hover:underline truncate block font-mono font-bold flex-1 min-w-0"
-                        title={`https://${site.slug}.run.app`}
-                      >
-                        https://{site.slug}.run.app
-                      </a>
+                        <div className="flex items-center justify-between gap-2 bg-[#091120] border border-slate-800 rounded-xl px-3 py-2">
+                          <a
+                            href={primaryLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-cyan-300 hover:text-cyan-200 hover:underline truncate block font-mono font-bold flex-1 min-w-0"
+                            title={primaryLink}
+                          >
+                            {primaryLink}
+                          </a>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={() => {
-                            copyToClipboard(`https://${site.slug}.run.app`, site.id);
-                            setSuccessMsg(
-                              lang === 'bn'
-                                ? `✓ লিংক কপি হয়েছে: https://${site.slug}.run.app`
-                                : `✓ Copied: https://${site.slug}.run.app`
-                            );
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
-                          title={lang === 'bn' ? 'লিংক কপি করুন' : 'Copy Live Link'}
-                        >
-                          {copiedId === site.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-400" />}
-                          <span>{copiedId === site.id ? (lang === 'bn' ? 'কপি হয়েছে' : 'Copied') : (lang === 'bn' ? 'কপি' : 'Copy')}</span>
-                        </button>
-                        <a
-                          href={fullLiveUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 transition-colors cursor-pointer"
-                          title={lang === 'bn' ? 'নতুন ট্যাবে সাইট ওপেন করুন' : 'Open Website in New Tab'}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => {
+                                copyToClipboard(primaryLink, site.id);
+                                setSuccessMsg(
+                                  lang === 'bn'
+                                    ? `✓ লিংক কপি হয়েছে: ${primaryLink}`
+                                    : `✓ Copied: ${primaryLink}`
+                                );
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                              title={lang === 'bn' ? 'লিংক কপি করুন' : 'Copy Live Link'}
+                            >
+                              {copiedId === site.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-400" />}
+                              <span>{copiedId === site.id ? (lang === 'bn' ? 'কপি হয়েছে' : 'Copied') : (lang === 'bn' ? 'কপি' : 'Copy')}</span>
+                            </button>
+                            <a
+                              href={primaryLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 transition-colors cursor-pointer"
+                              title={lang === 'bn' ? 'নতুন ট্যাবে সাইট ওপেন করুন' : 'Open Website in New Tab'}
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </div>
+                        </div>
+
+                        {site.customDomain && (
+                          <div className="mt-2 pt-1.5 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                            <span>Netlify: https://{site.slug}.netlify.app</span>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Metadata */}
                   <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mb-5">
@@ -755,6 +810,19 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>{lang === 'bn' ? 'লিংক এডিট' : 'Edit Link'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setDomainTargetSite(site);
+                        setCustomDomainInput(site.customDomain || '');
+                        setDomainError(null);
+                      }}
+                      className="px-2.5 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title={lang === 'bn' ? 'কাস্টম ডোমেন যুক্ত বা পরিচালনা করুন (.com, .net, .xyz)' : 'Configure Custom Domain'}
+                    >
+                      <Globe className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{site.customDomain ? (lang === 'bn' ? 'ডোমেন' : 'Domain') : (lang === 'bn' ? '+ ডোমেন' : '+ Domain')}</span>
                     </button>
                   </div>
 
@@ -867,15 +935,15 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                   </span>
                 </div>
                 <div className="text-sm font-mono text-cyan-300 font-bold break-all bg-black/50 px-3 py-2 rounded-lg border border-cyan-900/50 flex items-center justify-between gap-2">
-                  <span>{`https://${newSiteSlug || 'incom-free-bd'}.run.app`}</span>
+                  <span>{`https://${newSiteSlug || 'incom-free-bd'}.netlify.app`}</span>
                   <span className="text-[10px] text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/60 shrink-0 font-sans">
-                    Live Link
+                    Netlify CDN
                   </span>
                 </div>
               </div>
 
               <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl text-xs text-slate-400 leading-relaxed">
-                💡 {lang === 'bn' ? 'ওয়েবসাইট তৈরি করার পর আপনি এক ক্লিকেই যেকোনো HTML ফাইল বা ZIP আপলোড করতে পারবেন এবং সাথে সাথে লাইভ লিংক পরিবর্তনও করতে পারবেন।' : 'You can upload your single HTML or ZIP file immediately after creation.'}
+                💡 {lang === 'bn' ? 'ওয়েবসাইট তৈরি করার পর সরাসরি Netlify-তে লাইভ হবে এবং আপনি কাস্টম ডোমেন (.com, .net, .xyz) বা যেকোনো HTML/ZIP ফাইল আপলোড করতে পারবেন।' : 'Your site deploys to Netlify with free SSL and custom domain support.'}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-2">
@@ -983,9 +1051,9 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                   </span>
                 </div>
                 <div className="text-sm font-mono text-cyan-300 font-bold break-all bg-black/50 px-3 py-2 rounded-lg border border-cyan-900/50 flex items-center justify-between gap-2">
-                  <span>{`https://${editSiteSlug || 'your-name'}.run.app`}</span>
+                  <span>{`https://${editSiteSlug || 'your-name'}.netlify.app`}</span>
                   <span className="text-[10px] text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/60 shrink-0 font-sans">
-                    Live Link
+                    Netlify CDN
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1.5">
@@ -1352,6 +1420,157 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                   <RefreshCw className="w-4 h-4 animate-spin mx-auto" />
                 ) : (
                   lang === 'bn' ? 'হ্যাঁ, ডিলিট করুন' : 'Yes, Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Domain Modal */}
+      {domainTargetSite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#0b1222] border border-amber-500/40 rounded-3xl max-w-lg w-full text-slate-100 shadow-2xl overflow-hidden flex flex-col relative">
+            <div className="p-6 bg-[#070b14] border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {lang === 'bn' ? 'কাস্টম ডোমেন যুক্ত করুন' : 'Add Custom Domain'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {domainTargetSite.name} ({domainTargetSite.slug}.netlify.app)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDomainTargetSite(null)}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  {lang === 'bn' ? 'আপনার নিজস্ব ডোমেন নাম লিখুন (Domain Name):' : 'Enter Your Custom Domain:'}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="e.g. mywebsite.com বা www.mybrand.xyz"
+                    value={customDomainInput}
+                    onChange={(e) => setCustomDomainInput(e.target.value.toLowerCase().replace(/https?:\/\//, ''))}
+                    className="w-full px-4 py-3 bg-[#060c18] border border-slate-700 rounded-xl text-sm text-white font-mono focus:outline-none focus:border-amber-400 placeholder:text-slate-600"
+                  />
+                  <div className="absolute right-3 top-3.5">
+                    <Globe className="w-4 h-4 text-amber-400" />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5">
+                  {lang === 'bn'
+                    ? 'আপনার কেনা যেকোনো .com, .net, .org, .xyz বা সাব-ডোমেন লিখতে পারেন।'
+                    : 'Enter any domain or subdomain you own (e.g. mywebsite.com or shop.mywebsite.com).'}
+                </p>
+                {domainError && <p className="text-xs text-rose-400 mt-2 font-medium">{domainError}</p>}
+              </div>
+
+              {/* DNS Setup Guide Card */}
+              <div className="p-4 rounded-2xl bg-[#060c18] border border-slate-800 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
+                  <Sparkles className="w-4 h-4" />
+                  <span>{lang === 'bn' ? 'সহজ DNS সেটআপ গাইড (ডোমেন প্যানেলে দিন):' : 'DNS Setup Records (Add to your domain DNS):'}</span>
+                </div>
+
+                <div className="overflow-x-auto text-xs font-mono">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400 text-[11px]">
+                        <th className="py-1.5 px-2">Type</th>
+                        <th className="py-1.5 px-2">Host / Name</th>
+                        <th className="py-1.5 px-2">Value / Points to</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-slate-300 text-[11px]">
+                      <tr>
+                        <td className="py-2 px-2 text-cyan-400 font-bold">CNAME</td>
+                        <td className="py-2 px-2">@ বা www</td>
+                        <td className="py-2 px-2 text-emerald-400 break-all select-all font-bold">
+                          {domainTargetSite.slug}.netlify.app
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-2 text-cyan-400 font-bold">A Record</td>
+                        <td className="py-2 px-2">@</td>
+                        <td className="py-2 px-2 text-emerald-400 font-bold select-all">
+                          75.2.60.5
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800/80 flex items-center gap-2 text-[11px] text-slate-400">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>
+                    {lang === 'bn'
+                      ? 'ডোমেন সেভ করার পর Netlify স্বয়ংক্রিয়ভাবে ফ্রি লাইফটাইম SSL (HTTPS) সক্রিয় করে নিবে।'
+                      : 'Netlify automatically provisions free Let\'s Encrypt SSL once DNS propagates.'}
+                  </span>
+                </div>
+              </div>
+
+              {domainTargetSite.customDomain && (
+                <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold">বর্তমান ডোমেন: </span>
+                    <a href={`https://${domainTargetSite.customDomain}`} target="_blank" rel="noreferrer" className="underline font-mono">
+                      https://{domainTargetSite.customDomain}
+                    </a>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomDomainInput('');
+                      handleSaveCustomDomain();
+                    }}
+                    disabled={domainSaving}
+                    className="text-xs text-rose-400 hover:text-rose-300 underline cursor-pointer"
+                  >
+                    ডোমেন মুছুন
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 bg-[#070b14] border-t border-slate-800 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setDomainTargetSite(null)}
+                className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white cursor-pointer"
+              >
+                {lang === 'bn' ? 'বাতিল' : 'Cancel'}
+              </button>
+
+              <button
+                type="button"
+                disabled={domainSaving}
+                onClick={handleSaveCustomDomain}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {domainSaving ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>{lang === 'bn' ? 'সেভ হচ্ছে...' : 'Saving...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>{lang === 'bn' ? 'ডোমেন সেভ করুন' : 'Save Domain'}</span>
+                  </>
                 )}
               </button>
             </div>

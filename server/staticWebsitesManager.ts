@@ -2,6 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
 import { HostedWebsite, WebsiteSettings } from '../src/types';
+import {
+  createNetlifySite,
+  deployDirectoryToNetlify,
+  setNetlifyCustomDomain,
+  deleteNetlifySite
+} from './netlifyDeployer';
 
 const HOSTED_BOTS_DIR = path.join(process.cwd(), 'hosted_bots');
 const WEBSITES_FILE = path.join(HOSTED_BOTS_DIR, 'websites.json');
@@ -25,7 +31,9 @@ export function getWebsiteSettings(): WebsiteSettings {
     maxWebsitesPerUser: 5,
     maxStorageMb: 50,
     maxFileSizeMb: 15,
-    baseDomain: process.env.HOSTING_BASE_DOMAIN || 'run.app',
+    baseDomain: process.env.HOSTING_BASE_DOMAIN || 'netlify.app',
+    netlifyToken: 'nfp_DPwmDu45wrHc2eiyQeKZJ4EXrYnLqKdL0da9',
+    enableNetlifyDeploy: true,
     allowedExtensions: [
       'html', 'htm', 'css', 'js', 'mjs', 'png', 'jpg', 'jpeg', 'gif',
       'webp', 'svg', 'ico', 'json', 'woff', 'woff2', 'ttf', 'otf',
@@ -217,11 +225,11 @@ export async function createWebsite(
 </head>
 <body>
   <div class="card">
-    <div class="badge">🚀 LIVE ON FAST CLOUD</div>
+    <div class="badge">🚀 LIVE ON NETLIFY CLOUD</div>
     <h1>${cleanName}</h1>
     <p>আপনার স্ট্যাটিক ওয়েবসাইট সফলভাবে তৈরি হয়েছে! এখন আপনার নিজস্ব HTML, CSS, JS ফাইল বা ZIP আপলোড করুন।</p>
-    <div class="domain">https://${slug}.run.app</div>
-    <div class="footer">Powered by <strong>hosting live fast</strong></div>
+    <div class="domain">https://${slug}.netlify.app</div>
+    <div class="footer">Powered by <strong>hosting live fast & Netlify</strong></div>
   </div>
 </body>
 </html>`;
@@ -230,15 +238,34 @@ export async function createWebsite(
 
   const { totalBytes, fileCount } = calculateDirectorySize(siteDir);
 
+  // Attempt to provision site on Netlify
+  let netlifySiteId: string | undefined;
+  let netlifyUrl: string | undefined;
+  try {
+    const netRes = await createNetlifySite(slug);
+    if (netRes.success && netRes.siteId) {
+      netlifySiteId = netRes.siteId;
+      netlifyUrl = netRes.sslUrl;
+      // Immediately deploy starter index.html
+      await deployDirectoryToNetlify(netRes.siteId, siteDir);
+    }
+  } catch (err) {
+    console.error('Netlify auto-create failed:', err);
+  }
+
+  const liveSubdomainUrl = netlifyUrl || `https://${slug}.netlify.app`;
+
   const newWebsite: HostedWebsite = {
     id: siteId,
     userId,
     userEmail,
     name: cleanName,
     slug,
-    subdomainUrl: `https://${slug}.run.app`,
+    subdomainUrl: liveSubdomainUrl,
     directUrl: `/site/${slug}/`,
-    liveUrl: `https://${slug}.run.app`,
+    liveUrl: liveSubdomainUrl,
+    netlifySiteId,
+    netlifyUrl,
     status: 'online',
     storageBytes: totalBytes,
     filesCount: fileCount,
@@ -343,6 +370,41 @@ export async function deployWebsiteFiles(
   website.hasIndexHtml = fs.existsSync(path.join(siteDir, 'index.html'));
   website.lastDeployedAt = new Date().toISOString();
   website.updatedAt = new Date().toISOString();
+
+  // Push changes to Netlify CDN
+  if (website.netlifySiteId) {
+    try {
+      const netDeploy = await deployDirectoryToNetlify(website.netlifySiteId, siteDir);
+      if (netDeploy.success && netDeploy.sslUrl) {
+        website.netlifyUrl = netDeploy.sslUrl;
+        if (!website.customDomain) {
+          website.liveUrl = netDeploy.sslUrl;
+          website.subdomainUrl = netDeploy.sslUrl;
+        }
+      }
+    } catch (err) {
+      console.error('Netlify deployDirectoryToNetlify error:', err);
+    }
+  } else {
+    try {
+      const netRes = await createNetlifySite(website.slug);
+      if (netRes.success && netRes.siteId) {
+        website.netlifySiteId = netRes.siteId;
+        website.netlifyUrl = netRes.sslUrl;
+        const netDeploy = await deployDirectoryToNetlify(netRes.siteId, siteDir);
+        if (netDeploy.success && netDeploy.sslUrl) {
+          website.netlifyUrl = netDeploy.sslUrl;
+        }
+        if (!website.customDomain) {
+          website.liveUrl = website.netlifyUrl || netRes.sslUrl;
+          website.subdomainUrl = website.netlifyUrl || netRes.sslUrl;
+        }
+      }
+    } catch (err) {
+      console.error('Netlify create & deploy error:', err);
+    }
+  }
+
   saveWebsites(websites);
 
   return { success: true, filesCount: fileCount, storageBytes: totalBytes };
@@ -454,6 +516,41 @@ export async function deployWebsiteZip(
     website.hasIndexHtml = fs.existsSync(path.join(siteDir, 'index.html'));
     website.lastDeployedAt = new Date().toISOString();
     website.updatedAt = new Date().toISOString();
+
+    // Push changes to Netlify CDN
+    if (website.netlifySiteId) {
+      try {
+        const netDeploy = await deployDirectoryToNetlify(website.netlifySiteId, siteDir);
+        if (netDeploy.success && netDeploy.sslUrl) {
+          website.netlifyUrl = netDeploy.sslUrl;
+          if (!website.customDomain) {
+            website.liveUrl = netDeploy.sslUrl;
+            website.subdomainUrl = netDeploy.sslUrl;
+          }
+        }
+      } catch (err) {
+        console.error('Netlify deployDirectoryToNetlify error:', err);
+      }
+    } else {
+      try {
+        const netRes = await createNetlifySite(website.slug);
+        if (netRes.success && netRes.siteId) {
+          website.netlifySiteId = netRes.siteId;
+          website.netlifyUrl = netRes.sslUrl;
+          const netDeploy = await deployDirectoryToNetlify(netRes.siteId, siteDir);
+          if (netDeploy.success && netDeploy.sslUrl) {
+            website.netlifyUrl = netDeploy.sslUrl;
+          }
+          if (!website.customDomain) {
+            website.liveUrl = website.netlifyUrl || netRes.sslUrl;
+            website.subdomainUrl = website.netlifyUrl || netRes.sslUrl;
+          }
+        }
+      } catch (err) {
+        console.error('Netlify create & deploy error:', err);
+      }
+    }
+
     saveWebsites(websites);
 
     return { success: true, filesCount: fileCount, storageBytes: totalBytes };
@@ -496,6 +593,10 @@ export function deleteWebsite(siteId: string, userId?: string): { success: boole
 
   const website = websites[index];
   const siteDir = getSiteDirectory(website.userId, siteId);
+
+  if (website.netlifySiteId) {
+    deleteNetlifySite(website.netlifySiteId).catch(() => {});
+  }
 
   try {
     if (fs.existsSync(siteDir)) {
@@ -607,3 +708,57 @@ export function getWebsiteFilesList(siteId: string, userId?: string): Array<{ pa
   traverse(siteDir);
   return fileList;
 }
+
+/**
+ * Add, update or remove a custom domain for a hosted website (e.g. mybrand.com)
+ */
+export async function setWebsiteCustomDomain(
+  siteId: string,
+  userId: string | undefined,
+  customDomain: string | null
+): Promise<{ success: boolean; website?: HostedWebsite; error?: string }> {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.id === siteId && (!userId || w.userId === userId || userId === 'admin'));
+  if (!website) {
+    return { success: false, error: 'ওয়েবসাইট পাওয়া যায়নি' };
+  }
+
+  const cleanDomain = customDomain ? customDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '') : null;
+
+  if (cleanDomain) {
+    const domainRegex = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
+    if (!domainRegex.test(cleanDomain)) {
+      return { success: false, error: 'সঠিক ডোমেন নাম লিখুন (যেমন: mywebsite.com বা shop.xyz)' };
+    }
+
+    if (website.netlifySiteId) {
+      try {
+        const netRes = await setNetlifyCustomDomain(website.netlifySiteId, cleanDomain);
+        if (!netRes.success) {
+          return { success: false, error: netRes.error || 'Netlify-তে কাস্টম ডোমেন যুক্ত করতে সমস্যা হয়েছে।' };
+        }
+      } catch (err: any) {
+        return { success: false, error: err.message || 'ডোমেন যুক্ত করতে ব্যর্থ হয়েছে।' };
+      }
+    }
+
+    website.customDomain = cleanDomain;
+    website.customDomainStatus = 'active';
+    website.liveUrl = `https://${cleanDomain}`;
+    website.updatedAt = new Date().toISOString();
+  } else {
+    if (website.netlifySiteId) {
+      try {
+        await setNetlifyCustomDomain(website.netlifySiteId, null);
+      } catch {}
+    }
+    delete website.customDomain;
+    website.customDomainStatus = undefined;
+    website.liveUrl = website.netlifyUrl || website.subdomainUrl;
+    website.updatedAt = new Date().toISOString();
+  }
+
+  saveWebsites(websites);
+  return { success: true, website };
+}
+

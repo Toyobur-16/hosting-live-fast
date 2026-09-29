@@ -63,6 +63,7 @@ import {
   toggleWebsiteStatus,
   deleteWebsite,
   updateWebsite,
+  setWebsiteCustomDomain,
   getWebsiteFilesList,
   getWebsiteSettings,
   saveWebsiteSettings,
@@ -2569,6 +2570,19 @@ app.patch('/api/websites/:id', (req, res) => {
   }
   const { name, slug } = req.body;
   const result = updateWebsite(req.params.id, user.role === 'admin' ? undefined : user.id, { name, slug });
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
+});
+
+app.post('/api/websites/:id/custom-domain', async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { customDomain } = req.body;
+  const result = await setWebsiteCustomDomain(req.params.id, user.role === 'admin' ? undefined : user.id, customDomain);
   if (!result.success) {
     return res.status(400).json(result);
   }
