@@ -29,7 +29,7 @@ export const PlansPage: React.FC<PlansPageProps> = ({
   const [freeTrial, setFreeTrial] = useState<FreeTrialSettings | null>(null);
   const [claimingTrial, setClaimingTrial] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [selectedCurrency] = useState<'USD'>('USD');
+  const [selectedCurrency, setSelectedCurrency] = useState<'USD' | 'BDT'>('USD');
   const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
@@ -139,8 +139,9 @@ export const PlansPage: React.FC<PlansPageProps> = ({
       return;
     }
 
-    const price = plan.priceUsd || 1.5;
-    const currentBalance = user.balanceUsd || 0;
+    const isBdt = selectedCurrency === 'BDT';
+    const price = isBdt ? (plan.priceBdt || 150) : (plan.priceUsd || 1.5);
+    const currentBalance = isBdt ? (user.balanceBdt || 0) : (user.balanceUsd || 0);
 
     if (currentBalance < price) {
       setInsufficientBalancePlan(plan);
@@ -542,12 +543,14 @@ export const PlansPage: React.FC<PlansPageProps> = ({
               <div className="flex justify-between text-xs">
                 <span className="text-slate-500 dark:text-slate-400">{lang === 'bn' ? 'মূল্য (কর্তন হবে):' : 'Plan Price:'}</span>
                 <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm">
-                  ${(confirmPlan.priceUsd || 1.5).toFixed(2)} USDT
+                  {selectedCurrency === 'BDT' ? `৳${confirmPlan.priceBdt || 150} BDT` : `$${(confirmPlan.priceUsd || 1.5).toFixed(2)} USDT`}
                 </span>
               </div>
               <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between text-xs">
                 <span className="text-slate-500 dark:text-slate-400">{lang === 'bn' ? 'আপনার বর্তমান ব্যালেন্স:' : 'Your Balance:'}</span>
-                <span className="font-bold text-slate-900 dark:text-white">${(user?.balanceUsd || 0).toFixed(2)} USDT</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {selectedCurrency === 'BDT' ? `৳${(user?.balanceBdt || 0).toFixed(2)} BDT` : `$${(user?.balanceUsd || 0).toFixed(2)} USDT`}
+                </span>
               </div>
             </div>
 
@@ -625,19 +628,25 @@ export const PlansPage: React.FC<PlansPageProps> = ({
               <div className="flex justify-between text-xs">
                 <span className="text-slate-600 dark:text-slate-400">{lang === 'bn' ? 'প্যাকেজের মূল্য:' : 'Plan Price:'}</span>
                 <span className="font-bold text-slate-900 dark:text-white">
-                  ${(insufficientBalancePlan.priceUsd || 1.5).toFixed(2)} USDT
+                  {selectedCurrency === 'BDT'
+                    ? `৳${insufficientBalancePlan.priceBdt || 150} BDT`
+                    : `$${(insufficientBalancePlan.priceUsd || 1.5).toFixed(2)} USDT`}
                 </span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-slate-600 dark:text-slate-400">{lang === 'bn' ? 'আপনার বর্তমান ব্যালেন্স:' : 'Current Balance:'}</span>
                 <span className="font-bold text-slate-900 dark:text-white">
-                  ${(user?.balanceUsd || 0).toFixed(2)} USDT
+                  {selectedCurrency === 'BDT'
+                    ? `৳${(user?.balanceBdt || 0).toFixed(2)} BDT`
+                    : `$${(user?.balanceUsd || 0).toFixed(2)} USDT`}
                 </span>
               </div>
               <div className="pt-2 border-t border-amber-200 dark:border-amber-800 flex justify-between text-xs font-bold text-amber-800 dark:text-amber-300">
-                <span>{lang === 'bn' ? 'প্রয়োজনীয় বাকি ডলার:' : 'Needed Amount:'}</span>
+                <span>{lang === 'bn' ? 'প্রয়োজনীয় বাকি টাকা:' : 'Needed Amount:'}</span>
                 <span>
-                  ${Math.max(0, (insufficientBalancePlan.priceUsd || 1.5) - (user?.balanceUsd || 0)).toFixed(2)} USDT
+                  {selectedCurrency === 'BDT'
+                    ? `৳${Math.max(0, (insufficientBalancePlan.priceBdt || 150) - (user?.balanceBdt || 0)).toFixed(2)} BDT`
+                    : `$${Math.max(0, (insufficientBalancePlan.priceUsd || 1.5) - (user?.balanceUsd || 0)).toFixed(2)} USDT`}
                 </span>
               </div>
             </div>

@@ -132,6 +132,7 @@ export interface WalletTransaction {
   userEmail: string;
   type: 'deposit' | 'ad_reward' | 'plan_purchase' | 'refund' | 'admin_adjustment' | 'hosting_payment' | 'task_reward';
   amount: number;
+  currency?: 'USD' | 'BDT';
   balanceBefore: number;
   balanceAfter: number;
   description: string;

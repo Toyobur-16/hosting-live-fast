@@ -58,7 +58,7 @@ function saveAccounts(accounts: any[], updatedUser?: any): void {
 }
 
 /**
- * Atomically modify a user's USD wallet balance and record a ledger transaction
+ * Atomically modify a user's USD or BDT wallet balance and record a ledger transaction
  */
 export function modifyUserWallet(
   userId: string,
@@ -66,8 +66,9 @@ export function modifyUserWallet(
   type: WalletTransaction['type'],
   description: string,
   source: string,
-  referenceId?: string
-): { success: boolean; newBalanceUsd?: number; transaction?: WalletTransaction; error?: string } {
+  referenceId?: string,
+  currency: 'USD' | 'BDT' = 'USD'
+): { success: boolean; newBalanceUsd?: number; newBalanceBdt?: number; transaction?: WalletTransaction; error?: string } {
   if (typeof amount !== 'number' || isNaN(amount)) {
     return { success: false, error: 'অবৈধ টাকার পরিমাণ (Invalid amount)' };
   }
@@ -78,18 +79,31 @@ export function modifyUserWallet(
     return { success: false, error: 'ইউজার খুঁজে পাওয়া যায়নি (User not found)' };
   }
 
-  const currentBalance = typeof user.balanceUsd === 'number' ? user.balanceUsd : 0;
-  const newBalance = parseFloat((currentBalance + amount).toFixed(4));
+  const isBdt = currency === 'BDT';
+  const currentBalance = isBdt
+    ? (typeof user.balanceBdt === 'number' ? user.balanceBdt : 0)
+    : (typeof user.balanceUsd === 'number' ? user.balanceUsd : 0);
+
+  const precision = isBdt ? 2 : 4;
+  const newBalance = parseFloat((currentBalance + amount).toFixed(precision));
 
   // If deducting, balance cannot fall below 0
   if (amount < 0 && newBalance < 0) {
     return {
       success: false,
-      error: `অপর্যাপ্ত USD ব্যালেন্স! প্রয়োজন: $${Math.abs(amount).toFixed(2)}, বর্তমান ব্যালেন্স: $${currentBalance.toFixed(2)}`
+      error: isBdt
+        ? `অপর্যাপ্ত BDT ব্যালেন্স! প্রয়োজন: ৳${Math.abs(amount).toFixed(2)}, বর্তমান ব্যালেন্স: ৳${currentBalance.toFixed(2)}`
+        : `অপর্যাপ্ত USD ব্যালেন্স! প্রয়োজন: $${Math.abs(amount).toFixed(2)}, বর্তমান ব্যালেন্স: $${currentBalance.toFixed(2)}`
     };
   }
 
-  user.balanceUsd = Math.max(0, newBalance);
+  if (isBdt) {
+    user.balanceBdt = Math.max(0, newBalance);
+  } else {
+    user.balanceUsd = Math.max(0, newBalance);
+  }
+  user.updatedAt = Date.now();
+
   saveAccounts(accounts, user);
 
   const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -99,8 +113,9 @@ export function modifyUserWallet(
     userEmail: user.email,
     type,
     amount,
+    currency,
     balanceBefore: currentBalance,
-    balanceAfter: user.balanceUsd,
+    balanceAfter: isBdt ? user.balanceBdt : user.balanceUsd,
     description,
     timestamp: new Date().toISOString(),
     status: 'completed',
@@ -121,6 +136,7 @@ export function modifyUserWallet(
   return {
     success: true,
     newBalanceUsd: user.balanceUsd,
+    newBalanceBdt: user.balanceBdt,
     transaction
   };
 }

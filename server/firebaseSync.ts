@@ -538,12 +538,15 @@ export class FirebaseSync {
           mergedMap.set(emailKey, rem);
           hasChanges = true;
         } else {
+          const remTime = typeof rem.updatedAt === 'number' ? rem.updatedAt : (rem.updatedAt ? new Date(rem.updatedAt).getTime() : 0);
+          const existTime = typeof existing.updatedAt === 'number' ? existing.updatedAt : (existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0);
+          const preferRemote = remTime > existTime;
           const updated = {
             ...existing,
             ...rem,
             password: rem.password || existing.password || '',
-            balanceUsd: Math.max(existing.balanceUsd || 0, rem.balanceUsd || 0),
-            balanceBdt: Math.max(existing.balanceBdt || 0, rem.balanceBdt || 0),
+            balanceUsd: preferRemote ? (rem.balanceUsd ?? existing.balanceUsd ?? 0) : (existing.balanceUsd ?? rem.balanceUsd ?? 0),
+            balanceBdt: preferRemote ? (rem.balanceBdt ?? existing.balanceBdt ?? 0) : (existing.balanceBdt ?? rem.balanceBdt ?? 0),
             emailVerified: Boolean(existing.emailVerified || rem.emailVerified),
             isVerified: Boolean(existing.isVerified || rem.isVerified)
           };

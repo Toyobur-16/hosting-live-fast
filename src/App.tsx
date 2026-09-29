@@ -276,6 +276,28 @@ export default function App() {
     } catch {}
   };
 
+  useEffect(() => {
+    const handleSyncUser = () => {
+      try {
+        const stored = localStorage.getItem('bot_auth_user');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.id) {
+            setCurrentUser(parsed);
+          }
+        }
+      } catch {}
+      checkAuth();
+    };
+
+    window.addEventListener('wallet-updated', handleSyncUser);
+    window.addEventListener('user-updated', handleSyncUser);
+    return () => {
+      window.removeEventListener('wallet-updated', handleSyncUser);
+      window.removeEventListener('user-updated', handleSyncUser);
+    };
+  }, []);
+
   const fetchAdminOverview = async () => {
     if (currentUser?.role !== 'admin') return;
     try {

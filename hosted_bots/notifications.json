@@ -1,1 +1,31 @@
-[]
+[
+  {
+    "id": "notif_1790717254894_3enm",
+    "userId": "user_1790504693014_zdxr",
+    "userEmail": "mdtayburrahman78@gmail.com",
+    "type": "deposit_approved",
+    "title": "✅ আপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে ($100 USD) - hosting live fast",
+    "message": "✅ আপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে ($100 USD) - hosting live fast - Amount: 100 USD, TrxID: 4538028, Method: Binance Pay / UID",
+    "createdAt": "2026-09-29T21:27:34.894Z",
+    "read": false
+  },
+  {
+    "id": "notif_1790716552330_jpyb",
+    "userId": "user_1790504693014_zdxr",
+    "type": "deposit_submitted",
+    "title": "📥 ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে",
+    "message": "আপনার $100 USD ডিপোজিট রিকোয়েস্ট (Binance Pay / UID, TrxID: 4538028) সফলভাবে গৃহীত হয়েছে। এডমিন ভেরিফাই করে অনুমোদন করলেই ওয়ালেটে যুক্ত হবে।",
+    "createdAt": "2026-09-29T21:15:52.330Z",
+    "read": false
+  },
+  {
+    "id": "notif_1790716490086_e3ay",
+    "userId": "user_1790504693014_zdxr",
+    "userEmail": "mdtayburrahman78@gmail.com",
+    "type": "plan_purchased",
+    "title": "🎉 প্যাকেজ সফলভাবে কেনা হয়েছে (৩ মাস প্রিমিয়াম)",
+    "message": "আপনি সফলভাবে ৩ মাস প্রিমিয়াম প্যাকেজটি কিনেছেন। ওয়ালেট থেকে 4 USD কাটা হয়েছে। অবশিষ্ট ব্যালেন্স: $96.00 USD।",
+    "createdAt": "2026-09-29T21:14:50.086Z",
+    "read": false
+  }
+]

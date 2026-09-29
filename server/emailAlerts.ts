@@ -791,14 +791,24 @@ export async function getTransporterAsync(forceFresh = false): Promise<Transport
     return null;
   }
 
+  const isGmail = host.toLowerCase().includes('gmail.com') || host.toLowerCase() === 'gmail';
   const resolved = await resolveIpv4Host(host, forceFresh);
-  const currentKey = `${resolved.originalHost}:${port}:${user}:${pass.slice(0, 4)}:${secure}`;
+  const currentKey = `${isGmail ? 'gmail-service' : resolved.originalHost}:${port}:${user}:${pass.slice(0, 4)}:${secure}`;
 
   if (!forceFresh && cachedTransporter && lastTransporterConfigKey === currentKey) {
     return cachedTransporter;
   }
 
   try {
+    if (isGmail) {
+      cachedTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass: (pass || '').replace(/\s+/g, '') }
+      });
+      lastTransporterConfigKey = currentKey;
+      return cachedTransporter;
+    }
+
     const opts = buildTransportOptions({
       hostOrIp: resolved.originalHost,
       originalHost: resolved.originalHost,
@@ -1251,12 +1261,22 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
 
   if (transporter) {
     try {
+      const senderAddress = fileConfig?.user || process.env.SMTP_USER || 'badsharahmanbd@gmail.com';
+      const cleanMsgId = `<hlf_${Date.now()}_${Math.random().toString(36).substring(2, 8)}@gmail.com>`;
       const info = await transporter.sendMail({
         from: fromFormatted,
         to,
         subject,
         text: plainText,
-        html
+        html,
+        replyTo: senderAddress,
+        messageId: cleanMsgId,
+        date: new Date(),
+        headers: {
+          'X-Mailer': 'hosting live fast Web Notification',
+          'X-Priority': '3',
+          'List-Unsubscribe': `<mailto:${senderAddress}?subject=unsubscribe>`
+        }
       });
       console.log(`[EMAIL ALERT SENT] To: ${to} | Subject: "${subject}" | MsgId: ${info.messageId}`);
       return { success: true, messageId: info.messageId };
@@ -1445,7 +1465,7 @@ export async function sendTestEmail(toEmail: string): Promise<{
  * Email Alert: Deposit Processed (Approved / Rejected)
  */
 export async function sendDepositProcessedAlert(
-  user: { id?: string; email?: string; name?: string; balanceUsd?: number },
+  user: { id?: string; email?: string; name?: string; balanceUsd?: number; balanceBdt?: number },
   deposit: { amount: number; currency: string; method: string; transactionId: string; senderIdentifier?: string; senderNumber?: string; planName?: string; rejectReason?: string; userEmail?: string },
   status: 'approved' | 'rejected'
 ) {
@@ -1455,13 +1475,55 @@ export async function sendDepositProcessedAlert(
     console.warn('[sendDepositProcessedAlert] No recipient email found for deposit', deposit.transactionId);
     return;
   }
-  const currencySymbol = deposit.currency === 'BDT' ? '৳' : '$';
+  const isBdt = deposit.currency === 'BDT';
+  const currencySymbol = isBdt ? '৳' : '$';
   const senderId = deposit.senderIdentifier || deposit.senderNumber || 'N/A';
   const isDirectPlan = Boolean(deposit.planName && !deposit.planName.includes('ওয়ালেট ডিপোজিট'));
 
+  // Inbox-friendly subject line (cleaner without excessive brackets/exclamations to avoid spam filters)
   const subject = isApproved
-    ? `✅ আপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে (${currencySymbol}${deposit.amount} ${deposit.currency}) - hosting live fast`
-    : `❌ আপনার ডিপোজিট রিকোয়েস্ট বাতিল করা হয়েছে - hosting live fast`;
+    ? `hosting live fast: ডিপোজিট নিশ্চিতকরণ (${currencySymbol}${deposit.amount} ${deposit.currency})`
+    : `hosting live fast: ডিপোজিট রিকোয়েস্ট সংক্রান্ত নোটিশ`;
+
+  const siteUrl = 'https://hostinglivefast.cloud';
+
+  const balanceDisplay = isBdt
+    ? (typeof user.balanceBdt === 'number' ? `৳${user.balanceBdt.toFixed(2)} BDT` : '')
+    : (typeof user.balanceUsd === 'number' ? `$${user.balanceUsd.toFixed(2)} USD` : '');
+
+  const plainText = isApproved
+    ? `প্রিয় ${user.name || 'গ্রাহক'},
+
+আপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!
+
+ট্রানজেকশন তথ্য:
+- রেজিস্টার্ড ইমেইল: ${targetEmail}
+- পেমেন্ট মেথড: ${deposit.method}
+- পরিমাণ: ${currencySymbol}${deposit.amount} ${deposit.currency}
+- Transaction ID: ${deposit.transactionId}
+- প্রেরক আইডি: ${senderId}
+${balanceDisplay ? `- বর্তমান ওয়ালেট ব্যালেন্স: ${balanceDisplay}\n` : ''}- স্ট্যাটাস: অনুমোদিত (Approved)
+
+আপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।
+
+ধন্যবাদ,
+hosting live fast টিম
+২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা
+${siteUrl}`
+    : `প্রিয় ${user.name || 'গ্রাহক'},
+
+আপনার ডিপোজিট রিকোয়েস্টটি পর্যালোচনার পর বাতিল করা হয়েছে।
+${deposit.rejectReason ? `বাতিলের কারণ: ${deposit.rejectReason}\n` : ''}
+ট্রানজেকশন তথ্য:
+- পরিমাণ: ${currencySymbol}${deposit.amount} ${deposit.currency}
+- Transaction ID: ${deposit.transactionId}
+- পেমেন্ট মেথড: ${deposit.method}
+
+কোনো জিজ্ঞাসা থাকলে সাপোর্ট সেন্টারে যোগাযোগ করুন।
+
+ধন্যবাদ,
+hosting live fast টিম
+${siteUrl}`;
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #070b14; color: #f8fafc; padding: 28px; border-radius: 16px; border: 1px solid #162035;">
@@ -1476,7 +1538,7 @@ export async function sendDepositProcessedAlert(
       <!-- Main Status Banner -->
       <div style="background: ${isApproved ? 'rgba(0, 210, 147, 0.12)' : 'rgba(239, 68, 68, 0.12)'}; border: 1px solid ${isApproved ? '#00d293' : '#ef4444'}; padding: 20px; border-radius: 12px; margin-bottom: 24px;">
         <h2 style="color: ${isApproved ? '#00d293' : '#ef4444'}; margin: 0 0 8px 0; font-size: 18px; font-weight: 700;">
-          ${isApproved ? '🎉 ডিপোজিট সফল ও অনুমোদিত!' : '⚠️ ডিপোজিট রিকোয়েস্ট বাতিল'}
+          ${isApproved ? 'ডিপোজিট সফল ও অনুমোদিত' : 'ডিপোজিট রিকোয়েস্ট বাতিল'}
         </h2>
         <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6; margin: 0;">
           প্রিয় <strong>${user.name || 'সম্মানিত গ্রাহক'}</strong>,<br>
@@ -1511,10 +1573,10 @@ export async function sendDepositProcessedAlert(
             <td style="padding: 10px 0; color: #94a3b8;">প্রেরক নাম্বার / UID:</td>
             <td style="padding: 10px 0; font-weight: bold; text-align: right; color: #e2e8f0;">${senderId}</td>
           </tr>
-          ${typeof user.balanceUsd === 'number' ? `
+          ${balanceDisplay ? `
           <tr style="border-bottom: 1px solid #1e293b;">
             <td style="padding: 10px 0; color: #94a3b8;">বর্তমান ওয়ালেট ব্যালেন্স:</td>
-            <td style="padding: 10px 0; font-weight: bold; text-align: right; color: #34d399; font-size: 14px;">$${user.balanceUsd.toFixed(2)} USD</td>
+            <td style="padding: 10px 0; font-weight: bold; text-align: right; color: #34d399; font-size: 14px;">${balanceDisplay}</td>
           </tr>
           ` : ''}
           <tr>
@@ -1532,7 +1594,7 @@ export async function sendDepositProcessedAlert(
           <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">
             ${isDirectPlan ? 'আপনার হোস্টিং প্ল্যান চালু হয়ে গেছে। এখনই নতুন টেলিগ্রাম বট ডিপ্লয় করুন!' : 'আপনার ব্যালেন্স দিয়ে এখনই আপনার পছন্দের হোস্টিং প্যাকেজ কিনতে পারবেন।'}
           </p>
-          <a href="#" style="display: inline-block; background: #00d293; color: #070b14; font-weight: 800; font-size: 14px; padding: 12px 28px; border-radius: 12px; text-decoration: none;">
+          <a href="${siteUrl}" style="display: inline-block; background: #00d293; color: #070b14; font-weight: 800; font-size: 14px; padding: 12px 28px; border-radius: 12px; text-decoration: none;">
             ${isDirectPlan ? 'বট ডিপ্লয় করুন (Deploy Bot)' : 'হোস্টিং প্ল্যান কিনুন (Buy Plan)'}
           </a>
         </div>
@@ -1558,7 +1620,7 @@ export async function sendDepositProcessedAlert(
     userId: user.id || targetEmail,
     subject,
     html,
-    text: `${subject} - Amount: ${deposit.amount} ${deposit.currency}, TrxID: ${deposit.transactionId}, Method: ${deposit.method}`,
+    text: plainText,
     type: isApproved ? 'deposit_approved' : 'deposit_rejected'
   });
 }

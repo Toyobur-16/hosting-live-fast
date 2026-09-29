@@ -1403,12 +1403,15 @@ function getAuthUser(req: express.Request): any | null {
                   const latestAccs = getAccounts();
                   const idx = latestAccs.findIndex((a) => a.email?.toLowerCase() === user.email.toLowerCase());
                   if (idx !== -1) {
+                    const localTime = typeof latestAccs[idx].updatedAt === 'number' ? latestAccs[idx].updatedAt : 0;
+                    const cloudTime = typeof cloudUser.updatedAt === 'number' ? cloudUser.updatedAt : (cloudUser.updatedAt ? new Date(cloudUser.updatedAt).getTime() : 0);
+                    const preferCloud = cloudTime > localTime;
                     latestAccs[idx] = {
                       ...latestAccs[idx],
                       ...cloudUser,
                       password: cloudUser.password || latestAccs[idx].password || '',
-                      balanceUsd: Math.max(latestAccs[idx].balanceUsd || 0, cloudUser.balanceUsd || 0),
-                      balanceBdt: Math.max(latestAccs[idx].balanceBdt || 0, cloudUser.balanceBdt || 0)
+                      balanceUsd: preferCloud ? (cloudUser.balanceUsd ?? latestAccs[idx].balanceUsd ?? 0) : (latestAccs[idx].balanceUsd ?? cloudUser.balanceUsd ?? 0),
+                      balanceBdt: preferCloud ? (cloudUser.balanceBdt ?? latestAccs[idx].balanceBdt ?? 0) : (latestAccs[idx].balanceBdt ?? cloudUser.balanceBdt ?? 0)
                     };
                     saveAccounts(latestAccs);
                   }
@@ -4248,7 +4251,8 @@ app.post('/api/plans/buy-with-wallet', async (req, res) => {
   if (plan.id === 'free') return res.status(400).json({ error: 'ফ্রি প্লান কেনার প্রয়োজন নেই।' });
 
   let accounts = getAccounts();
-  let targetUser = accounts.find((a) => a.id === user.id);
+  const cleanEmail = (user.email || '').trim().toLowerCase();
+  let targetUser = accounts.find((a) => a.id === user.id || (cleanEmail && a.email && a.email.toLowerCase() === cleanEmail));
   if (!targetUser) return res.status(404).json({ error: 'User not found' });
 
   if (targetUser.emailVerified === false && targetUser.role !== 'admin') {
@@ -4258,53 +4262,58 @@ app.post('/api/plans/buy-with-wallet', async (req, res) => {
   targetUser.balanceBdt = typeof targetUser.balanceBdt === 'number' ? targetUser.balanceBdt : 0;
   targetUser.balanceUsd = typeof targetUser.balanceUsd === 'number' ? targetUser.balanceUsd : 0;
 
-  const payCurrency = currency === 'BDT' ? 'BDT' : 'USD';
+  const payCurrency: 'USD' | 'BDT' = currency === 'BDT' ? 'BDT' : 'USD';
   const price = payCurrency === 'BDT' ? (plan.priceBdt || 0) : (plan.priceUsd || 0);
 
-  if (payCurrency === 'USD') {
-    if (targetUser.balanceUsd < price) {
-      return res.status(400).json({
-        error: `আপনার ওয়ালেটে পর্যাপ্ত USD ব্যালেন্স নেই। প্রয়োজন: $${price} USD, বর্তমান ব্যালেন্স: $${targetUser.balanceUsd.toFixed(2)} USD। প্রথমে ডিপোজিট করুন।`,
-        needsDeposit: true,
-        requiredAmount: price,
-        currentBalance: targetUser.balanceUsd,
-        currency: 'USD'
-      });
-    }
+  if (price <= 0) {
+    return res.status(400).json({ error: 'প্যাকেজের মূল্য সঠিক নয়।' });
+  }
 
-    const deductResult = modifyUserWallet(
-      targetUser.id,
-      -price,
-      'plan_purchase',
-      `Hosting Plan: ${plan.nameBn || plan.nameEn} ($${price} USD)`,
-      'wallet_plan_purchase',
-      plan.id
-    );
+  const isBdt = payCurrency === 'BDT';
+  const currentBalance = isBdt ? targetUser.balanceBdt : targetUser.balanceUsd;
+  if (currentBalance < price) {
+    return res.status(400).json({
+      error: isBdt
+        ? `আপনার ওয়ালেটে পর্যাপ্ত BDT ব্যালেন্স নেই। প্রয়োজন: ৳${price} BDT, বর্তমান ব্যালেন্স: ৳${targetUser.balanceBdt.toFixed(2)} BDT। প্রথমে ডিপোজিট করুন।`
+        : `আপনার ওয়ালেটে পর্যাপ্ত USD ব্যালেন্স নেই। প্রয়োজন: $${price} USD, বর্তমান ব্যালেন্স: $${targetUser.balanceUsd.toFixed(2)} USD। প্রথমে ডিপোজিট করুন।`,
+      needsDeposit: true,
+      requiredAmount: price,
+      currentBalance,
+      currency: payCurrency
+    });
+  }
 
-    if (!deductResult.success) {
-      return res.status(400).json({ error: deductResult.error || 'ব্যালেন্স কাটা সম্ভব হয়নি' });
-    }
+  const deductResult = modifyUserWallet(
+    targetUser.id,
+    -price,
+    'plan_purchase',
+    `Hosting Plan: ${plan.nameBn || plan.nameEn} (${isBdt ? '৳' : '$'}${price} ${payCurrency})`,
+    'wallet_plan_purchase',
+    plan.id,
+    payCurrency
+  );
 
-    // Crucial: Refresh accounts and ensure targetUser balance is precisely updated
-    accounts = getAccounts();
-    const freshUser = accounts.find((a) => a.id === user.id);
-    if (freshUser) {
-      targetUser = freshUser;
-    }
-    if (typeof deductResult.newBalanceUsd === 'number') {
-      targetUser.balanceUsd = deductResult.newBalanceUsd;
-    }
-  } else {
-    if (targetUser.balanceBdt < price) {
-      return res.status(400).json({
-        error: `আপনার ওয়ালেটে পর্যাপ্ত BDT ব্যালেন্স নেই। প্রয়োজন: ৳${price} BDT, বর্তমান ব্যালেন্স: ৳${targetUser.balanceBdt.toFixed(2)} BDT। প্রথমে ডিপোজিট করুন।`,
-        needsDeposit: true,
-        requiredAmount: price,
-        currentBalance: targetUser.balanceBdt,
-        currency: 'BDT'
-      });
-    }
-    targetUser.balanceBdt = parseFloat((targetUser.balanceBdt - price).toFixed(2));
+  if (!deductResult.success) {
+    return res.status(400).json({
+      error: deductResult.error || 'ব্যালেন্স কাটা সম্ভব হয়নি',
+      needsDeposit: true,
+      requiredAmount: price,
+      currentBalance,
+      currency: payCurrency
+    });
+  }
+
+  // Refresh fresh accounts list from disk
+  accounts = getAccounts();
+  const freshIdx = accounts.findIndex((a) => a.id === targetUser.id || (cleanEmail && a.email && a.email.toLowerCase() === cleanEmail));
+  if (freshIdx !== -1) {
+    targetUser = accounts[freshIdx];
+  }
+
+  if (isBdt && typeof deductResult.newBalanceBdt === 'number') {
+    targetUser.balanceBdt = deductResult.newBalanceBdt;
+  } else if (!isBdt && typeof deductResult.newBalanceUsd === 'number') {
+    targetUser.balanceUsd = deductResult.newBalanceUsd;
   }
 
   // Activate / extend user plan & website limits
@@ -4315,25 +4324,32 @@ app.post('/api/plans/buy-with-wallet', async (req, res) => {
   targetUser.maxStorageMb = plan.maxStorageMb || 100;
   const currentExpiry = (targetUser.planExpiresAt && targetUser.planExpiresAt > Date.now()) ? targetUser.planExpiresAt : Date.now();
   targetUser.planExpiresAt = currentExpiry + durationDays * 24 * 60 * 60 * 1000;
+  targetUser.updatedAt = Date.now();
 
   // Persist the updated accounts with DEDUCTED balance and updated plan
   saveAccounts(accounts);
   FirebaseSync.syncAccountToCloud(targetUser).catch(() => {});
+
+  const remainingBalanceText = isBdt
+    ? `৳${(targetUser.balanceBdt || 0).toFixed(2)} BDT`
+    : `$${(targetUser.balanceUsd || 0).toFixed(2)} USD`;
 
   // Send in-app notification & email alert
   sendEmailAlert({
     to: targetUser.email,
     userId: targetUser.id,
     type: 'plan_purchased',
-    subject: `🎉 প্যাকেজ সফলভাবে কেনা হয়েছে (${plan.nameBn})`,
-    html: `<p>প্রিয় ${targetUser.name}, আপনি সফলভাবে <strong>${plan.nameBn}</strong> প্যাকেজটি ক্রয় করেছেন। ওয়ালেট থেকে ${price} ${payCurrency} কাটা হয়েছে। আপনার অবশিষ্ট ব্যালেন্স: $${(targetUser.balanceUsd || 0).toFixed(2)} USD। আপনার নতুন মেয়াদ: ${new Date(targetUser.planExpiresAt).toLocaleDateString('bn-BD')}।</p>`,
-    text: `আপনি সফলভাবে ${plan.nameBn} প্যাকেজটি কিনেছেন। ওয়ালেট থেকে ${price} ${payCurrency} কাটা হয়েছে। অবশিষ্ট ব্যালেন্স: $${(targetUser.balanceUsd || 0).toFixed(2)} USD।`
+    subject: `hosting live fast: প্যাকেজ সক্রিয় হয়েছে (${plan.nameBn})`,
+    html: `<p>প্রিয় ${targetUser.name}, আপনি সফলভাবে <strong>${plan.nameBn}</strong> প্যাকেজটি ক্রয় করেছেন। ওয়ালেট থেকে ${isBdt ? '৳' : '$'}${price} ${payCurrency} কাটা হয়েছে। আপনার অবশিষ্ট ব্যালেন্স: ${remainingBalanceText}। আপনার নতুন মেয়াদ: ${new Date(targetUser.planExpiresAt).toLocaleDateString('bn-BD')}।</p>`,
+    text: `আপনি সফলভাবে ${plan.nameBn} প্যাকেজটি কিনেছেন। ওয়ালেট থেকে ${isBdt ? '৳' : '$'}${price} ${payCurrency} কাটা হয়েছে। অবশিষ্ট ব্যালেন্স: ${remainingBalanceText}।`
   });
+
+  const enriched = enrichUserWithPlanAndRole(targetUser);
 
   res.json({
     success: true,
-    message: `🎉 অভিনন্দন! "${plan.nameBn}" সফলভাবে ক্রয় করা হয়েছে। ওয়ালেট থেকে $${price} USD কাটা হয়েছে। আপনার প্লান সক্রিয় করা হয়েছে।`,
-    user: enrichUserWithPlanAndRole(targetUser)
+    message: `🎉 অভিনন্দন! "${plan.nameBn}" সফলভাবে ক্রয় করা হয়েছে। ওয়ালেট থেকে ${isBdt ? '৳' : '$'}${price} ${payCurrency} কাটা হয়েছে। অবশিষ্ট ব্যালেন্স: ${remainingBalanceText}।`,
+    user: enriched
   });
 });
 
@@ -4614,38 +4630,50 @@ app.post('/api/admin/plan-requests/:id/approve', async (req, res) => {
 
   if (targetUser) {
     if (request.type === 'deposit') {
-      // Wallet deposit approval (credit balance in USDT via modifyUserWallet ledger)
+      // Wallet deposit approval (credit balance in USDT or BDT via modifyUserWallet ledger)
       const depAmount = Number(request.amount || 0);
+      const depCurrency: 'USD' | 'BDT' = request.currency === 'BDT' ? 'BDT' : 'USD';
       const modResult = modifyUserWallet(
         targetUser.id,
         depAmount,
         'deposit',
-        `Approved Deposit: ${request.method || 'Manual'} (${request.currency || 'USD'} ${depAmount})`,
+        `Approved Deposit: ${request.method || 'Manual'} (${depCurrency === 'BDT' ? '৳' : '$'}${depAmount} ${depCurrency})`,
         request.method || 'manual_deposit',
-        request.transactionId
+        request.transactionId,
+        depCurrency
       );
 
       // Reload accounts fresh from disk to guarantee fresh credited balance
       const freshAccounts = getAccounts();
-      const freshUser = freshAccounts.find((a) => a.id === targetUser.id) || targetUser;
-      if (typeof modResult.newBalanceUsd === 'number') {
+      const freshUser = freshAccounts.find((a) => a.id === targetUser.id || (request.userEmail && a.email && a.email.toLowerCase() === request.userEmail.toLowerCase())) || targetUser;
+      if (depCurrency === 'USD' && typeof modResult.newBalanceUsd === 'number') {
         freshUser.balanceUsd = modResult.newBalanceUsd;
+      } else if (depCurrency === 'BDT' && typeof modResult.newBalanceBdt === 'number') {
+        freshUser.balanceBdt = modResult.newBalanceBdt;
       }
+      freshUser.updatedAt = Date.now();
+      saveAccounts(freshAccounts);
       finalUser = freshUser;
       FirebaseSync.syncAccountToCloud(freshUser).catch(() => {});
 
-      const recipientEmail = (freshUser.email || request.userEmail || '').trim().toLowerCase();
+      const recipientEmail = (freshUser.email || request.userEmail || targetUser.email || '').trim().toLowerCase();
       if (recipientEmail) {
-        await sendDepositProcessedAlert(
-          {
-            id: freshUser.id,
-            email: recipientEmail,
-            name: freshUser.name || request.userName || 'গ্রাহক',
-            balanceUsd: freshUser.balanceUsd
-          },
-          request,
-          'approved'
-        );
+        console.log(`[DEPOSIT APPROVE EMAIL] Sending deposit alert to ${recipientEmail} for deposit ID: ${request.id}`);
+        try {
+          await sendDepositProcessedAlert(
+            {
+              id: freshUser.id,
+              email: recipientEmail,
+              name: freshUser.name || request.userName || 'গ্রাহক',
+              balanceUsd: freshUser.balanceUsd,
+              balanceBdt: freshUser.balanceBdt
+            },
+            request,
+            'approved'
+          );
+        } catch (emailErr) {
+          console.error('[DEPOSIT APPROVAL EMAIL ERROR]:', emailErr);
+        }
       }
     } else {
       // Direct plan request approval
@@ -4665,6 +4693,7 @@ app.post('/api/admin/plan-requests/:id/approve', async (req, res) => {
 
       targetUser.maxWebsites = (plan && plan.maxWebsites) || (request.planId === '1_year' ? 999 : (request.planId === '6_months' ? 10 : 5));
       targetUser.maxStorageMb = (plan && plan.maxStorageMb) || 100;
+      targetUser.updatedAt = Date.now();
 
       saveAccounts(accounts);
       FirebaseSync.syncAccountToCloud(targetUser).catch(() => {});
@@ -4672,29 +4701,38 @@ app.post('/api/admin/plan-requests/:id/approve', async (req, res) => {
 
       const recipientEmail = (targetUser.email || request.userEmail || '').trim().toLowerCase();
       if (recipientEmail) {
-        await sendDepositProcessedAlert(
-          {
-            id: targetUser.id,
-            email: recipientEmail,
-            name: targetUser.name || request.userName || 'গ্রাহক',
-            balanceUsd: targetUser.balanceUsd
-          },
-          request,
-          'approved'
-        );
+        try {
+          await sendDepositProcessedAlert(
+            {
+              id: targetUser.id,
+              email: recipientEmail,
+              name: targetUser.name || request.userName || 'গ্রাহক',
+              balanceUsd: targetUser.balanceUsd,
+              balanceBdt: targetUser.balanceBdt
+            },
+            request,
+            'approved'
+          );
+        } catch (emailErr) {
+          console.error('[PLAN APPROVAL EMAIL ERROR]:', emailErr);
+        }
       }
     }
   } else if (request.userEmail) {
     // If targetUser not in accounts but userEmail is known, still dispatch approval email!
-    await sendDepositProcessedAlert(
-      {
-        id: request.userId || 'user',
-        email: request.userEmail.trim().toLowerCase(),
-        name: request.userName || 'গ্রাহক'
-      },
-      request,
-      'approved'
-    );
+    try {
+      await sendDepositProcessedAlert(
+        {
+          id: request.userId || 'user',
+          email: request.userEmail.trim().toLowerCase(),
+          name: request.userName || 'গ্রাহক'
+        },
+        request,
+        'approved'
+      );
+    } catch (emailErr) {
+      console.error('[FALLBACK DEPOSIT APPROVAL EMAIL ERROR]:', emailErr);
+    }
   }
 
   res.json({ success: true, message: 'অনুমোদন সফল হয়েছে (Approved successfully)', request, updatedUser: finalUser });
