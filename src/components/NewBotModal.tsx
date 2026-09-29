@@ -142,6 +142,25 @@ export const NewBotModal: React.FC<NewBotModalProps> = ({ onClose, onCreated, la
             const suggested = file.name.replace(/\.zip$/i, '').replace(/[_\-\(\)]+/g, ' ').trim();
             setName(suggested ? suggested.charAt(0).toUpperCase() + suggested.slice(1) : 'Telegram Bot');
           }
+          // Automatically inspect zip in background to detect entry script (e.g. main.py) and token
+          fetch('/api/bots/inspect-zip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zipBase64: base64 })
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data && data.success) {
+                setInspectionResult(data);
+                if (data.resolvedEntry) {
+                  setEntryFile(data.resolvedEntry);
+                }
+                if (data.detectedToken && !token) {
+                  setToken(data.detectedToken);
+                }
+              }
+            })
+            .catch(() => {});
         } catch (err: any) {
           setError(lang === 'bn' ? 'জিপ রিড করতে সমস্যা: ' + err.message : 'Error reading zip file: ' + err.message);
         }

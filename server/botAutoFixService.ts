@@ -110,7 +110,30 @@ export function extractZipSafely(zipPath: string, destDir: string): boolean {
 }
 
 /**
- * Cleans macOS/Windows junk files and flattens nested repo folders (e.g. MyBot-main/).
+ * Recursively moves or merges files from source to destination without dropping any data.
+ */
+function moveOrMergeRecursive(src: string, dest: string) {
+  if (!fs.existsSync(dest)) {
+    try {
+      fs.renameSync(src, dest);
+      return;
+    } catch {}
+  }
+  const stat = fs.statSync(src);
+  if (stat.isDirectory()) {
+    fs.mkdirSync(dest, { recursive: true });
+    const subEntries = fs.readdirSync(src);
+    for (const sub of subEntries) {
+      moveOrMergeRecursive(path.join(src, sub), path.join(dest, sub));
+    }
+  } else {
+    fs.copyFileSync(src, dest);
+  }
+}
+
+/**
+ * Cleans macOS/Windows junk files and flattens nested repo wrapper folders (e.g. MyBot-main/).
+ * Preserves user data directories and never drops any files.
  */
 export function unpackAndCleanDirectory(botDir: string): string[] {
   const fixes: string[] = [];
@@ -126,34 +149,25 @@ export function unpackAndCleanDirectory(botDir: string): string[] {
     }
   }
 
-  // 2. Recursively check if root has only 1 directory containing the actual files
+  // Protected folder names that should never be flattened as wrappers
+  const protectedDirs = new Set(['data', 'database', 'photos', 'images', 'assets', 'static', 'templates', 'media', 'logs', 'downloads']);
+
+  // 2. Check if root has only 1 directory containing the actual files (like GitHub zip extract: Repo-main/)
   try {
     let items = fs.readdirSync(botDir).filter((f) => f !== '_archive.zip' && !f.startsWith('.'));
     while (items.length === 1) {
-      const singleItem = path.join(botDir, items[0]);
+      const singleItemName = items[0];
+      if (protectedDirs.has(singleItemName.toLowerCase())) {
+        break; // Do not unpack user data folders
+      }
+      const singleItem = path.join(botDir, singleItemName);
       if (fs.existsSync(singleItem) && fs.statSync(singleItem).isDirectory()) {
         const subItems = fs.readdirSync(singleItem);
+        // Only unpack if it contains project files or subdirectories
         for (const sub of subItems) {
           const src = path.join(singleItem, sub);
           const dest = path.join(botDir, sub);
-          if (!fs.existsSync(dest)) {
-            fs.renameSync(src, dest);
-          } else {
-            // Merge or overwrite
-            try {
-              if (fs.statSync(src).isDirectory()) {
-                // If directory, copy contents
-                const inner = fs.readdirSync(src);
-                for (const inn of inner) {
-                  const innSrc = path.join(src, inn);
-                  const innDest = path.join(dest, inn);
-                  if (!fs.existsSync(innDest)) {
-                    fs.renameSync(innSrc, innDest);
-                  }
-                }
-              }
-            } catch {}
-          }
+          moveOrMergeRecursive(src, dest);
         }
         try { fs.rmSync(singleItem, { recursive: true, force: true }); } catch {}
         fixes.push('📁 নেস্টেড সাব-ফোল্ডার আনপ্যাক করে রুট ফোল্ডারে আনা হয়েছে (Unpacked nested folder to root)');
@@ -528,15 +542,22 @@ export function scanAndAutoFixBotDirectory(
     }
   }
 
-  // If entry file still does not exist, create a safe fallback
-  const finalEntryPath = path.join(botDir, resolvedEntry);
+  // If entry file still does not exist, check if any Python script exists
+  let finalEntryPath = path.join(botDir, resolvedEntry);
   if (!fs.existsSync(finalEntryPath)) {
-    fs.writeFileSync(
-      finalEntryPath,
-      `# Auto-generated entry point for Telegram Bot\nimport os\nimport time\nprint("Telegram Bot Started and running 24/7...")\nwhile True:\n    time.sleep(60)\n`,
-      'utf-8'
-    );
-    fixesApplied.push(`📄 এন্ট্রি স্ক্রিপ্ট ফাইল (${resolvedEntry}) তৈরি করা হয়েছে`);
+    const existingPy = allBotFiles.find((f) => f.endsWith('.py'));
+    if (existingPy) {
+      resolvedEntry = path.relative(botDir, existingPy);
+      finalEntryPath = path.join(botDir, resolvedEntry);
+      fixesApplied.push(`🚀 মেইন স্ক্রিপ্ট ফাইল (${resolvedEntry}) সফলভাবে নির্বাচন করা হয়েছে`);
+    } else {
+      fs.writeFileSync(
+        finalEntryPath,
+        `# Auto-generated entry point for Telegram Bot\nimport os\nimport time\nprint("Telegram Bot Started and running 24/7...")\nwhile True:\n    time.sleep(60)\n`,
+        'utf-8'
+      );
+      fixesApplied.push(`📄 এন্ট্রি স্ক্রিপ্ট ফাইল (${resolvedEntry}) তৈরি করা হয়েছে`);
+    }
   }
 
   return {

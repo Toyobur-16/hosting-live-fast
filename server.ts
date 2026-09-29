@@ -1505,11 +1505,51 @@ function launchBotProcess(bot: any): boolean {
     execSync(`pkill -9 -f "${botDir}" 2>/dev/null || true`);
   } catch {}
 
-  const entry = bot.entryFile || 'bot.py';
-  const entryPath = path.join(botDir, entry);
+  let entry = bot.entryFile || 'bot.py';
+  let entryPath = path.join(botDir, entry);
   if (!fs.existsSync(entryPath)) {
-    appendLog(bot.id, 'error', `Entry script '${entry}' does not exist in workspace.`);
-    return false;
+    // Intelligently detect user's actual Python entry script so no user bot is ever blocked
+    const pyCandidates: { name: string; score: number }[] = [];
+    try {
+      const items = fs.readdirSync(botDir);
+      for (const item of items) {
+        if (item.endsWith('.py')) {
+          const itemPath = path.join(botDir, item);
+          let score = 0;
+          try {
+            const content = fs.readFileSync(itemPath, 'utf-8');
+            if (/TeleBot\(|ApplicationBuilder\(|Updater\(|Bot\(|Dispatcher\(/i.test(content)) score += 25;
+            if (/polling|run_polling|infinity_polling|start_polling/i.test(content)) score += 20;
+            if (/import\s+telegram|import\s+telebot|import\s+aiogram/i.test(content)) score += 15;
+            const lower = item.toLowerCase();
+            if (lower === 'main.py') score += 18;
+            else if (lower === 'bot.py') score += 16;
+            else if (lower === 'app.py') score += 14;
+            else if (lower === 'run.py') score += 12;
+            pyCandidates.push({ name: item, score });
+          } catch {}
+        }
+      }
+    } catch {}
+
+    pyCandidates.sort((a, b) => b.score - a.score);
+    if (pyCandidates.length > 0) {
+      entry = pyCandidates[0].name;
+      entryPath = path.join(botDir, entry);
+      bot.entryFile = entry;
+      try {
+        const reg = getRegistry();
+        const b = reg.find((x) => x.id === bot.id);
+        if (b) {
+          b.entryFile = entry;
+          saveRegistry(reg);
+        }
+      } catch {}
+      appendLog(bot.id, 'info', `[Smart Detection] Primary bot script detected: ${entry}`);
+    } else {
+      appendLog(bot.id, 'error', `Entry script '${entry}' does not exist in workspace.`);
+      return false;
+    }
   }
 
   // Ensure default JSON files exist so bot does not crash with FileNotFoundError
@@ -1522,7 +1562,8 @@ function launchBotProcess(bot: any): boolean {
     { name: 'withdraw_requests.json', content: '{}' },
     { name: 'activity_logs.json', content: '[]' },
     { name: 'datarange.json', content: '{}' },
-    { name: 'custom_services.json', content: '[]' }
+    { name: 'custom_services.json', content: '[]' },
+    { name: 'bot_settings.json', content: '{}' }
   ];
   for (const jf of defaultJsons) {
     const p = path.join(botDir, jf.name);
@@ -1553,6 +1594,7 @@ function launchBotProcess(bot: any): boolean {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     PYTHONUNBUFFERED: '1',
+    PYTHONPATH: `${botDir}:${path.join(botDir, 'src')}:${process.env.PYTHONPATH || ''}`,
     BOT_TOKEN: bot.token || '',
     TOKEN: bot.token || '',
     TELEGRAM_BOT_TOKEN: bot.token || '',
@@ -5524,7 +5566,9 @@ app.post('/api/bots', (req, res) => {
   if (Array.isArray(files)) {
     for (const f of files) {
       if (f.name && (f.content !== undefined || f.base64)) {
-        const filePath = path.join(botDir, f.name);
+        const safeRel = path.normalize(f.name).replace(/^(\.\.[\/\\])+/, '');
+        const filePath = path.join(botDir, safeRel);
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
         if (f.content !== undefined) {
           fs.writeFileSync(filePath, f.content, 'utf-8');
         } else if (f.base64) {
@@ -5567,10 +5611,12 @@ app.post('/api/bots', (req, res) => {
   } else {
     // Detect entry file if specified file doesn't exist
     if (!fs.existsSync(path.join(botDir, resolvedEntry))) {
-      if (fs.existsSync(path.join(botDir, 'bot.py'))) {
-        resolvedEntry = 'bot.py';
-      } else if (fs.existsSync(path.join(botDir, 'main.py'))) {
+      if (fs.existsSync(path.join(botDir, 'main.py'))) {
         resolvedEntry = 'main.py';
+      } else if (fs.existsSync(path.join(botDir, 'bot.py'))) {
+        resolvedEntry = 'bot.py';
+      } else if (fs.existsSync(path.join(botDir, 'app.py'))) {
+        resolvedEntry = 'app.py';
       } else {
         const allFiles = fs.readdirSync(botDir);
         const pyFile = allFiles.find((f) => f.endsWith('.py'));
@@ -5581,14 +5627,28 @@ app.post('/api/bots', (req, res) => {
     }
   }
 
-  // Ensure entry file exists
-  const entryPath = path.join(botDir, resolvedEntry);
+  // Ensure entry file exists without corrupting real uploaded files
+  let entryPath = path.join(botDir, resolvedEntry);
   if (!fs.existsSync(entryPath)) {
-    fs.writeFileSync(
-      entryPath,
-      `# Telegram Bot: ${name}\nimport os\nprint("Bot started: ${name}")\n`,
-      'utf-8'
-    );
+    let foundPy: string | null = null;
+    try {
+      const allFiles = fs.readdirSync(botDir);
+      foundPy = allFiles.find((f) => f === 'main.py') ||
+                allFiles.find((f) => f === 'bot.py') ||
+                allFiles.find((f) => f === 'app.py') ||
+                allFiles.find((f) => f === 'run.py') ||
+                allFiles.find((f) => f.endsWith('.py')) || null;
+    } catch {}
+    if (foundPy) {
+      resolvedEntry = foundPy;
+      entryPath = path.join(botDir, resolvedEntry);
+    } else {
+      fs.writeFileSync(
+        entryPath,
+        `# Telegram Bot: ${name}\nimport os\nprint("Bot started: ${name}")\n`,
+        'utf-8'
+      );
+    }
   }
 
   // Extract or sync token
@@ -6053,7 +6113,9 @@ app.post('/api/bots/:id/upload-files', (req, res) => {
   const botDir = path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id);
   for (const f of files) {
     if (f.name) {
-      const p = path.join(botDir, path.basename(f.name));
+      const safeRel = path.normalize(f.name).replace(/^(\.\.[\/\\])+/, '');
+      const p = path.join(botDir, safeRel);
+      fs.mkdirSync(path.dirname(p), { recursive: true });
       if (f.content !== undefined) {
         fs.writeFileSync(p, f.content, 'utf-8');
       } else if (f.base64) {
