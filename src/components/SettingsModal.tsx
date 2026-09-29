@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Settings, FileCode, Package, Database, ShieldCheck, Cloud, ChevronRight, HardDrive, ArrowLeft,
-  Bell, BellOff, Volume2, History, Rocket, Tag
+  Bell, BellOff, Volume2, History, Rocket, Tag, Archive
 } from 'lucide-react';
 import { ScriptEditor } from './ScriptEditor';
 import { DatabaseManager } from './DatabaseManager';
 import { HostingGuide } from './HostingGuide';
 import { PipManagerModal } from './PipManagerModal';
 import { DeploymentHistoryView } from './DeploymentHistoryView';
+import { BotBackupsView } from './BotBackupsView';
 import { HostedBot, AuthUser } from '../types';
 import { playBotStoppedAlert } from '../utils/audioAlert';
 
@@ -45,11 +46,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [showPip, setShowPip] = useState(false);
 
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
+
   if (!isOpen) return null;
 
   const selectedBot = bots.find((b) => b.id === selectedBotId) || (bots.length > 0 ? bots[0] : null);
 
   const SETTING_ITEMS = [
+    {
+      id: 'backups',
+      icon: Archive,
+      titleBn: 'বট ফাইল ব্যাকআপ ও রিস্টোর',
+      titleEn: 'Bot Files Backups & Restore',
+      descBn: 'স্বয়ংক্রিয় ২৪ ঘণ্টার ব্যাকআপ, ইনস্ট্যান্ট স্ন্যাপশট ও যেকোনো ব্যাকআপ থেকে রিস্টোর',
+      descEn: '24-hour recurring auto-backups, instant snapshots, and one-click file restore',
+      color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
+    },
     {
       id: 'deployments',
       icon: History,
@@ -310,14 +326,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('deployments')}
-                      className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
-                    >
-                      <History className="w-3.5 h-3.5" />
-                      <span>{lang === 'bn' ? 'ডিপ্লয়মেন্ট হিস্ট্রি খুলুন' : 'View Deployment History'}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('backups')}
+                        className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                      >
+                        <Archive className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>{lang === 'bn' ? '২৪ঘণ্টা ব্যাকআপ' : '24h Backups'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('deployments')}
+                        className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        <span>{lang === 'bn' ? 'ডিপ্লয়মেন্ট হিস্ট্রি' : 'Deployments'}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -355,6 +382,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   })}
                 </div>
               </div>
+            ) : activeTab === 'backups' ? (
+              <BotBackupsView
+                lang={lang}
+                botId={selectedBot?.id}
+                botName={selectedBot?.name}
+                onBotsUpdated={onBotsUpdated}
+              />
             ) : activeTab === 'deployments' ? (
               <DeploymentHistoryView
                 lang={lang}

@@ -25,7 +25,8 @@ import {
   History,
   Tag,
   Zap,
-  X
+  X,
+  Archive
 } from 'lucide-react';
 import { HostedBot, AuthUser } from '../types';
 
@@ -41,6 +42,7 @@ interface BotListProps {
   onOpenFileEditor?: (botId: string) => void;
   onOpenSafeUpload?: (bot: HostedBot) => void;
   onOpenDeployments?: (botId: string) => void;
+  onOpenBackups?: (botId: string) => void;
   hasActivePlan?: boolean;
   onOpenPlans?: () => void;
   lang: 'bn' | 'en';
@@ -60,6 +62,7 @@ export const BotList: React.FC<BotListProps> = ({
   onOpenFileEditor,
   onOpenSafeUpload,
   onOpenDeployments,
+  onOpenBackups,
   hasActivePlan = false,
   onOpenPlans,
   lang,
@@ -694,6 +697,18 @@ export const BotList: React.FC<BotListProps> = ({
                         <Download className="w-3.5 h-3.5 shrink-0" />
                         <span>{lang === 'bn' ? 'জিপ' : 'Zip'}</span>
                       </a>
+
+                      {/* 24h Backups & Restore */}
+                      {onOpenBackups && (
+                        <button
+                          onClick={() => onOpenBackups(bot.id)}
+                          className="min-h-[32px] py-1.5 px-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                          title={lang === 'bn' ? '২৪ ঘণ্টা ব্যাকআপ ও রিস্টোর' : '24h Backups & Restore'}
+                        >
+                          <Archive className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <span>{lang === 'bn' ? 'ব্যাকআপ' : 'Backups'}</span>
+                        </button>
+                      )}
 
                       {/* KeepAlive Ping URL */}
                       <button

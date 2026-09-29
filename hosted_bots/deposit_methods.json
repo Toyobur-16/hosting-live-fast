@@ -1,0 +1,69 @@
+[
+  {
+    "id": "bkash",
+    "name": "bKash",
+    "subtitle": "Send Money",
+    "category": "mfs",
+    "currency": "BDT",
+    "accountValue": "01614572747",
+    "accountLabel": "বিকাশ পার্সোনাল নম্বর (Send Money):",
+    "instructions": "বিকাশ পার্সোনাল নাম্বারে Send Money করুন। টাকা পাঠানো শেষে TrxID ও যে নাম্বার থেকে পাঠিয়েছেন তা নিচে লিখে কনফার্ম করুন।",
+    "logoType": "bkash",
+    "enabled": true,
+    "rateToBdt": 120,
+    "color": "#E2136E"
+  },
+  {
+    "id": "nagad",
+    "name": "Nagad",
+    "subtitle": "Send Money",
+    "category": "mfs",
+    "currency": "BDT",
+    "accountValue": "01304104492",
+    "accountLabel": "নগদ পার্সোনাল নম্বর (Send Money):",
+    "instructions": "নগদ পার্সোনাল নাম্বারে Send Money করুন। টাকা পাঠানো শেষে TrxID ও যে নাম্বার থেকে পাঠিয়েছেন তা নিচে লিখে কনফার্ম করুন।",
+    "logoType": "nagad",
+    "enabled": true,
+    "rateToBdt": 120,
+    "color": "#F15A24"
+  },
+  {
+    "id": "binance_pay",
+    "name": "Binance Pay / UID",
+    "subtitle": "BINANCE_PAY",
+    "category": "crypto",
+    "currency": "USDT",
+    "accountValue": "922593999",
+    "accountLabel": "Binance Pay ID / UID:",
+    "instructions": "Binance Pay ID / UID তে ডলার সেন্ড করুন (০% ফি ও তাৎক্ষণিক)। পেমেন্ট শেষ হলে Binance Order ID / Trx ID দিন।",
+    "logoType": "binance",
+    "enabled": true,
+    "color": "#F3BA2F"
+  },
+  {
+    "id": "usdt_bep20",
+    "name": "USDT (BEP-20)",
+    "subtitle": "BEP20",
+    "category": "crypto",
+    "currency": "USDT",
+    "accountValue": "0xadf20566382613a481f39f62cd50b872314db1d3",
+    "accountLabel": "BNB Smart Chain (BEP-20) ওয়ালেট এড্রেস:",
+    "instructions": "শুধুমাত্র BNB Smart Chain (BEP-20) নেটওয়ার্কে USDT সেন্ড করবেন। পেমেন্ট শেষ হলে ট্রানজেকশন হ্যাশ (TxID) নিচে দিন।",
+    "logoType": "bep20",
+    "enabled": true,
+    "color": "#F59E0B"
+  },
+  {
+    "id": "usdt_trc20",
+    "name": "USDT (TRC-20)",
+    "subtitle": "TRC20",
+    "category": "crypto",
+    "currency": "USDT",
+    "accountValue": "TX7aA8b9qZ4eR2p3u5v6w7x8y9z0a1b2c3",
+    "accountLabel": "Tron (TRC-20) ওয়ালেট এড্রেস:",
+    "instructions": "শুধুমাত্র Tron (TRC-20) নেটওয়ার্কে USDT সেন্ড করবেন। পেমেন্ট সম্পন্ন হলে ট্রানজেকশন হ্যাশ (TxID) নিচে দিন।",
+    "logoType": "trc20",
+    "enabled": true,
+    "color": "#EF4444"
+  }
+]

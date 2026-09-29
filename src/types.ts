@@ -285,6 +285,24 @@ export interface CryptoNetworkItem {
   enabled: boolean;
 }
 
+export interface DepositMethodItem {
+  id: string;
+  name: string;
+  subtitle: string;
+  category: 'mfs' | 'crypto' | 'custom';
+  currency: 'USDT' | 'USD' | 'BDT';
+  accountValue: string;
+  accountLabel: string;
+  memoOrTag?: string;
+  instructions: string;
+  logoType: 'bkash' | 'nagad' | 'binance' | 'bep20' | 'trc20' | 'polygon' | 'ton' | 'custom';
+  logoUrl?: string;
+  qrImageUrl?: string;
+  enabled: boolean;
+  rateToBdt?: number;
+  color?: string;
+}
+
 export interface CustomDepositMethod {
   id: string;
   name: string;
@@ -328,6 +346,7 @@ export interface PaymentSettings {
   rocketDeleted?: boolean;
   rocketQrUrl?: string;
   customMethods?: CustomDepositMethod[];
+  depositMethods?: DepositMethodItem[];
   instructionsBn?: string;
   instructionsEn?: string;
 }
@@ -399,6 +418,27 @@ export interface DeploymentRecord {
   deployedBy?: string;
   filesCount?: number;
   commitHash?: string;
+}
+
+export interface BotBackupFile {
+  name: string;
+  size: number;
+  modified?: string;
+}
+
+export interface BotBackupRecord {
+  id: string;
+  botId: string;
+  botName: string;
+  timestamp: string;
+  trigger: 'auto_24h' | 'manual';
+  filesCount: number;
+  totalSizeBytes: number;
+  zipFileName?: string;
+  files: BotBackupFile[];
+  description: string;
+  status: 'completed' | 'failed';
+  restoredAt?: string;
 }
 
 export interface BotStatus {

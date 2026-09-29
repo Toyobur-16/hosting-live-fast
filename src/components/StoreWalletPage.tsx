@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthUser, PaymentSettings, DepositRequest, BinancePayOrder, CustomDepositMethod } from '../types';
+import { DepositStorePage } from './DepositStorePage';
 
 interface StoreWalletPageProps {
   user: AuthUser | null;
@@ -490,6 +491,8 @@ export function StoreWalletPage({
     if (selectedGateway === 'binance') return paymentSettings.binancePayId || paymentSettings.binanceUid || paymentSettings.binanceId || '922593999';
     if (selectedGateway === 'bkash') return paymentSettings.bkashNumber || '01614572747';
     if (selectedGateway === 'nagad') return paymentSettings.nagadNumber || '01304104492';
+    const cryptoNet = paymentSettings.cryptoNetworks?.find((cn) => cn.id === selectedGateway);
+    if (cryptoNet) return cryptoNet.addressOrId || '';
     const custom = paymentSettings.customMethods?.find((cm) => cm.id === selectedGateway);
     if (custom) return custom.account || '';
     return '';
@@ -499,18 +502,24 @@ export function StoreWalletPage({
     if (selectedGateway === 'binance') return 'Binance (USDT)';
     if (selectedGateway === 'bkash') return 'bKash (বিকাশ)';
     if (selectedGateway === 'nagad') return 'Nagad (নগদ)';
+    const cryptoNet = paymentSettings.cryptoNetworks?.find((cn) => cn.id === selectedGateway);
+    if (cryptoNet) return cryptoNet.name || 'Crypto Network';
     const custom = paymentSettings.customMethods?.find((cm) => cm.id === selectedGateway);
     if (custom) return custom.name || 'Custom Deposit';
     return '';
   };
 
   const getGatewayQrUrl = () => {
-    // Only Binance displays QR code scanner as requested by user
+    // Only Binance or networks with QR display QR code scanner
     if (selectedGateway === 'binance') return paymentSettings.binanceQrUrl || '';
+    const cryptoNet = paymentSettings.cryptoNetworks?.find((cn) => cn.id === selectedGateway);
+    if (cryptoNet) return cryptoNet.qrImageUrl || '';
     return '';
   };
 
   const getGatewayInstructions = () => {
+    const cryptoNet = paymentSettings.cryptoNetworks?.find((cn) => cn.id === selectedGateway);
+    if (cryptoNet && cryptoNet.instructionsBn) return cryptoNet.instructionsBn;
     const custom = paymentSettings.customMethods?.find((cm) => cm.id === selectedGateway);
     if (custom && custom.instructions) return custom.instructions;
     return paymentSettings.instructionsBn || '';
@@ -868,364 +877,14 @@ export function StoreWalletPage({
       )}
 
       {/* VIEW 2: DEPOSIT FUNDS */}
-      {view === 'deposit' && (
-        <div className="space-y-6">
-          {/* Back to Wallet Button */}
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setView('overview')}
-              className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-[#00d293] cursor-pointer transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Wallet</span>
-            </button>
-            <button
-              onClick={() => setView('history')}
-              className="text-xs font-bold text-amber-400 hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <Receipt className="w-3.5 h-3.5" />
-              <span>ডিপোজিট হিস্ট্রি দেখুন</span>
-            </button>
-          </div>
-
-          {/* Header */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#00d293]/15 flex items-center justify-center text-[#00d293]">
-              <Plus className="w-5 h-5 stroke-[2.5]" />
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white">
-              ডিপোজিট মেথড নির্বাচন করুন
-            </h2>
-          </div>
-
-          {/* Gateways Grid (Binance, bKash, Nagad, Rocket, and any Custom Methods added by admin!) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-            {/* 1. Binance */}
-            {paymentSettings.binanceEnabled !== false && (
-              <button
-                type="button"
-                onClick={() => setSelectedGateway('binance')}
-                className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
-                  selectedGateway === 'binance'
-                    ? 'bg-amber-500/15 border-amber-400 ring-2 ring-amber-400/30 shadow-lg'
-                    : 'bg-[#0d1424] border-[#1e2e42] hover:border-amber-400/50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-400 flex items-center justify-center font-black text-sm shrink-0">
-                    ₮
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-xs font-black text-white block truncate">Binance Pay</span>
-                    <span className="text-[10px] text-amber-400 font-bold truncate">
-                      Pay ID / UID
-                    </span>
-                  </div>
-                </div>
-              </button>
-            )}
-
-            {/* 2. bKash */}
-            {paymentSettings.bkashEnabled !== false && (
-              <button
-                type="button"
-                onClick={() => setSelectedGateway('bkash')}
-                className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
-                  selectedGateway === 'bkash'
-                    ? 'bg-pink-500/15 border-pink-500 ring-2 ring-pink-500/30 shadow-lg'
-                    : 'bg-[#0d1424] border-[#1e2e42] hover:border-pink-500/50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {paymentSettings.bkashQrUrl ? (
-                    <img
-                      src={paymentSettings.bkashQrUrl}
-                      alt="bKash"
-                      className="w-8 h-8 rounded-lg object-cover border border-pink-500/40 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center font-black text-xs shrink-0">
-                      বিকাশ
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <span className="text-xs font-black text-white block truncate">bKash</span>
-                    <span className="text-[10px] text-pink-400 font-bold truncate">Send Money</span>
-                  </div>
-                </div>
-              </button>
-            )}
-
-            {/* 3. Nagad */}
-            {paymentSettings.nagadEnabled !== false && (
-              <button
-                type="button"
-                onClick={() => setSelectedGateway('nagad')}
-                className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
-                  selectedGateway === 'nagad'
-                    ? 'bg-orange-500/15 border-orange-500 ring-2 ring-orange-500/30 shadow-lg'
-                    : 'bg-[#0d1424] border-[#1e2e42] hover:border-orange-500/50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {paymentSettings.nagadQrUrl ? (
-                    <img
-                      src={paymentSettings.nagadQrUrl}
-                      alt="Nagad"
-                      className="w-8 h-8 rounded-lg object-cover border border-orange-500/40 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-400 flex items-center justify-center font-black text-xs shrink-0">
-                      নগদ
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <span className="text-xs font-black text-white block truncate">Nagad</span>
-                    <span className="text-[10px] text-orange-400 font-bold truncate">Send Money</span>
-                  </div>
-                </div>
-              </button>
-            )}
-
-            {/* Custom Methods with Direct Image / QR upload added by Admin */}
-            {paymentSettings.customMethods?.filter((cm) => cm.enabled !== false).map((cm) => (
-              <button
-                key={cm.id}
-                type="button"
-                onClick={() => setSelectedGateway(cm.id)}
-                className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
-                  selectedGateway === cm.id
-                    ? 'bg-emerald-500/15 border-[#00d293] ring-2 ring-[#00d293]/30 shadow-lg'
-                    : 'bg-[#0d1424] border-[#1e2e42] hover:border-[#00d293]/50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {cm.imageUrl ? (
-                    <img
-                      src={cm.imageUrl}
-                      alt={cm.name}
-                      className="w-8 h-8 rounded-lg object-cover border border-[#00d293]/40 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-lg bg-[#00d293]/20 text-[#00d293] flex items-center justify-center font-black text-xs shrink-0">
-                      <CreditCard className="w-4 h-4" />
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <span className="text-xs font-black text-white block truncate">{cm.name}</span>
-                    <span className="text-[10px] text-[#00d293] font-bold truncate">Custom Pay</span>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Amount Preset Chips and Input */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-[#0d1424] border border-[#1e2e42] space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <span>💰</span> ডিপোজিট এমাউন্ট সিলেক্ট করুন (Select Amount):
-              </label>
-              {selectedGateway !== 'binance' && (
-                <span className="text-[11px] font-bold text-amber-400">
-                  ১ USDT = ১২০ ৳ (BDT)
-                </span>
-              )}
-            </div>
-
-            {/* Preset Amount Chips */}
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-              {PRESET_AMOUNTS.map((amt) => {
-                const isSelected = parseFloat(depositAmount) === amt;
-                return (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() => setDepositAmount(String(amt))}
-                    className={`py-2 px-1 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 ring-2 ring-amber-400/50 shadow-md scale-[1.02]'
-                        : 'bg-[#0a0f1d] hover:bg-[#141e33] text-slate-300 border border-slate-800'
-                    }`}
-                  >
-                    ${amt}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Custom Amount Field */}
-            <div className="pt-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
-              <div className="relative flex-1">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-amber-400">
-                  $
-                </span>
-                <input
-                  type="number"
-                  step="any"
-                  min="0.1"
-                  value={depositAmount}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  placeholder="Custom amount"
-                  className="w-full pl-8 pr-16 py-2.5 rounded-xl bg-[#0a0f1d] border border-slate-700 text-sm font-black text-white focus:outline-none focus:border-amber-400"
-                />
-                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
-                  USDT
-                </span>
-              </div>
-
-              {selectedGateway !== 'binance' && (
-                <div className="px-4 py-2 rounded-xl bg-[#0a0f1d] border border-slate-800 flex sm:flex-col justify-between sm:justify-center items-center sm:items-end min-w-[120px]">
-                  <span className="text-[10px] text-slate-400 block font-bold">পরিশোধ করতে হবে:</span>
-                  <span className="text-sm font-black text-[#00d293]">
-                    ৳{calculatedBdt.toLocaleString()} BDT
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* DEPOSIT SUBMISSION FORM (Unified for Binance Pay, bKash, Nagad, Rocket, Custom) */}
-          <div className="p-5 sm:p-7 rounded-3xl bg-[#0d1424] border border-[#1e2e42] shadow-xl space-y-5">
-            {/* Step-by-Step Payment Instructions */}
-            <div className="p-4 rounded-2xl bg-[#070b14] border border-[#1e293b] space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>💎</span> {getGatewayTitle()} ডিপোজিট নির্দেশিকা
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#00d293]/20 text-[#00d293] font-bold">
-                    {selectedGateway === 'binance' ? 'USDT' : '১ USDT = ১২০ টাকা'}
-                  </span>
-                </div>
-
-                {/* Admin Number / Pay ID with 1-click Copy */}
-                <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#0f172a] border border-slate-700">
-                  <div className="flex flex-col min-w-0 pr-2">
-                    <span className="text-[11px] font-bold text-slate-300">
-                      {selectedGateway === 'binance'
-                        ? 'এডমিন Binance Pay ID / UID:'
-                        : `এডমিন ${getGatewayTitle()} নাম্বার (Send Money):`}
-                    </span>
-                    <span className="text-base sm:text-lg font-black text-white tracking-wider mt-0.5 font-mono truncate">
-                      {getGatewayNumber()}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(getGatewayNumber(), 'gatewayNumber')}
-                    className="px-3.5 py-2 rounded-xl bg-[#00d293] hover:bg-[#00be84] text-slate-950 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-md transition-all active:scale-95 shrink-0"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>{copiedField === 'gatewayNumber' ? '✓ কপি হয়েছে!' : 'কপি করুন'}</span>
-                  </button>
-                </div>
-
-                {/* Direct Uploaded Image / QR Code Display */}
-                {getGatewayQrUrl() && (
-                  <div className="p-3.5 rounded-xl bg-[#0a0f1d] border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={getGatewayQrUrl()}
-                        alt="Payment QR"
-                        onClick={() => setPreviewImage(getGatewayQrUrl())}
-                        className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-contain bg-white p-1 border border-slate-700 shadow-md cursor-pointer hover:scale-105 transition"
-                        title="বড় করে দেখতে ক্লিক করুন"
-                      />
-                      <div>
-                        <span className="text-xs font-bold text-white flex items-center gap-1">
-                          <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
-                          <span>পেমেন্ট ছবি / কিউআর কোড (Direct QR)</span>
-                        </span>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          আপনার পেমেন্ট অ্যাপ দিয়ে সরাসরি স্ক্যান করে টাকা পাঠাতে পারেন।
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setPreviewImage(getGatewayQrUrl())}
-                          className="mt-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 font-semibold flex items-center gap-1 cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3" />
-                          <span>ছবি বড় করে দেখুন</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Custom Instructions if provided */}
-                {getGatewayInstructions() && (
-                  <div className="p-3 rounded-xl bg-[#0c1424] border border-slate-800 text-xs text-slate-300">
-                    <span className="font-bold text-amber-300 block mb-0.5">নির্দেশনা:</span>
-                    <p className="whitespace-pre-line leading-relaxed">{getGatewayInstructions()}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Form Inputs */}
-              <form onSubmit={handleSubmitDeposit} className="space-y-4">
-                {selectedGateway !== 'binance' && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                      ১. আপনার প্রেরক একাউন্ট নাম্বার (যে নাম্বার থেকে টাকা পাঠিয়েছেন)
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={senderIdentifier}
-                      onChange={(e) => setSenderIdentifier(e.target.value)}
-                      placeholder="e.g. 017XXXXXXXX"
-                      className="w-full px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#1e293b] text-sm text-white font-mono focus:border-[#00d293] focus:outline-hidden"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                    {selectedGateway === 'binance' ? '১. Binance Pay Transaction ID / Order ID' : '২. Transaction ID (TrxID)'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    placeholder="e.g. 9J83KLOP01"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#1e293b] text-sm text-white font-bold uppercase tracking-wider focus:border-[#00d293] focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                    অতিরিক্ত নোট বা মন্তব্য (ঐচ্ছিক)
-                  </label>
-                  <input
-                    type="text"
-                    value={depositNote}
-                    onChange={(e) => setDepositNote(e.target.value)}
-                    placeholder="কোনো বিশেষ মন্তব্য থাকলে লিখতে পারেন"
-                    className="w-full px-4 py-2 rounded-xl bg-[#0f172a] border border-[#1e293b] text-xs text-white focus:border-[#00d293] focus:outline-hidden"
-                  />
-                </div>
-
-                {submitError && (
-                  <div className="p-3 bg-rose-950/60 border border-rose-800 rounded-xl text-xs text-rose-300 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                    <span>{submitError}</span>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#00d293] to-emerald-400 hover:from-[#00be84] hover:to-emerald-500 text-slate-950 font-black text-sm shadow-xl shadow-[#00d293]/20 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
-                >
-                  <Send className="w-4 h-4 stroke-[2.5]" />
-                  <span>{submitting ? 'সাবমিট হচ্ছে...' : 'ডিপোজিট রিকোয়েস্ট সাবমিট করুন'}</span>
-                </button>
-              </form>
-            </div>
-        </div>
+      {view === "deposit" && (
+        <DepositStorePage
+          user={user}
+          onOpenAuthModal={onOpenAuthModal}
+          onNavigateToPlans={onNavigateToPlans}
+          onNavigateToWallet={() => setView("overview")}
+          onUserUpdated={onUserUpdated}
+        />
       )}
 
       {/* VIEW 3: FULL DEPOSIT HISTORY (Add Deposit History) */}

@@ -642,6 +642,7 @@ export default function App() {
             user={currentUser}
             onOpenAuthModal={openAuthModal}
             onNavigateToPlans={() => setActiveTab('plans')}
+            onNavigateToWallet={() => setActiveTab('wallet')}
             onUserUpdated={(u) => {
               setCurrentUser(u);
               checkAuth();
@@ -727,6 +728,11 @@ export default function App() {
               onOpenDeployments={(botId) => {
                 setSelectedBotId(botId);
                 setSettingsInitialTab('deployments');
+                setShowSettingsModal(true);
+              }}
+              onOpenBackups={(botId) => {
+                setSelectedBotId(botId);
+                setSettingsInitialTab('backups');
                 setShowSettingsModal(true);
               }}
               hasActivePlan={hasActivePlan}

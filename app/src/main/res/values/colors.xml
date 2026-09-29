@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="slate_950">#FF060B18</color>
-    <color name="slate_900">#FF0B1325</color>
-    <color name="cyan_500">#FF06B6D4</color>
-    <color name="emerald_500">#FF10B981</color>
-    <color name="white">#FFFFFFFF</color>
-    <color name="ic_launcher_background">#FF070F22</color>
-</resources>

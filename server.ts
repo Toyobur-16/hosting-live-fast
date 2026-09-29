@@ -68,6 +68,25 @@ import {
   isValidSlug,
   sanitizeSlug
 } from './server/staticWebsitesManager';
+import {
+  getBotBackups,
+  getBotBackupById,
+  getBotBackupZipPath,
+  createBotBackup,
+  restoreBotBackup,
+  deleteBotBackup,
+  getBotBackupStats,
+  run24HourAutoBackupCycle,
+  start24HourBackupScheduler
+} from './server/botBackupManager';
+import {
+  getDepositMethods,
+  saveDepositMethods,
+  addOrUpdateDepositMethod,
+  deleteDepositMethod,
+  resetDepositMethods,
+  DepositMethodItem
+} from './server/depositMethodsManager';
 
 // Enforce IPv4 priority globally to eliminate ENETUNREACH in containers lacking IPv6 routes
 if (typeof (dns as any).setDefaultResultOrder === 'function') {
@@ -379,7 +398,7 @@ if (!fs.existsSync(PAYMENT_SETTINGS_FILE)) {
   // Ensure default numbers match current screenshot specs if old placeholders are present
   try {
     const curr = JSON.parse(fs.readFileSync(PAYMENT_SETTINGS_FILE, 'utf-8'));
-    if (curr.bkashNumber?.includes('01711223344') || !curr.bkashNumber) {
+    if (curr.bkashNumber?.includes('01711223344')) {
       curr.bkashNumber = '01614572747';
       curr.nagadNumber = '01304104492';
       curr.binanceId = '922593999';
@@ -1153,6 +1172,7 @@ function isUserAdmin(user: any): boolean {
     email === 'toyoburrahman9090@gmail.com' ||
     email === 'mdtayburrahman1111@gmail.com' ||
     email === 'badsharahmanbd@gmail.com' ||
+    email === 'badsharahman250@gmail.com' ||
     email === 'toyobur@telegram.bot'
   ) {
     return true;
@@ -1309,6 +1329,7 @@ function getAuthUser(req: express.Request): any | null {
             payload.email &&
             (payload.email.toLowerCase() === 'mdtayburrahman1111@gmail.com' ||
               payload.email.toLowerCase() === 'badsharahmanbd@gmail.com' ||
+              payload.email.toLowerCase() === 'badsharahman250@gmail.com' ||
               payload.email.toLowerCase() === 'toyoburrahman9090@gmail.com' ||
               payload.email.toLowerCase() === 'toyoburrahman526@gmail.com' ||
               payload.email.toLowerCase() === 'toyobur@telegram.bot');
@@ -1826,6 +1847,7 @@ function buildVerifiedUserRecord(cleanEmail: string, name?: string, password?: s
   const isAdmin =
     cleanEmail === 'mdtayburrahman1111@gmail.com' ||
     cleanEmail === 'badsharahmanbd@gmail.com' ||
+    cleanEmail === 'badsharahman250@gmail.com' ||
     cleanEmail === 'toyoburrahman9090@gmail.com' ||
     cleanEmail === 'toyoburrahman526@gmail.com' ||
     cleanEmail === 'toyobur@telegram.bot';
@@ -2729,6 +2751,7 @@ app.post('/api/auth/google', (req, res) => {
     const isAdmin =
       email === 'mdtayburrahman1111@gmail.com' ||
       email === 'badsharahmanbd@gmail.com' ||
+      email === 'badsharahman250@gmail.com' ||
       email === 'toyoburrahman9090@gmail.com' ||
       email === 'toyoburrahman526@gmail.com' ||
       email === 'toyobur@telegram.bot' ||
@@ -3024,6 +3047,7 @@ function getSafePaymentSettings() {
   delete safe.binancePaySecretKey;
   return {
     ...safe,
+    depositMethods: getDepositMethods(),
     binancePayApiEnabled: creds.isEnabled,
     hasBinanceCredentials: creds.isConfigured
   };
@@ -3035,6 +3059,53 @@ app.get('/api/payment-settings', (req, res) => {
 
 app.get('/api/settings/payment', (req, res) => {
   res.json(getSafePaymentSettings());
+});
+
+// Deposit Methods Direct Endpoints (List, Add, Edit, Delete, Reset)
+app.get('/api/deposit-methods', (req, res) => {
+  const methods = getDepositMethods();
+  res.json({ success: true, methods });
+});
+
+app.post('/api/deposit-methods', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) {
+    return res.status(403).json({ error: 'এডমিন এক্সেস প্রয়োজন (Admin access required)' });
+  }
+
+  const { method, methods } = req.body;
+  if (Array.isArray(methods)) {
+    saveDepositMethods(methods);
+    return res.json({ success: true, message: 'ডিপোজিট মেথড তালিকা সফলভাবে সংরক্ষিত হয়েছে।', methods });
+  }
+
+  if (method && method.name) {
+    const updated = addOrUpdateDepositMethod(method);
+    return res.json({ success: true, message: 'ডিপোজিট মেথড সফলভাবে আপডেট করা হয়েছে।', methods: updated });
+  }
+
+  return res.status(400).json({ error: 'মেথড তথ্য প্রদান করুন (Method data required)' });
+});
+
+app.delete('/api/deposit-methods/:id', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) {
+    return res.status(403).json({ error: 'এডমিন এক্সেস প্রয়োজন (Admin access required)' });
+  }
+
+  const { id } = req.params;
+  const updated = deleteDepositMethod(id);
+  res.json({ success: true, message: 'মেথড সফলভাবে ডিলিট করা হয়েছে।', methods: updated });
+});
+
+app.post('/api/deposit-methods/reset', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) {
+    return res.status(403).json({ error: 'এডমিন এক্সেস প্রয়োজন (Admin access required)' });
+  }
+
+  const methods = resetDepositMethods();
+  res.json({ success: true, message: 'ডিপোজিট মেথডসমূহ ডিফল্ট অবস্থায় রিসেট করা হয়েছে।', methods });
 });
 
 app.get('/api/site-settings', (req, res) => {
@@ -4436,6 +4507,7 @@ app.get('/api/admin/payment-settings', (req, res) => {
     success: true,
     settings: {
       ...settings,
+      depositMethods: getDepositMethods(),
       binancePayApiKey: creds.apiKey,
       binancePaySecretKey: creds.secretKey ? '********' : '',
       binancePayMerchantId: creds.merchantId,
@@ -4460,12 +4532,17 @@ app.post('/api/admin/payment-settings', (req, res) => {
   }
 
   savePaymentSettings(newSettings);
+  if (Array.isArray(newSettings.depositMethods)) {
+    saveDepositMethods(newSettings.depositMethods);
+  }
+
   const updatedCreds = getBinanceCredentials();
 
   res.json({
     success: true,
     settings: {
       ...newSettings,
+      depositMethods: getDepositMethods(),
       binancePaySecretKey: updatedCreds.secretKey ? '********' : '',
       hasBinanceCredentials: updatedCreds.isConfigured
     }
@@ -6323,6 +6400,183 @@ app.post('/api/bots/:id/deployments/:depId/activate', (req, res) => {
   });
 });
 
+// Bot Backups & Restore Routes (Recurring 24h & Manual Snapshots)
+app.get('/api/bots/:id/backups', (req, res) => {
+  const { id } = req.params;
+  const reg = getRegistry();
+  const bot = reg.find((b: any) => b.id === id);
+  if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+  const user = getAuthUser(req);
+  if (user && !canUserAccessBot(bot, user)) {
+    return res.status(403).json({ error: 'ব্যাকআপ দেখার অনুমতি আপনার নেই (Access Denied: Only bot owner can view backups)' });
+  }
+
+  const backups = getBotBackups(id);
+  const stats = getBotBackupStats(id);
+
+  res.json({
+    success: true,
+    botId: id,
+    botName: bot.name,
+    backups,
+    stats
+  });
+});
+
+app.post('/api/bots/:id/backups', (req, res) => {
+  const { id } = req.params;
+  const { description } = req.body;
+  const reg = getRegistry();
+  const bot = reg.find((b: any) => b.id === id);
+  if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+  const user = getAuthUser(req);
+  if (user && !canUserAccessBot(bot, user)) {
+    return res.status(403).json({ error: 'ব্যাকআপ তৈরি করার অনুমতি আপনার নেই (Access Denied: Only bot owner can create backups)' });
+  }
+
+  try {
+    const backup = createBotBackup(bot, 'manual', description);
+    appendLog(id, 'info', `💾 Manual bot file backup snapshot created: ${backup.description} (${backup.filesCount} files)`);
+
+    res.json({
+      success: true,
+      message: 'Backup created successfully',
+      backup,
+      backups: getBotBackups(id),
+      stats: getBotBackupStats(id)
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to create backup' });
+  }
+});
+
+app.post('/api/bots/:id/backups/:backupId/restore', (req, res) => {
+  const { id, backupId } = req.params;
+  const { restart = true } = req.body;
+  const reg = getRegistry();
+  const bot = reg.find((b: any) => b.id === id);
+  if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+  const user = getAuthUser(req);
+  if (user && !canUserAccessBot(bot, user)) {
+    return res.status(403).json({ error: 'ব্যাকআপ রিস্টোর করার অনুমতি আপনার নেই (Access Denied: Only bot owner can restore backups)' });
+  }
+
+  try {
+    const wasRunning = bot.status === 'running' || runningProcesses.has(id);
+    if (wasRunning) {
+      stopBotProcess(id);
+    }
+
+    const restoreResult = restoreBotBackup(bot, backupId);
+
+    // Record deployment release for history tracking
+    recordBotDeployment(id, {
+      trigger: 'backup_restore',
+      description: `Restored bot files from snapshot (${restoreResult.backup.description || backupId})`,
+      status: 'active',
+      entryFile: bot.entryFile || 'bot.py',
+      deployedBy: user ? (user.name || user.email) : (bot.ownerName || 'Admin'),
+      filesCount: restoreResult.restoredFilesCount
+    });
+
+    appendLog(id, 'info', `🔄 Restored bot files from backup '${restoreResult.backup.description || backupId}' (${restoreResult.restoredFilesCount} files).`);
+
+    if (restart) {
+      setTimeout(() => {
+        const freshReg = getRegistry();
+        const freshBot = freshReg.find((b: any) => b.id === id) || bot;
+        launchBotProcess(freshBot);
+      }, 700);
+    }
+
+    res.json({
+      success: true,
+      message: 'Bot files successfully restored from backup snapshot',
+      backup: restoreResult.backup,
+      backups: getBotBackups(id),
+      stats: getBotBackupStats(id)
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to restore backup snapshot' });
+  }
+});
+
+app.delete('/api/bots/:id/backups/:backupId', (req, res) => {
+  const { id, backupId } = req.params;
+  const reg = getRegistry();
+  const bot = reg.find((b: any) => b.id === id);
+  if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+  const user = getAuthUser(req);
+  if (user && !canUserAccessBot(bot, user)) {
+    return res.status(403).json({ error: 'ব্যাকআপ মোছার অনুমতি আপনার নেই' });
+  }
+
+  const success = deleteBotBackup(id, backupId);
+  if (!success) {
+    return res.status(404).json({ error: 'Backup not found' });
+  }
+
+  appendLog(id, 'info', `🗑️ Backup snapshot '${backupId}' deleted.`);
+
+  res.json({
+    success: true,
+    message: 'Backup deleted successfully',
+    backups: getBotBackups(id),
+    stats: getBotBackupStats(id)
+  });
+});
+
+app.get('/api/bots/:id/backups/:backupId/download', (req, res) => {
+  const { id, backupId } = req.params;
+  const reg = getRegistry();
+  const bot = reg.find((b: any) => b.id === id);
+  if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+  const user = getAuthUser(req);
+  if (user && !canUserAccessBot(bot, user)) {
+    return res.status(403).json({ error: 'ব্যাকআপ ডাউনলোড করার অনুমতি আপনার নেই' });
+  }
+
+  const zipPath = getBotBackupZipPath(id, backupId);
+  if (!zipPath) {
+    return res.status(404).json({ error: 'Backup archive not found' });
+  }
+
+  const safeBotName = (bot.name || 'bot').replace(/[^a-zA-Z0-9_-]/g, '_');
+  res.download(zipPath, `${safeBotName}_backup_${backupId}.zip`);
+});
+
+app.post('/api/bots/:id/backups/trigger-auto', (req, res) => {
+  const { id } = req.params;
+  const reg = getRegistry();
+  const bot = reg.find((b: any) => b.id === id);
+  if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+  const user = getAuthUser(req);
+  if (user && !canUserAccessBot(bot, user)) {
+    return res.status(403).json({ error: 'অনুমতি নেই' });
+  }
+
+  try {
+    const backup = createBotBackup(bot, 'auto_24h', 'Automatic 24-Hour Backup');
+    appendLog(id, 'info', `💾 [Auto-Backup] 24-Hour scheduled backup triggered manually (${backup.filesCount} files)`);
+
+    res.json({
+      success: true,
+      message: '24-hour automatic backup generated successfully',
+      backup,
+      backups: getBotBackups(id),
+      stats: getBotBackupStats(id)
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 5. Python Syntax Checker
 app.post('/api/code/syntax-check', (req, res) => {
   const { code } = req.body;
@@ -7277,6 +7531,8 @@ async function start() {
     });
     // Start Cloud SMTP Relay Worker to dispatch any emails queued over HTTPS Port 443
     startCloudSmtpRelayWorker();
+    // Start 24-Hour recurring automatic bot backup service
+    start24HourBackupScheduler(getRegistry, appendLog);
   });
 }
 
