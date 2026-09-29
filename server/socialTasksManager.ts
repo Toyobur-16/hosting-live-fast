@@ -41,13 +41,24 @@ export interface TaskCompletionLog {
   platform: SocialPlatform;
   taskTitle: string;
   rewardUsd: number;
-  completedAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+  screenshotUrl?: string;
   proofNote?: string;
+  submittedAt: string;
+  completedAt?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectReason?: string;
 }
 
 const HOSTED_BOTS_DIR = path.join(process.cwd(), 'hosted_bots');
+const TASK_PROOFS_DIR = path.join(HOSTED_BOTS_DIR, 'task_proofs');
 const SOCIAL_TASKS_FILE = path.join(HOSTED_BOTS_DIR, 'social_tasks.json');
 const TASK_COMPLETIONS_FILE = path.join(HOSTED_BOTS_DIR, 'task_completions.json');
+
+if (!fs.existsSync(TASK_PROOFS_DIR)) {
+  fs.mkdirSync(TASK_PROOFS_DIR, { recursive: true });
+}
 
 export const DEFAULT_SOCIAL_TASKS: SocialTask[] = [
   {
@@ -169,7 +180,13 @@ export function getTaskCompletions(): TaskCompletionLog[] {
   try {
     if (fs.existsSync(TASK_COMPLETIONS_FILE)) {
       const data = JSON.parse(fs.readFileSync(TASK_COMPLETIONS_FILE, 'utf-8'));
-      if (Array.isArray(data)) return data;
+      if (Array.isArray(data)) {
+        return data.map((d: any) => ({
+          ...d,
+          status: d.status || 'approved',
+          submittedAt: d.submittedAt || d.completedAt || new Date().toISOString()
+        }));
+      }
     }
   } catch (err) {
     console.error('Error reading task completions:', err);
@@ -185,19 +202,40 @@ export function saveTaskCompletions(logs: TaskCompletionLog[]): void {
   }
 }
 
+/**
+ * Returns task IDs that this user has completed or has pending approval.
+ * Rejected tasks are excluded so the user can re-try if they want.
+ */
 export function getUserCompletedTaskIds(userId: string): string[] {
   if (!userId) return [];
   const logs = getTaskCompletions();
-  return logs.filter((l) => l.userId === userId).map((l) => l.taskId);
+  return logs
+    .filter((l) => l.userId === userId && (l.status === 'pending' || l.status === 'approved'))
+    .map((l) => l.taskId);
 }
 
-export async function claimSocialTaskReward(
+/**
+ * Get all submissions by a specific user
+ */
+export function getUserTaskSubmissions(userId: string): TaskCompletionLog[] {
+  if (!userId) return [];
+  const logs = getTaskCompletions();
+  return logs
+    .filter((l) => l.userId === userId)
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+}
+
+/**
+ * User submits task proof (screenshot + optional note) for Admin approval
+ */
+export async function submitSocialTaskProof(
   userId: string,
   userName: string,
   userEmail: string,
   taskId: string,
+  screenshotDataUrl?: string,
   proofNote?: string
-): Promise<{ success: boolean; task?: SocialTask; rewardUsd?: number; newBalance?: number; error?: string }> {
+): Promise<{ success: boolean; submission?: TaskCompletionLog; error?: string }> {
   if (!userId) {
     return { success: false, error: 'User login required' };
   }
@@ -213,33 +251,42 @@ export async function claimSocialTaskReward(
   }
 
   const logs = getTaskCompletions();
-  const alreadyDone = logs.some((l) => l.userId === userId && l.taskId === taskId);
-  if (alreadyDone) {
+  const existing = logs.find((l) => l.userId === userId && l.taskId === taskId && l.status !== 'rejected');
+  if (existing) {
+    if (existing.status === 'pending') {
+      return { success: false, error: 'আপনি ইতিমধ্যে এই টাস্কের স্ক্রিনশট জমা দিয়েছেন। এডমিন পর্যালোচনার পর অ্যাপ্রুভ করা হবে।' };
+    }
     return { success: false, error: 'আপনি ইতিমধ্যে এই টাস্কটি সম্পন্ন করে রিওয়ার্ড গ্রহণ করেছেন।' };
   }
 
   const reward = typeof task.rewardUsd === 'number' && task.rewardUsd > 0 ? task.rewardUsd : 0.01;
+  const subId = `task_sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  let screenshotUrl: string | undefined = undefined;
 
-  // Credit USD directly to user wallet
-  const walletResult = modifyUserWallet(
-    userId,
-    reward,
-    'task_reward',
-    `সোশ্যাল টাস্ক রিওয়ার্ড: ${task.titleBn || task.title} (+${reward} USD)`,
-    'reward'
-  );
-
-  if (!walletResult.success) {
-    return { success: false, error: walletResult.error || 'ওয়ালেট ব্যালেন্স ক্রেডিট করতে সমস্যা হয়েছে।' };
+  // Save screenshot image file if base64 data URL provided
+  if (screenshotDataUrl && typeof screenshotDataUrl === 'string' && screenshotDataUrl.startsWith('data:image')) {
+    try {
+      const match = screenshotDataUrl.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+      if (match) {
+        const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+        const base64Data = match[2];
+        const fileName = `${subId}.${ext}`;
+        const filePath = path.join(TASK_PROOFS_DIR, fileName);
+        fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+        screenshotUrl = `/api/task-proofs/${fileName}`;
+      } else {
+        screenshotUrl = screenshotDataUrl;
+      }
+    } catch (err) {
+      console.error('Failed to save screenshot file:', err);
+      screenshotUrl = screenshotDataUrl;
+    }
+  } else if (screenshotDataUrl) {
+    screenshotUrl = screenshotDataUrl;
   }
 
-  // Increment completion counter on the task
-  task.totalCompletions = (task.totalCompletions || 0) + 1;
-  saveSocialTasks(tasks);
-
-  // Add completion log
-  const newLog: TaskCompletionLog = {
-    id: `comp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+  const newSubmission: TaskCompletionLog = {
+    id: subId,
     taskId: task.id,
     userId,
     userName: userName || 'User',
@@ -247,17 +294,126 @@ export async function claimSocialTaskReward(
     platform: task.platform,
     taskTitle: task.titleBn || task.title,
     rewardUsd: reward,
-    completedAt: new Date().toISOString(),
-    proofNote: proofNote?.trim() || ''
+    status: 'pending',
+    screenshotUrl,
+    proofNote: proofNote?.trim() || '',
+    submittedAt: new Date().toISOString()
   };
 
-  logs.unshift(newLog);
+  logs.unshift(newSubmission);
   saveTaskCompletions(logs);
 
   return {
     success: true,
-    task,
-    rewardUsd: reward,
+    submission: newSubmission
+  };
+}
+
+/**
+ * Admin approves a task submission and credits USD to the user's wallet
+ */
+export async function approveSocialTaskSubmission(
+  submissionId: string,
+  reviewerName: string = 'Admin'
+): Promise<{ success: boolean; submission?: TaskCompletionLog; newBalance?: number; error?: string }> {
+  const logs = getTaskCompletions();
+  const submission = logs.find((l) => l.id === submissionId);
+  if (!submission) {
+    return { success: false, error: 'সাবমিশন রেকর্ড পাওয়া যায়নি।' };
+  }
+
+  if (submission.status === 'approved') {
+    return { success: false, error: 'এই টাস্কটি ইতিমধ্যে অ্যাপ্রুভ করা হয়েছে।' };
+  }
+
+  const reward = submission.rewardUsd || 0.01;
+
+  // Credit USD to user wallet
+  const walletResult = modifyUserWallet(
+    submission.userId,
+    reward,
+    'task_reward',
+    `সোশ্যাল টাস্ক অ্যাপ্রুভড: ${submission.taskTitle} (+${reward} USD)`,
+    'reward'
+  );
+
+  if (!walletResult.success) {
+    return { success: false, error: walletResult.error || 'ওয়ালেটে ব্যালেন্স ক্রেডিট করতে ব্যর্থ হয়েছে।' };
+  }
+
+  // Update status
+  submission.status = 'approved';
+  submission.completedAt = new Date().toISOString();
+  submission.reviewedAt = new Date().toISOString();
+  submission.reviewedBy = reviewerName;
+  delete submission.rejectReason;
+
+  // Increment totalCompletions on task
+  const tasks = getSocialTasks();
+  const task = tasks.find((t) => t.id === submission.taskId);
+  if (task) {
+    task.totalCompletions = (task.totalCompletions || 0) + 1;
+    saveSocialTasks(tasks);
+  }
+
+  saveTaskCompletions(logs);
+
+  return {
+    success: true,
+    submission,
     newBalance: walletResult.newBalanceUsd
+  };
+}
+
+/**
+ * Admin rejects a task submission
+ */
+export async function rejectSocialTaskSubmission(
+  submissionId: string,
+  reason: string,
+  reviewerName: string = 'Admin'
+): Promise<{ success: boolean; submission?: TaskCompletionLog; error?: string }> {
+  const logs = getTaskCompletions();
+  const submission = logs.find((l) => l.id === submissionId);
+  if (!submission) {
+    return { success: false, error: 'সাবমিশন রেকর্ড পাওয়া যায়নি।' };
+  }
+
+  submission.status = 'rejected';
+  submission.reviewedAt = new Date().toISOString();
+  submission.reviewedBy = reviewerName;
+  submission.rejectReason = (reason || 'স্ক্রিনশট বা প্রুফ সঠিক নয়').trim();
+
+  saveTaskCompletions(logs);
+
+  return {
+    success: true,
+    submission
+  };
+}
+
+// Keep legacy claimSocialTaskReward as an immediate claim wrapper if needed
+export async function claimSocialTaskReward(
+  userId: string,
+  userName: string,
+  userEmail: string,
+  taskId: string,
+  proofNote?: string
+): Promise<{ success: boolean; task?: SocialTask; rewardUsd?: number; newBalance?: number; error?: string }> {
+  const res = await submitSocialTaskProof(userId, userName, userEmail, taskId, undefined, proofNote);
+  if (!res.success || !res.submission) {
+    return { success: false, error: res.error };
+  }
+  const appRes = await approveSocialTaskSubmission(res.submission.id, 'System Auto-Approve');
+  if (!appRes.success) {
+    return { success: false, error: appRes.error };
+  }
+  const tasks = getSocialTasks();
+  const task = tasks.find((t) => t.id === taskId);
+  return {
+    success: true,
+    task,
+    rewardUsd: res.submission.rewardUsd,
+    newBalance: appRes.newBalance
   };
 }

@@ -20,12 +20,14 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { NotificationsModal } from './components/NotificationsModal';
 import { WebsitesPage } from './components/WebsitesPage';
 import { SocialTasksPage } from './components/SocialTasksPage';
+import { HostingTutorialPage } from './components/HostingTutorialPage';
+import { FAQPage } from './components/FAQPage';
 import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 import { checkIsAdmin } from './utils/adminCheck';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'wallet' | 'support' | 'profile' | 'plans' | 'bots' | 'terminal' | 'deposit-store' | 'websites' | 'rewards'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'wallet' | 'support' | 'profile' | 'plans' | 'bots' | 'terminal' | 'deposit-store' | 'websites' | 'rewards' | 'guide' | 'faq'>('home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [bots, setBots] = useState<HostedBot[]>([]);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
@@ -770,6 +772,29 @@ export default function App() {
             onNavigateToWallet={() => setActiveTab('wallet')}
             onNavigateToPlans={() => setActiveTab('plans')}
             lang={lang}
+          />
+        )}
+
+        {/* 11. Video Tutorial & Hosting Guide Page */}
+        {activeTab === 'guide' && (
+          <HostingTutorialPage
+            lang={lang}
+            onNavigateToWallet={() => setActiveTab('wallet')}
+            onNavigateToPlans={() => setActiveTab('plans')}
+            onNavigateToDeploy={handleDeployNewBot}
+            onNavigateToWebsites={() => setActiveTab('websites')}
+            onNavigateToFaq={() => setActiveTab('faq')}
+          />
+        )}
+
+        {/* 12. Dedicated FAQ Page */}
+        {activeTab === 'faq' && (
+          <FAQPage
+            lang={lang}
+            onNavigateToPlans={() => setActiveTab('plans')}
+            onNavigateToDeploy={handleDeployNewBot}
+            onNavigateToSupport={() => setActiveTab('support')}
+            onNavigateToGuide={() => setActiveTab('guide')}
           />
         )}
       </main>

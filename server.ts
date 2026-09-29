@@ -50,6 +50,10 @@ import {
   saveSocialTasks,
   getTaskCompletions,
   getUserCompletedTaskIds,
+  getUserTaskSubmissions,
+  submitSocialTaskProof,
+  approveSocialTaskSubmission,
+  rejectSocialTaskSubmission,
   claimSocialTaskReward,
   SocialTask
 } from './server/socialTasksManager';
@@ -6764,6 +6768,9 @@ setInterval(async () => {
 // SOCIAL TASKS API (Earn Real USD by Completing Tasks)
 // ==========================================
 
+// Serve task proof screenshot images
+app.use('/api/task-proofs', express.static(path.join(process.cwd(), 'hosted_bots', 'task_proofs')));
+
 // Get all active social tasks + user's completion status
 app.get('/api/social-tasks', (req, res) => {
   const user = getAuthUser(req);
@@ -6786,7 +6793,52 @@ app.get('/api/social-tasks', (req, res) => {
   });
 });
 
-// User claims reward for completing a social task
+// User submits screenshot proof for a social task
+app.post('/api/social-tasks/:id/submit', async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'টাস্ক সাবমিট করতে প্রথমে লগইন করুন (Please login to submit task proof)' });
+  }
+
+  const { screenshot, proofNote } = req.body;
+  if (!screenshot) {
+    return res.status(400).json({ error: 'টাস্ক সম্পন্ন করার স্ক্রিনশট প্রমাণ দেওয়া আবশ্যক (Screenshot proof is required)' });
+  }
+
+  const result = await submitSocialTaskProof(
+    user.id,
+    user.name || 'User',
+    user.email || '',
+    req.params.id,
+    screenshot,
+    proofNote
+  );
+
+  if (!result.success) {
+    return res.status(400).json({ error: result.error || 'টাস্ক সাবমিট ব্যর্থ হয়েছে।' });
+  }
+
+  res.json({
+    success: true,
+    message: '✓ স্ক্রিনশট প্রমাণ সফলভাবে জমা হয়েছে! এডমিন যাচাই করে দ্রুত অ্যাপ্রুভ করবেন।',
+    submission: result.submission
+  });
+});
+
+// User gets their own task submissions history
+app.get('/api/user/social-tasks/submissions', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const submissions = getUserTaskSubmissions(user.id);
+  res.json({
+    success: true,
+    submissions
+  });
+});
+
+// User claims reward for completing a social task (legacy / fallback)
 app.post('/api/social-tasks/:id/claim', async (req, res) => {
   const user = getAuthUser(req);
   if (!user) {
@@ -6913,13 +6965,62 @@ app.delete('/api/admin/social-tasks/:id', (req, res) => {
   res.json({ success: true, tasks });
 });
 
-// Get recent task completions log for admin
+// Get recent task completions log and submissions for admin
 app.get('/api/admin/social-tasks/submissions', (req, res) => {
   const admin = getAuthUser(req);
   if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
 
   const logs = getTaskCompletions();
-  res.json({ success: true, logs: logs.slice(0, 100) });
+  const pendingCount = logs.filter((l) => l.status === 'pending').length;
+  const approvedCount = logs.filter((l) => l.status === 'approved').length;
+  const rejectedCount = logs.filter((l) => l.status === 'rejected').length;
+
+  res.json({
+    success: true,
+    logs: logs.slice(0, 200),
+    stats: {
+      pending: pendingCount,
+      approved: approvedCount,
+      rejected: rejectedCount,
+      total: logs.length
+    }
+  });
+});
+
+// Admin approves a task submission and credits USD to user
+app.post('/api/admin/social-tasks/submissions/:id/approve', async (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
+
+  const result = await approveSocialTaskSubmission(req.params.id, admin?.name || 'Admin');
+  if (!result.success) {
+    return res.status(400).json({ error: result.error || 'অ্যাপ্রুভ করতে ব্যর্থ হয়েছে।' });
+  }
+
+  res.json({
+    success: true,
+    message: `✓ টাস্ক সফলভাবে অ্যাপ্রুভ করা হয়েছে এবং ব্যবহারকারীর ওয়ালেটে $${result.submission?.rewardUsd} USD যুক্ত হয়েছে!`,
+    submission: result.submission,
+    newBalance: result.newBalance
+  });
+});
+
+// Admin rejects a task submission with reason
+app.post('/api/admin/social-tasks/submissions/:id/reject', async (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
+
+  const { reason } = req.body;
+  const result = await rejectSocialTaskSubmission(req.params.id, reason || 'প্রদত্ত স্ক্রিনশট প্রমাণ সঠিক নয়', admin?.name || 'Admin');
+  if (!result.success) {
+    return res.status(400).json({ error: result.error || 'প্রত্যাখ্যান ব্যর্থ হয়েছে।' });
+  }
+
+  res.json({
+    success: true,
+    message: '✓ টাস্কটি বাতিল (Rejected) করা হয়েছে।',
+    submission: result.submission
+  });
 });
 
 

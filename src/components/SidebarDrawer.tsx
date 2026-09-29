@@ -18,7 +18,9 @@ import {
   Moon,
   Languages,
   Globe,
-  Share2
+  Share2,
+  Film,
+  HelpCircle
 } from 'lucide-react';
 import { AuthUser, SiteSettings } from '../types';
 
@@ -82,6 +84,20 @@ export function SidebarDrawer({
       icon: Crown,
       badge: 'VIP',
       color: 'amber'
+    },
+    {
+      id: 'guide',
+      label: lang === 'bn' ? 'ভিডিও ও হোস্টিং গাইড' : 'Video & Hosting Guide',
+      icon: Film,
+      badge: lang === 'bn' ? 'টিউটোরিয়াল' : 'Guide',
+      color: 'rose'
+    },
+    {
+      id: 'faq',
+      label: lang === 'bn' ? 'সচরাচর প্রশ্নোত্তর (FAQ)' : 'FAQ & Help',
+      icon: HelpCircle,
+      badge: 'FAQ',
+      color: 'sky'
     },
     {
       id: 'deposit-store',

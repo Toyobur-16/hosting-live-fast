@@ -25,7 +25,10 @@ import {
   ToggleRight,
   ShieldCheck,
   TrendingUp,
-  FileText
+  FileText,
+  Eye,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { SocialTask, SocialPlatform, TaskCompletionLog } from '../../types';
 
@@ -54,6 +57,11 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
     totalDistributedUsd: 0
   });
   const [submissions, setSubmissions] = useState<TaskCompletionLog[]>([]);
+  const [submissionFilter, setSubmissionFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [viewScreenshotUrl, setViewScreenshotUrl] = useState<string | null>(null);
+  const [rejectingSub, setRejectingSub] = useState<TaskCompletionLog | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState('');
+  const [processingSubId, setProcessingSubId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'tasks' | 'submissions'>('tasks');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -111,6 +119,58 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
         setSubmissions(data.logs || []);
       }
     } catch {}
+  };
+
+  const handleApproveSubmission = async (submissionId: string) => {
+    try {
+      setProcessingSubId(submissionId);
+      const token = localStorage.getItem('bot_auth_token');
+      const res = await fetch(`/api/admin/social-tasks/submissions/${submissionId}/approve`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotification({ type: 'success', text: data.message || 'টাস্ক সফলভাবে অ্যাপ্রুভ হয়েছে!' });
+        fetchSubmissions();
+        fetchTasks();
+      } else {
+        setNotification({ type: 'error', text: data.error || 'অ্যাপ্রুভ করতে সমস্যা হয়েছে।' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', text: err.message || 'নেটওয়ার্ক এরর' });
+    } finally {
+      setProcessingSubId(null);
+    }
+  };
+
+  const handleRejectSubmission = async () => {
+    if (!rejectingSub) return;
+    try {
+      setProcessingSubId(rejectingSub.id);
+      const token = localStorage.getItem('bot_auth_token');
+      const res = await fetch(`/api/admin/social-tasks/submissions/${rejectingSub.id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: rejectReasonInput.trim() || 'প্রদত্ত স্ক্রিনশট প্রমাণ সঠিক নয়' })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotification({ type: 'success', text: 'টাস্কটি বাতিল (Rejected) করা হয়েছে।' });
+        setRejectingSub(null);
+        setRejectReasonInput('');
+        fetchSubmissions();
+      } else {
+        setNotification({ type: 'error', text: data.error || 'বাতিল করতে সমস্যা হয়েছে।' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', text: err.message || 'নেটওয়ার্ক এরর' });
+    } finally {
+      setProcessingSubId(null);
+    }
   };
 
   const handleOpenAdd = () => {

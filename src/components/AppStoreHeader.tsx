@@ -12,7 +12,10 @@ import {
   PlusCircle,
   Crown,
   Coins,
-  Headphones
+  Headphones,
+  Film,
+  HelpCircle,
+  Globe
 } from 'lucide-react';
 import { AuthUser, SiteSettings } from '../types';
 
@@ -138,6 +141,44 @@ export function AppStoreHeader({
           >
             <Crown className="w-3.5 h-3.5" />
             {lang === 'bn' ? 'প্ল্যানস' : 'Plans'}
+          </button>
+
+          <button
+            onClick={() => onSelectTab('guide')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'guide'
+                ? 'bg-rose-500 text-white shadow-xs'
+                : 'text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300'
+            }`}
+            title={lang === 'bn' ? 'ভিডিও টিউটোরিয়াল ও হোস্টিং গাইড' : 'Video Tutorial & Guide'}
+          >
+            <Film className="w-3.5 h-3.5" />
+            {lang === 'bn' ? 'গাইড' : 'Guide'}
+          </button>
+
+          <button
+            onClick={() => onSelectTab('faq')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'faq'
+                ? 'bg-sky-500 text-white shadow-xs'
+                : 'text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300'
+            }`}
+            title={lang === 'bn' ? 'সচরাচর জিজ্ঞাসিত প্রশ্নোত্তর' : 'FAQ'}
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            {lang === 'bn' ? 'FAQ' : 'FAQ'}
+          </button>
+
+          <button
+            onClick={() => onSelectTab('websites')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'websites'
+                ? 'bg-cyan-500 text-slate-950 shadow-xs font-bold'
+                : 'text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            {lang === 'bn' ? 'ওয়েবসাইট' : 'Websites'}
           </button>
 
           <button

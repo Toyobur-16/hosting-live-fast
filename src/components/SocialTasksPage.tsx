@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Share2,
   CheckCircle2,
@@ -22,9 +22,14 @@ import {
   Loader2,
   Check,
   Flame,
-  ShieldCheck
+  ShieldCheck,
+  Upload,
+  Image as ImageIcon,
+  Eye,
+  FileCheck,
+  ListOrdered
 } from 'lucide-react';
-import { SocialTask, SocialPlatform } from '../types';
+import { SocialTask, SocialPlatform, TaskCompletionLog } from '../types';
 
 interface SocialTasksPageProps {
   user: any;
@@ -53,56 +58,49 @@ export const SocialTasksPage: React.FC<SocialTasksPageProps> = ({
   onNavigateToPlans,
   lang = 'bn'
 }) => {
+  const [activeTab, setActiveTab] = useState<'available' | 'completed'>('available');
   const [tasks, setTasks] = useState<SocialTask[]>([]);
+  const [mySubmissions, setMySubmissions] = useState<TaskCompletionLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
-  const [activeTask, setActiveTask] = useState<SocialTask | null>(null);
 
-  // Verification modal state
+  // Submit proof modal
+  const [activeTask, setActiveTask] = useState<SocialTask | null>(null);
   const [visitedLink, setVisitedLink] = useState(false);
-  const [timerRemaining, setTimerRemaining] = useState(0);
-  const [claiming, setClaiming] = useState(false);
-  const [successToast, setSuccessToast] = useState<{ title: string; reward: number } | null>(null);
+  const [screenshotData, setScreenshotData] = useState<string | null>(null);
+  const [screenshotFileName, setScreenshotFileName] = useState<string>('');
+  const [proofNote, setProofNote] = useState('');
+  const [submittingProof, setSubmittingProof] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  // View screenshot modal
+  const [viewImageSrc, setViewImageSrc] = useState<string | null>(null);
+
+  const [successToast, setSuccessToast] = useState<{ title: string; reward: number; isPending?: boolean } | null>(null);
   const [errorToast, setErrorToast] = useState<string | null>(null);
-  const [userBalance, setUserBalance] = useState<number>(user?.balanceUsd || 0);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchTasks();
+    fetchTasksAndSubmissions();
   }, [user]);
 
-  useEffect(() => {
-    if (user?.balanceUsd !== undefined) {
-      setUserBalance(user.balanceUsd);
-    }
-  }, [user?.balanceUsd]);
-
-  // Timer countdown
-  useEffect(() => {
-    let interval: any = null;
-    if (visitedLink && timerRemaining > 0) {
-      interval = setInterval(() => {
-        setTimerRemaining((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [visitedLink, timerRemaining]);
-
-  const fetchTasks = async () => {
+  const fetchTasksAndSubmissions = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('bot_auth_token');
-      const res = await fetch('/api/social-tasks', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setTasks(data.tasks || []);
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const [tasksRes, subsRes] = await Promise.all([
+        fetch('/api/social-tasks', { headers }).then((r) => r.json()).catch(() => ({ success: false })),
+        token ? fetch('/api/user/social-tasks/submissions', { headers }).then((r) => r.json()).catch(() => ({ success: false })) : { success: false }
+      ]);
+
+      if (tasksRes.success) {
+        setTasks(tasksRes.tasks || []);
+      }
+      if (subsRes.success) {
+        setMySubmissions(subsRes.submissions || []);
       }
     } catch {
       // Ignore
@@ -118,80 +116,110 @@ export const SocialTasksPage: React.FC<SocialTasksPageProps> = ({
     }
     setActiveTask(task);
     setVisitedLink(false);
-    setTimerRemaining(task.timerSeconds || 8);
-    setErrorToast(null);
+    setScreenshotData(null);
+    setScreenshotFileName('');
+    setProofNote('');
+    setModalError(null);
   };
 
   const handleOpenLink = () => {
     if (!activeTask) return;
     window.open(activeTask.link, '_blank', 'noopener,noreferrer');
     setVisitedLink(true);
-    setTimerRemaining(activeTask.timerSeconds || 8);
   };
 
-  const handleClaimReward = async () => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setModalError(lang === 'bn' ? 'অনুগ্রহ করে শুধুমাত্র ছবি ফাইল (JPG, PNG) আপলোড করুন।' : 'Please upload an image file (JPG, PNG).');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setModalError(lang === 'bn' ? 'ছবির সাইজ সর্বোচ্চ 10MB হতে পারে।' : 'Image size cannot exceed 10MB.');
+      return;
+    }
+
+    setModalError(null);
+    setScreenshotFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setScreenshotData(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmitProof = async () => {
     if (!activeTask) return;
     if (!user) {
       onOpenAuthModal();
       return;
     }
 
+    if (!screenshotData) {
+      setModalError(lang === 'bn' ? 'টাস্ক সম্পন্ন করার স্ক্রিনশট প্রমাণ আপলোড করা আবশ্যক!' : 'Screenshot proof is required!');
+      return;
+    }
+
     try {
-      setClaiming(true);
-      setErrorToast(null);
+      setSubmittingProof(true);
+      setModalError(null);
       const token = localStorage.getItem('bot_auth_token');
-      const res = await fetch(`/api/social-tasks/${activeTask.id}/claim`, {
+
+      const res = await fetch(`/api/social-tasks/${activeTask.id}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({
+          screenshot: screenshotData,
+          proofNote: proofNote.trim()
+        })
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
-        const reward = data.rewardUsd || activeTask.rewardUsd;
         setSuccessToast({
           title: activeTask.titleBn || activeTask.title,
-          reward
+          reward: activeTask.rewardUsd,
+          isPending: true
         });
 
-        if (data.user?.balanceUsd !== undefined) {
-          setUserBalance(data.user.balanceUsd);
-        } else {
-          setUserBalance((prev) => prev + reward);
-        }
-
-        // Play ding sound
-        try {
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3');
-          audio.volume = 0.5;
-          audio.play().catch(() => {});
-        } catch {}
-
         setActiveTask(null);
-        fetchTasks();
-        setTimeout(() => setSuccessToast(null), 5000);
+        setActiveTab('completed');
+        fetchTasksAndSubmissions();
+        setTimeout(() => setSuccessToast(null), 7000);
       } else {
-        setErrorToast(data.error || 'টাস্ক ক্লেইম করা যায়নি।');
+        setModalError(data.error || 'টাস্ক সাবমিট করা যায়নি।');
       }
     } catch (err: any) {
-      setErrorToast(err.message || 'নেটওয়ার্ক এরর');
+      setModalError(err.message || 'নেটওয়ার্ক সমস্যা হয়েছে।');
     } finally {
-      setClaiming(false);
+      setSubmittingProof(false);
     }
   };
 
-  const completedCount = tasks.filter((t) => t.completed).length;
-  const totalCount = tasks.length;
-  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  const totalPossibleUsd = tasks.reduce((sum, t) => sum + (t.rewardUsd || 0), 0);
+  // Filter available tasks: User has NOT submitted them yet (or completed)
+  const submittedTaskIds = new Set(
+    mySubmissions.filter((s) => s.status !== 'rejected').map((s) => s.taskId)
+  );
 
-  const filteredTasks = tasks.filter((t) => {
+  const availableTasks = tasks.filter((t) => !submittedTaskIds.has(t.id) && !t.completed);
+
+  const filteredAvailableTasks = availableTasks.filter((t) => {
     if (selectedPlatform === 'all') return true;
     return t.platform === selectedPlatform;
   });
+
+  const totalRewardEarned = mySubmissions
+    .filter((s) => s.status === 'approved')
+    .reduce((sum, s) => sum + (s.rewardUsd || 0), 0);
+
+  const pendingSubmissionsCount = mySubmissions.filter((s) => s.status === 'pending').length;
 
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 py-6 space-y-6">
@@ -208,357 +236,629 @@ export const SocialTasksPage: React.FC<SocialTasksPageProps> = ({
             </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
-              {lang === 'bn' ? 'সোশ্যাল টাস্ক সম্পন্ন করে ফ্রি USD আয় করুন' : 'Complete Simple Social Tasks & Earn USD'}
+              {lang === 'bn' ? 'টাস্ক সম্পন্ন করুন ও স্ক্রিনশট দিয়ে ডলার আয় করুন' : 'Complete Tasks & Earn Instant USD Rewards'}
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
               {lang === 'bn'
-                ? 'টেলিগ্রাম চ্যানেলে জয়েন, ইউটিউব সাবস্ক্রাইব, ফেসবুক ও ইনস্টাগ্রাম ফলো করার মাধ্যমে সরাসরি ওয়ালেটে USD ব্যালেন্স যোগ করুন। অর্জিত ব্যালেন্স দিয়ে প্রিমিয়াম বট ও ওয়েবসাইট হোস্টিং প্যাকেজ চালু করুন!'
-                : 'Join Telegram channels, subscribe to YouTube, and follow on Facebook & Instagram to earn instant USD wallet credits. Use your earnings to host live bots and websites!'}
+                ? 'চ্যানেলে জয়েন, লাইক, কমেন্ট বা সাবস্ক্রাইব করে একটি স্ক্রিনশট জমা দিন। এডমিন ভেরিফাই করে সরাসরি আপনার ওয়ালেটে ডলার যুক্ত করে দিবে। অর্জিত ডলার দিয়ে বট ও ওয়েবসাইট হোস্ট করুন!'
+                : 'Join channels, like, comment, or subscribe and submit a screenshot proof. Admin approves and credits USD directly to your wallet!'}
             </p>
 
-            <div className="flex items-center gap-3 pt-2 text-xs font-bold">
-              <span className="flex items-center gap-1.5 text-emerald-400">
-                <ShieldCheck className="w-4 h-4" />
-                <span>ইনস্ট্যান্ট ওয়ালেট ক্রেডিট</span>
-              </span>
-              <span className="text-slate-600">•</span>
-              <span className="flex items-center gap-1.5 text-purple-400">
-                <Flame className="w-4 h-4" />
-                <span>হোস্টিং প্ল্যানে ব্যবহারযোগ্য</span>
-              </span>
-            </div>
-          </div>
-
-          {/* User Balance Card */}
-          <div className="w-full md:w-auto shrink-0">
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#080d19]/90 border border-purple-500/30 backdrop-blur-md shadow-xl text-center sm:text-right space-y-2">
-              <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
-                {lang === 'bn' ? 'আপনার বর্তমান ব্যালেন্স' : 'Your USD Wallet Balance'}
+            <div className="flex items-center gap-3 pt-2 text-xs font-bold flex-wrap">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300">
+                <ShieldCheck className="w-4 h-4 text-purple-400" />
+                <span>{lang === 'bn' ? 'স্ক্রিনশট প্রুফ সিস্টেম' : 'Screenshot Proof System'}</span>
               </div>
-              <div className="text-3xl sm:text-4xl font-black text-emerald-400 font-mono tracking-tight flex items-center justify-center sm:justify-end gap-1.5">
-                <Wallet className="w-6 h-6 text-emerald-400" />
-                <span>${userBalance.toFixed(2)}</span>
-                <span className="text-xs text-[#00d293] font-sans font-black bg-[#00d293]/15 px-2 py-0.5 rounded-md">
-                  USDT
-                </span>
-              </div>
-              <div className="flex items-center justify-center sm:justify-end gap-2 pt-1">
-                <button
-                  onClick={onNavigateToWallet}
-                  className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <span>ওয়ালেট দেখুন</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={onNavigateToPlans}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer transition-all shadow-md shadow-emerald-500/20"
-                >
-                  হোস্টিং প্ল্যান
-                </button>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+                <span>{lang === 'bn' ? 'এডমিন ভেরিফাইড ক্যাশআউট' : 'Admin Verified Payout'}</span>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Progress Bar Row */}
-        <div className="mt-6 pt-5 border-t border-purple-500/20 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-          <div className="sm:col-span-2 space-y-1.5">
-            <div className="flex items-center justify-between text-xs font-bold">
-              <span className="text-slate-300">
-                {lang === 'bn' ? 'আপনার সম্পন্নকৃত টাস্ক:' : 'Completed Tasks:'} {completedCount} / {totalCount}
+          {/* User Earnings Card */}
+          <div className="shrink-0 w-full sm:w-auto p-4 rounded-2xl bg-[#0d1424] border border-purple-500/30 shadow-xl space-y-3 min-w-[240px]">
+            <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
+              <span>{lang === 'bn' ? 'আপনার মোট আয়:' : 'Total Earned:'}</span>
+              <span className="font-mono text-emerald-400 font-black text-sm">
+                +${totalRewardEarned.toFixed(2)} USD
               </span>
-              <span className="text-purple-400 font-black">{progressPercent}% সম্পন্ন</span>
             </div>
-            <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-purple-500 to-emerald-400 rounded-full transition-all duration-500"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-          </div>
 
-          <div className="text-center sm:text-right">
-            <span className="text-[11px] text-slate-400 block font-medium">মোট সম্ভাব্য আর্নিং</span>
-            <span className="text-sm font-black text-emerald-400">+${totalPossibleUsd.toFixed(2)} USD</span>
+            <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
+              <span>{lang === 'bn' ? 'বর্তমান ব্যালেন্স:' : 'Wallet Balance:'}</span>
+              <span className="font-mono text-cyan-400 font-black text-sm">
+                ${Number(user?.balanceUsd || 0).toFixed(2)} USDT
+              </span>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onNavigateToWallet}
+                className="flex-1 py-1.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>{lang === 'bn' ? 'ওয়ালেট' : 'Wallet'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={onNavigateToPlans}
+                className="flex-1 py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+              >
+                <span>{lang === 'bn' ? 'প্ল্যান কিনুন' : 'Buy Plans'}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* SUCCESS CELEBRATION TOAST */}
+      {/* TOASTS */}
       {successToast && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/90 to-[#081812] border-2 border-emerald-500 text-emerald-200 shadow-2xl flex items-center justify-between gap-3 animate-bounce">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 font-black">
-              ✓
-            </div>
+        <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-500/50 text-emerald-200 text-xs flex items-center justify-between shadow-xl animate-in zoom-in-95">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
             <div>
-              <h4 className="text-sm font-black text-white">🎉 টাস্ক সম্পন্ন হয়েছে!</h4>
-              <p className="text-xs text-emerald-300">
-                "{successToast.title}" সম্পন্ন করার জন্য আপনার ওয়ালেটে{' '}
-                <strong className="text-white">+${successToast.reward.toFixed(2)} USD</strong> যোগ হয়েছে!
+              <p className="font-bold text-sm">
+                {lang === 'bn' ? '✓ স্ক্রিনশট সফলভাবে জমা হয়েছে!' : '✓ Screenshot proof submitted!'}
+              </p>
+              <p className="text-[11px] text-emerald-300">
+                {lang === 'bn'
+                  ? `"${successToast.title}" টাস্কটি এডমিন পর্যালোচনার পর $${successToast.reward.toFixed(2)} USD আপনার ওয়ালেটে যুক্ত হবে।`
+                  : `Admin will review and credit $${successToast.reward.toFixed(2)} USD to your wallet shortly.`}
               </p>
             </div>
           </div>
           <button
             onClick={() => setSuccessToast(null)}
-            className="p-1 rounded-lg hover:bg-emerald-500/20 text-emerald-300 cursor-pointer"
+            className="p-1 rounded-lg hover:bg-emerald-900/50 text-emerald-300 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Platform Filter Buttons */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+      {errorToast && (
+        <div className="p-4 rounded-2xl bg-rose-950/60 border border-rose-500/50 text-rose-200 text-xs flex items-center justify-between shadow-xl animate-in zoom-in-95">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+            <span className="font-bold">{errorToast}</span>
+          </div>
+          <button
+            onClick={() => setErrorToast(null)}
+            className="p-1 rounded-lg hover:bg-rose-900/50 text-rose-300 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* MAIN TWO NAVIGATION TABS */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div className="flex items-center gap-2">
+          {/* Tab 1: Available Tasks */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('available')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'available'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/25'
+                : 'bg-[#080d19] border border-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-purple-300" />
+            <span>{lang === 'bn' ? 'উপলব্ধ টাস্কসমূহ' : 'Available Tasks'}</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-white/20 text-white">
+              {availableTasks.length}
+            </span>
+          </button>
+
+          {/* Tab 2: My Submitted / Completed Tasks */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('completed')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer relative ${
+              activeTab === 'completed'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25'
+                : 'bg-[#080d19] border border-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <FileCheck className="w-4 h-4 text-emerald-300" />
+            <span>{lang === 'bn' ? 'আমার জমাকৃত ও সম্পন্ন টাস্ক' : 'My Submissions'}</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-white/20 text-white">
+              {mySubmissions.length}
+            </span>
+            {pendingSubmissionsCount > 0 && (
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping absolute -top-1 -right-1" />
+            )}
+          </button>
+        </div>
+
         <button
-          onClick={() => setSelectedPlatform('all')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-            selectedPlatform === 'all'
-              ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
-              : 'bg-[#0a0f1d] hover:bg-slate-800 text-slate-300 border border-slate-800'
-          }`}
+          type="button"
+          onClick={fetchTasksAndSubmissions}
+          className="text-xs text-slate-400 hover:text-white font-bold flex items-center gap-1 cursor-pointer transition"
         >
-          <Share2 className="w-3.5 h-3.5" />
-          <span>সকল প্ল্যাটফর্ম ({tasks.length})</span>
+          <span>{lang === 'bn' ? 'রিফ্রেশ' : 'Refresh'}</span>
         </button>
-
-        {['telegram', 'youtube', 'facebook', 'instagram', 'twitter', 'website'].map((plat) => {
-          const meta = PLATFORM_ICONS[plat as SocialPlatform] || PLATFORM_ICONS.custom;
-          const Icon = meta.icon;
-          const count = tasks.filter((t) => t.platform === plat).length;
-          if (count === 0) return null;
-
-          const isSelected = selectedPlatform === plat;
-          return (
-            <button
-              key={plat}
-              onClick={() => setSelectedPlatform(plat)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                isSelected
-                  ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
-                  : 'bg-[#0a0f1d] hover:bg-slate-800 text-slate-300 border border-slate-800'
-              }`}
-            >
-              <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
-              <span>{meta.name}</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
-                {count}
-              </span>
-            </button>
-          );
-        })}
       </div>
 
-      {/* TASKS GRID */}
-      {loading ? (
-        <div className="p-12 text-center text-slate-400 space-y-3">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-400 mx-auto" />
-          <p className="text-xs font-bold">সোশ্যাল টাস্ক লোড হচ্ছে...</p>
-        </div>
-      ) : filteredTasks.length === 0 ? (
-        <div className="p-10 text-center rounded-3xl bg-[#080d19] border border-slate-800 text-slate-400 space-y-2">
-          <Share2 className="w-10 h-10 text-slate-600 mx-auto" />
-          <h4 className="text-sm font-bold text-white">কোনো টাস্ক পাওয়া যায়নি</h4>
-          <p className="text-xs text-slate-400">খুব শীঘ্রই এডমিন থেকে নতুন সোশ্যাল টাস্ক যোগ করা হবে।</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredTasks.map((task) => {
-            const meta = PLATFORM_ICONS[task.platform] || PLATFORM_ICONS.custom;
-            const Icon = meta.icon;
-            const isCompleted = Boolean(task.completed);
+      {/* VIEW 1: AVAILABLE TASKS */}
+      {activeTab === 'available' && (
+        <div className="space-y-4">
+          {/* Platform Category Filter */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <button
+              onClick={() => setSelectedPlatform('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                selectedPlatform === 'all'
+                  ? 'bg-slate-200 text-slate-950 font-black'
+                  : 'bg-[#080d19] border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              {lang === 'bn' ? 'সকল টাস্ক' : 'All Tasks'} ({availableTasks.length})
+            </button>
 
-            return (
-              <div
-                key={task.id}
-                className={`p-5 rounded-3xl border transition-all relative flex flex-col justify-between ${
-                  isCompleted
-                    ? 'bg-[#080c16]/70 border-emerald-500/30'
-                    : 'bg-[#0a0f1d] border-slate-800 hover:border-purple-500/40 hover:shadow-xl hover:shadow-purple-500/5'
-                }`}
+            {Object.entries(PLATFORM_ICONS).map(([key, meta]) => {
+              const count = availableTasks.filter((t) => t.platform === key).length;
+              if (count === 0 && selectedPlatform !== key) return null;
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSelectedPlatform(key)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                    selectedPlatform === key
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'bg-[#080d19] border border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{meta.name}</span>
+                  <span className="text-[10px] opacity-75">({count})</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tasks List */}
+          {loading ? (
+            <div className="p-12 text-center text-slate-400">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-400 mb-2" />
+              <p className="text-xs">{lang === 'bn' ? 'টাস্ক লোড হচ্ছে...' : 'Loading tasks...'}</p>
+            </div>
+          ) : filteredAvailableTasks.length === 0 ? (
+            <div className="p-12 text-center rounded-3xl bg-[#080d19] border border-slate-800 space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <h3 className="text-base font-bold text-white">
+                {lang === 'bn' ? '🎉 আপনি সকল উপলব্ধ টাস্ক সম্পন্ন করেছেন!' : 'All Tasks Completed!'}
+              </h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                {lang === 'bn'
+                  ? 'আপনার জমাকৃত টাস্কের স্ট্যাটাস দেখতে উপরের "আমার জমাকৃত ও সম্পন্ন টাস্ক" ট্যাবে যান। নতুন টাস্ক যোগ হলে এখানে দেখা যাবে।'
+                  : 'Check "My Submissions" tab to see approval status of your completed tasks.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('completed')}
+                className="mt-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition cursor-pointer"
               >
-                <div>
-                  {/* Card Header: Platform Badge + Reward */}
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border ${meta.bg} ${meta.color}`}>
-                        <Icon className="w-5 h-5" />
+                {lang === 'bn' ? 'জমাকৃত টাস্কের স্ট্যাটাস দেখুন' : 'View Submitted Tasks'}
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredAvailableTasks.map((task) => {
+                const meta = PLATFORM_ICONS[task.platform] || PLATFORM_ICONS.custom;
+                const Icon = meta.icon;
+
+                return (
+                  <div
+                    key={task.id}
+                    className="relative rounded-2xl bg-[#0a1020] border border-slate-800/80 hover:border-purple-500/50 p-5 shadow-lg flex flex-col justify-between transition-all group"
+                  >
+                    <div>
+                      {/* Card Header: Platform & Reward */}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${meta.bg}`}>
+                            <Icon className={`w-4 h-4 ${meta.color}`} />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                              {meta.name}
+                            </span>
+                            {task.badgeText && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                <Flame className="w-2.5 h-2.5 text-amber-400" />
+                                {task.badgeText}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-black">
+                          <span>+${task.rewardUsd.toFixed(2)} USD</span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[11px] font-black text-slate-300 block">{meta.name}</span>
-                        {task.badgeText && (
-                          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                            {task.badgeText}
+
+                      {/* Title & Description */}
+                      <h3 className="text-sm sm:text-base font-bold text-white mb-1.5 leading-snug group-hover:text-purple-300 transition-colors">
+                        {lang === 'bn' ? (task.titleBn || task.title) : task.title}
+                      </h3>
+
+                      <p className="text-xs text-slate-400 leading-relaxed line-clamp-2 mb-4">
+                        {lang === 'bn' ? (task.descriptionBn || task.description) : task.description}
+                      </p>
+                    </div>
+
+                    {/* Action Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleStartTask(task)}
+                      className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-600/20 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>{lang === 'bn' ? 'টাস্ক করুন ও স্ক্রিনশট জমা দিন' : 'Complete & Submit Proof'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VIEW 2: MY SUBMITTED & COMPLETED TASKS */}
+      {activeTab === 'completed' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between bg-[#080d19] border border-slate-800 p-4 rounded-2xl">
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                {lang === 'bn' ? 'আপনার সকল জমাকৃত ও সম্পন্ন টাস্ক' : 'Your Task Submissions'}
+              </h3>
+              <p className="text-xs text-slate-400">
+                {lang === 'bn'
+                  ? 'স্ক্রিনশট জমা দেওয়ার পর এডমিন যাচাই করে অ্যাপ্রুভ করলে সাথে সাথে ওয়ালেটে ডলার যোগ হয়ে যায়।'
+                  : 'Track submission approvals and earnings here.'}
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">মোট জমাকৃত</span>
+              <span className="text-base font-black text-purple-400">{mySubmissions.length} টি</span>
+            </div>
+          </div>
+
+          {mySubmissions.length === 0 ? (
+            <div className="p-12 text-center rounded-3xl bg-[#080d19] border border-slate-800 space-y-3">
+              <Upload className="w-10 h-10 mx-auto text-slate-500" />
+              <p className="text-sm font-bold text-slate-300">
+                {lang === 'bn' ? 'আপনি এখনো কোনো টাস্কের স্ক্রিনশট জমা দেননি।' : 'No submissions yet.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('available')}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition cursor-pointer"
+              >
+                {lang === 'bn' ? 'উপলব্ধ টাস্কসমূহ দেখুন' : 'Browse Available Tasks'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {mySubmissions.map((sub) => {
+                const meta = PLATFORM_ICONS[sub.platform] || PLATFORM_ICONS.custom;
+                const Icon = meta.icon;
+
+                return (
+                  <div
+                    key={sub.id}
+                    className="p-4 sm:p-5 rounded-2xl bg-[#0a1020] border border-slate-800 hover:border-slate-700 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                  >
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${meta.bg}`}>
+                        <Icon className={`w-5 h-5 ${meta.color}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h4 className="text-sm font-bold text-white truncate">{sub.taskTitle}</h4>
+                          <span className="font-mono text-xs font-black text-emerald-400">
+                            +${sub.rewardUsd.toFixed(2)} USD
                           </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+                          <span>{meta.name}</span>
+                          <span>•</span>
+                          <span className="font-mono text-[11px]">
+                            {new Date(sub.submittedAt).toLocaleDateString()} {new Date(sub.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        {sub.proofNote && (
+                          <p className="text-xs text-slate-400 mt-1 italic">
+                            মন্তব্য: {sub.proofNote}
+                          </p>
+                        )}
+
+                        {sub.status === 'rejected' && sub.rejectReason && (
+                          <p className="text-xs text-rose-400 font-medium mt-1">
+                            বাতিলের কারণ: {sub.rejectReason}
+                          </p>
                         )}
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <div className="px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono font-black text-sm shadow-inner inline-flex items-center gap-1">
-                        <span>+${task.rewardUsd.toFixed(2)}</span>
-                        <span className="text-[10px] text-emerald-300 font-sans font-bold">USD</span>
-                      </div>
+                    <div className="flex items-center gap-2.5 self-end sm:self-center shrink-0">
+                      {/* Screenshot Preview Button */}
+                      {sub.screenshotUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setViewImageSrc(sub.screenshotUrl || null)}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border border-slate-700"
+                          title="আপনার জমা দেওয়া স্ক্রিনশট দেখুন"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>{lang === 'bn' ? 'স্ক্রিনশট' : 'Proof'}</span>
+                        </button>
+                      )}
+
+                      {/* Status Badge */}
+                      {sub.status === 'pending' && (
+                        <span className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                          <span>{lang === 'bn' ? 'পর্যালোচনায় আছে' : 'Pending Review'}</span>
+                        </span>
+                      )}
+
+                      {sub.status === 'approved' && (
+                        <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{lang === 'bn' ? 'অ্যাপ্রুভড (ক্রেডিটেড)' : 'Approved'}</span>
+                        </span>
+                      )}
+
+                      {sub.status === 'rejected' && (
+                        <span className="px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5">
+                          <X className="w-3.5 h-3.5 text-rose-400" />
+                          <span>{lang === 'bn' ? 'বাতিল হয়েছে' : 'Rejected'}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
-
-                  {/* Title & Description */}
-                  <h3 className="text-base font-black text-white leading-snug mb-1.5">
-                    {task.titleBn || task.title}
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                    {task.descriptionBn || task.description}
-                  </p>
-                </div>
-
-                {/* Footer Action */}
-                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                    <Clock className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{task.timerSeconds || 8} সেকেন্ড ভেরিফিকেশন</span>
-                  </div>
-
-                  {isCompleted ? (
-                    <div className="px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center gap-1.5">
-                      <Check className="w-4 h-4 stroke-[3]" />
-                      <span>সম্পন্ন হয়েছে</span>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleStartTask(task)}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs shadow-md shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
-                    >
-                      <span>টাস্ক শুরু করুন</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* INTERACTIVE TASK VERIFICATION MODAL */}
+      {/* MODAL 1: SUBMIT PROOF MODAL */}
       {activeTask && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="max-w-md w-full bg-[#0d1424] border border-purple-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl relative space-y-4">
-            {/* Modal Header */}
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !submittingProof) setActiveTask(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in cursor-pointer"
+        >
+          <div className="bg-[#0b1222] border border-purple-500/40 rounded-3xl p-5 sm:p-6 max-w-lg w-full text-slate-100 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto cursor-default">
+            {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const meta = PLATFORM_ICONS[activeTask.platform] || PLATFORM_ICONS.custom;
-                  const Icon = meta.icon;
-                  return (
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${meta.bg} ${meta.color}`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                  );
-                })()}
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
+                  <Upload className="w-5 h-5" />
+                </div>
                 <div>
-                  <h4 className="text-sm font-black text-white">{activeTask.titleBn || activeTask.title}</h4>
-                  <span className="text-[10px] text-emerald-400 font-bold">
-                    রিওয়ার্ড: +${activeTask.rewardUsd.toFixed(2)} USD
-                  </span>
+                  <h3 className="text-base font-bold text-white">
+                    {lang === 'bn' ? 'টাস্ক করুন ও স্ক্রিনশট জমা দিন' : 'Submit Task Proof'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {activeTask.titleBn || activeTask.title}
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveTask(null)}
-                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer"
+                disabled={submittingProof}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {errorToast && (
-              <div className="p-3 bg-rose-950/80 border border-rose-500/40 rounded-xl text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorToast}</span>
-              </div>
-            )}
+            {/* Task Info Pill */}
+            <div className="p-3 bg-[#060c18] border border-slate-800 rounded-2xl flex items-center justify-between">
+              <span className="text-xs text-slate-400">{lang === 'bn' ? 'অর্জিত হবে:' : 'Reward:'}</span>
+              <span className="text-sm font-black text-emerald-400 font-mono">
+                +${activeTask.rewardUsd.toFixed(2)} USD
+              </span>
+            </div>
 
-            {/* Instruction Steps */}
+            {/* Steps Instructions */}
             <div className="space-y-3">
-              <div className="p-3.5 rounded-2xl bg-[#080d19] border border-slate-800 space-y-2">
-                <div className="text-xs font-black text-slate-200 flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px] font-bold">
-                    ১
+              {/* Step 1: Open Target Link */}
+              <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">
+                      ১
+                    </span>
+                    <span>{lang === 'bn' ? 'লিংকে গিয়ে কাজটি সম্পন্ন করুন' : 'Step 1: Open & Complete Action'}</span>
                   </span>
-                  <span>প্রথম ধাপ: সোশ্যাল পেজ ভিজিট করুন</span>
+                  {visitedLink && (
+                    <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      <span>{lang === 'bn' ? 'ওপেন করা হয়েছে' : 'Opened'}</span>
+                    </span>
+                  )}
                 </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  নিচের বাটনে ক্লিক করে অফিশিয়াল সোশ্যাল পেজটি নতুন ট্যাবে খুলুন এবং ফলো/সাবস্ক্রাইব/জয়েন সম্পন্ন করুন।
+
+                <p className="text-xs text-slate-300">
+                  {lang === 'bn'
+                    ? 'নিচের বাটনে ক্লিক করে সোশ্যাল মিডিয়ায় কাজটি (লাইক, সাবস্ক্রাইব, কমেন্ট বা ফলো) করুন:'
+                    : 'Click below to visit and complete the action (like, subscribe, comment, or follow):'}
                 </p>
 
                 <button
                   type="button"
                   onClick={handleOpenLink}
-                  className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-colors"
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  <span>{visitedLink ? 'আবার লিংকটি খুলুন' : 'লিংক ওপেন করুন ও ফলো করুন'}</span>
+                  <span>{lang === 'bn' ? 'লিংকটি ওপেন করুন (নতুন ট্যাব)' : 'Open Target Link'}</span>
                 </button>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-[#080d19] border border-slate-800 space-y-2">
-                <div className="text-xs font-black text-slate-200 flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">
+              {/* Step 2: Upload Screenshot */}
+              <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">
                     ২
                   </span>
-                  <span>দ্বিতীয় ধাপ: স্বয়ংক্রিয় ভেরিফিকেশন ও ক্লেইম</span>
-                </div>
+                  <span>{lang === 'bn' ? 'কাজের স্ক্রিনশট প্রমাণ আপলোড করুন *' : 'Step 2: Upload Screenshot Proof *'}</span>
+                </span>
 
-                {!visitedLink ? (
-                  <p className="text-[11px] text-slate-500 italic text-center py-2">
-                    ভেরিফিকেশন শুরু করতে প্রথমে উপরের লিংকটি ওপেন করুন।
-                  </p>
-                ) : timerRemaining > 0 ? (
-                  <div className="text-center py-3 space-y-1.5">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full border-2 border-amber-400 text-amber-400 font-mono font-black text-lg animate-pulse">
-                      {timerRemaining}s
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                {screenshotData ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-emerald-500/50 bg-black/60 p-2 space-y-2">
+                    <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-slate-950 flex items-center justify-center">
+                      <img
+                        src={screenshotData}
+                        alt="Screenshot Preview"
+                        className="w-full h-full object-contain"
+                      />
                     </div>
-                    <p className="text-[11px] text-slate-400">
-                      ভেরিফিকেশন সম্পন্ন হচ্ছে, দয়া করে অপেক্ষা করুন...
-                    </p>
+                    <div className="flex items-center justify-between text-xs px-1">
+                      <span className="text-emerald-400 font-bold truncate max-w-[200px]">
+                        ✓ {screenshotFileName || 'Screenshot Ready'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScreenshotData(null);
+                          setScreenshotFileName('');
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="text-rose-400 hover:text-rose-300 font-bold underline cursor-pointer"
+                      >
+                        {lang === 'bn' ? 'মুছে ফেলুন' : 'Remove'}
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-center py-2 space-y-1">
-                    <div className="text-emerald-400 text-xs font-black flex items-center justify-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>ভেরিফিকেশন সফল হয়েছে!</span>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-5 rounded-2xl border-2 border-dashed border-slate-700 hover:border-purple-500 bg-[#060c18] text-center cursor-pointer transition space-y-2"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-purple-500/15 text-purple-400 flex items-center justify-center mx-auto">
+                      <ImageIcon className="w-5 h-5" />
                     </div>
-                    <p className="text-[11px] text-slate-400">
-                      এখন নিচের বাটনে ক্লিক করে সরাসরি ওয়ালেটে রিওয়ার্ড জমা করুন।
-                    </p>
+                    <div>
+                      <p className="text-xs font-bold text-white">
+                        {lang === 'bn' ? 'কাজের স্ক্রিনশট সিলেক্ট করতে এখানে ক্লিক করুন' : 'Click to Upload Screenshot'}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        JPG, PNG (Max 10MB)
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
+
+              {/* Step 3: Optional Username / Note */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  {lang === 'bn' ? 'ইউজারনেম বা মন্তব্য (Optional):' : 'Social Username or Note (Optional):'}
+                </label>
+                <input
+                  type="text"
+                  placeholder={lang === 'bn' ? 'যেমন: Telegram @username বা YouTube নাম' : 'e.g. Telegram @username or YouTube name'}
+                  value={proofNote}
+                  onChange={(e) => setProofNote(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-[#060c18] border border-slate-700 rounded-xl text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {modalError && (
+                <div className="p-3 bg-rose-950/50 border border-rose-500/40 rounded-xl text-xs text-rose-300 font-medium">
+                  {modalError}
+                </div>
+              )}
             </div>
 
-            {/* Claim Reward Button */}
-            <div className="pt-2">
+            {/* Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
               <button
                 type="button"
-                disabled={!visitedLink || timerRemaining > 0 || claiming}
-                onClick={handleClaimReward}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                onClick={() => setActiveTask(null)}
+                disabled={submittingProof}
+                className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white cursor-pointer"
               >
-                {claiming ? (
+                {lang === 'bn' ? 'বাতিল' : 'Cancel'}
+              </button>
+
+              <button
+                type="button"
+                disabled={submittingProof || !screenshotData}
+                onClick={handleSubmitProof}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 text-white font-black text-xs shadow-lg shadow-purple-600/30 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              >
+                {submittingProof ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>ব্যালেন্স যুক্ত হচ্ছে...</span>
+                    <span>{lang === 'bn' ? 'জমা হচ্ছে...' : 'Submitting...'}</span>
                   </>
                 ) : (
                   <>
-                    <Award className="w-5 h-5 text-amber-300" />
-                    <span>রিওয়ার্ড ক্লেইম করুন (+${activeTask.rewardUsd.toFixed(2)} USD)</span>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{lang === 'bn' ? 'স্ক্রিনশট জমা দিন' : 'Submit Task Proof'}</span>
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: FULL IMAGE PREVIEW */}
+      {viewImageSrc && (
+        <div
+          onClick={() => setViewImageSrc(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-3xl w-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl p-2 cursor-default"
+          >
+            <div className="flex items-center justify-between p-2 pb-3 border-b border-slate-800 mb-2">
+              <span className="text-xs font-bold text-slate-300">
+                {lang === 'bn' ? 'জমা দেওয়া স্ক্রিনশট প্রমাণ' : 'Submitted Screenshot Proof'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewImageSrc(null)}
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="max-h-[80vh] overflow-auto flex items-center justify-center bg-black/60 rounded-xl">
+              <img
+                src={viewImageSrc}
+                alt="Submitted Proof"
+                className="max-w-full max-h-[75vh] object-contain"
+              />
             </div>
           </div>
         </div>

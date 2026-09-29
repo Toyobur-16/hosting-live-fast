@@ -625,6 +625,12 @@ export interface TaskCompletionLog {
   platform: SocialPlatform;
   taskTitle: string;
   rewardUsd: number;
-  completedAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+  screenshotUrl?: string;
   proofNote?: string;
+  submittedAt: string;
+  completedAt?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectReason?: string;
 }

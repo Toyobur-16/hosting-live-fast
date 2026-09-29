@@ -5,8 +5,6 @@ import {
   CreditCard, ChevronRight, ShoppingCart, X, AlertTriangle
 } from 'lucide-react';
 import { HostingPlan, AuthUser, FreeTrialSettings } from '../types';
-import { FAQAccordion } from './FAQAccordion';
-import { HostingTutorialSection } from './HostingTutorialSection';
 
 interface PlansPageProps {
   user: AuthUser | null;
@@ -256,15 +254,6 @@ export const PlansPage: React.FC<PlansPageProps> = ({
         </div>
       </div>
 
-      {/* Video Tutorial & How to Take Hosting Guide */}
-      <HostingTutorialSection
-        lang={lang}
-        videoUrl={hostingVideoUrl}
-        onNavigateToWallet={onNavigateToWallet}
-        onNavigateToDeploy={onNavigateToDeploy}
-        type="plans"
-      />
-
       {/* Pricing Header Info & Refresh */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-2xl">
@@ -504,16 +493,6 @@ export const PlansPage: React.FC<PlansPageProps> = ({
             </div>
           );
         })}
-      </div>
-
-      {/* Accordion FAQ Section for Hosting Plans & Deployment */}
-      <div className="pt-6">
-        <FAQAccordion
-          lang={lang}
-          onNavigateToDeploy={onNavigateToDeploy}
-          onNavigateToSupport={onNavigateToSupport}
-          defaultOpenFirst={false}
-        />
       </div>
 
       {/* Confirmation Modal */}
