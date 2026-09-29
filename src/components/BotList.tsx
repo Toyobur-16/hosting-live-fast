@@ -26,7 +26,9 @@ import {
   Tag,
   Zap,
   X,
-  Archive
+  Archive,
+  Wrench,
+  Loader2
 } from 'lucide-react';
 import { HostedBot, AuthUser } from '../types';
 
@@ -92,12 +94,41 @@ export const BotList: React.FC<BotListProps> = ({
     return `${secs}s`;
   };
 
+  const [fixingBotId, setFixingBotId] = useState<string | null>(null);
+  const [fixToast, setFixToast] = useState<{ botId: string; message: string; ok: boolean } | null>(null);
+
   const handleCopyPing = (e: React.MouseEvent, botId: string) => {
     e.stopPropagation();
     const url = `${window.location.origin}/api/keepalive/${botId}`;
     navigator.clipboard.writeText(url);
     setCopiedId(botId);
     setTimeout(() => setCopiedId(null), 2500);
+  };
+
+  const handleAutoFixBot = async (e: React.MouseEvent, botId: string) => {
+    e.stopPropagation();
+    setFixingBotId(botId);
+    setFixToast(null);
+    try {
+      const res = await fetch(`/api/bots/${botId}/auto-fix`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        const fixes = data.result?.fixesApplied || [];
+        const msg = fixes.length > 0
+          ? (lang === 'bn' ? `সফলভাবে ফিক্স হয়েছে: ${fixes.join(' | ')}` : `Fixed successfully: ${fixes.join(', ')}`)
+          : (lang === 'bn' ? 'সবকিছু ঠিক আছে, কোনো ডাটা মিসিং পাওয়া যায়নি।' : 'All good, no missing data detected.');
+        setFixToast({ botId, message: msg, ok: true });
+      } else {
+        setFixToast({ botId, message: data.error || 'Failed to auto-fix', ok: false });
+      }
+    } catch (err: any) {
+      setFixToast({ botId, message: err.message || 'Auto-fix error', ok: false });
+    } finally {
+      setFixingBotId(null);
+      setTimeout(() => {
+        setFixToast(null);
+      }, 7000);
+    }
   };
 
   const filteredBots = useMemo(() => {
@@ -732,6 +763,20 @@ export const BotList: React.FC<BotListProps> = ({
                           </>
                         )}
                       </button>
+                      {/* 1-Click Auto-Fix Missing Data / Assets */}
+                      <button
+                        onClick={(e) => handleAutoFixBot(e, bot.id)}
+                        disabled={fixingBotId === bot.id}
+                        className="min-h-[32px] py-1.5 px-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
+                        title={lang === 'bn' ? 'মিসিং ফটো ফোল্ডার, ডিপেনডেন্সি ও ডাটা এক ক্লিকে ফিক্স করুন' : '1-Click Auto-Fix Missing Folders, Photos & Dependencies'}
+                      >
+                        {fixingBotId === bot.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Wrench className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        )}
+                        <span>{lang === 'bn' ? 'ডাটা ফিক্স' : 'Auto-Fix'}</span>
+                      </button>
                     </div>
 
                     {/* Delete Bot */}
@@ -744,6 +789,18 @@ export const BotList: React.FC<BotListProps> = ({
                       <span>{lang === 'bn' ? 'ডিলিট' : 'Delete'}</span>
                     </button>
                   </div>
+
+                  {/* Auto-Fix Toast Message */}
+                  {fixToast && fixToast.botId === bot.id && (
+                    <div className={`mt-2.5 p-2.5 rounded-xl text-xs flex items-start gap-2 ${
+                      fixToast.ok
+                        ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800'
+                        : 'bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-800'
+                    }`}>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                      <span className="flex-1 font-medium">{fixToast.message}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );

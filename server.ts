@@ -100,6 +100,11 @@ import {
   startAdSession,
   completeAdSession
 } from './server/rewardAdsManager';
+import { askAiSupport } from './server/aiSupportService';
+import {
+  scanAndAutoFixBotDirectory,
+  inspectZipAndDetectMissing
+} from './server/botAutoFixService';
 
 // Enforce IPv4 priority globally to eliminate ENETUNREACH in containers lacking IPv6 routes
 if (typeof (dns as any).setDefaultResultOrder === 'function') {
@@ -5022,6 +5027,35 @@ app.post('/api/admin/support-settings', (req, res) => {
   res.json({ success: true, settings: updated });
 });
 
+// AI 24/7 Live Support Chat Endpoint (Bilingual Bengali/English)
+app.post('/api/support/ai-chat', async (req, res) => {
+  try {
+    const { message, history } = req.body;
+    if (!message || !String(message).trim()) {
+      return res.status(400).json({ error: 'বার্তা দেওয়া আবশ্যক (Message required)' });
+    }
+    const settings = getSupportSettings();
+    const result = await askAiSupport(message, history || [], settings);
+    res.json({
+      success: true,
+      reply: result.text,
+      fallback: result.fallback,
+      supportContact: {
+        whatsapp: settings?.whatsapp || '01304104492',
+        telegram: settings?.telegram || 'toyoburrahman',
+        email: settings?.email || 'toyoburrahman560@gmail.com'
+      }
+    });
+  } catch (err: any) {
+    console.error('Error in /api/support/ai-chat:', err);
+    res.status(500).json({
+      success: false,
+      error: 'সাপোর্ট রোবট প্রসেস করতে সাময়িক সমস্যা হয়েছে। সরাসরি এডমিনের সাথে যোগাযোগ করুন।',
+      reply: 'দুঃখিত, রোবটের সাথে সংযোগে সাময়িক সমস্যা হয়েছে। সরাসরি এডমিনের সাথে যোগাযোগ করুন:\nWhatsApp: 01304104492\nTelegram: @toyoburrahman'
+    });
+  }
+});
+
 app.post('/api/support/message', (req, res) => {
   const user = getAuthUser(req);
   const { subject, message, name, email } = req.body;
@@ -5241,18 +5275,31 @@ app.post('/api/bots', (req, res) => {
     }
   }
 
-  // Detect entry file if specified file doesn't exist
-  let resolvedEntry = finalEntry;
-  if (!fs.existsSync(path.join(botDir, resolvedEntry))) {
-    if (fs.existsSync(path.join(botDir, 'bot.py'))) {
-      resolvedEntry = 'bot.py';
-    } else if (fs.existsSync(path.join(botDir, 'main.py'))) {
-      resolvedEntry = 'main.py';
-    } else {
-      const allFiles = fs.readdirSync(botDir);
-      const pyFile = allFiles.find((f) => f.endsWith('.py'));
-      if (pyFile) {
-        resolvedEntry = pyFile;
+  // 1-Click Auto-fix missing files/folders (photos, assets, data, requirements.txt, token, entry)
+  let appliedFixes: string[] = [];
+  if (req.body.autoFixMissing !== false) {
+    const fixRes = scanAndAutoFixBotDirectory(botDir, {
+      defaultToken: token,
+      requestedEntry: finalEntry
+    });
+    appliedFixes = fixRes.fixesApplied;
+    resolvedEntry = fixRes.resolvedEntry;
+    for (const fix of appliedFixes) {
+      appendLog(botId, 'info', `[Auto-Fix] ${fix}`);
+    }
+  } else {
+    // Detect entry file if specified file doesn't exist
+    if (!fs.existsSync(path.join(botDir, resolvedEntry))) {
+      if (fs.existsSync(path.join(botDir, 'bot.py'))) {
+        resolvedEntry = 'bot.py';
+      } else if (fs.existsSync(path.join(botDir, 'main.py'))) {
+        resolvedEntry = 'main.py';
+      } else {
+        const allFiles = fs.readdirSync(botDir);
+        const pyFile = allFiles.find((f) => f.endsWith('.py'));
+        if (pyFile) {
+          resolvedEntry = pyFile;
+        }
       }
     }
   }
@@ -5333,7 +5380,43 @@ app.post('/api/bots', (req, res) => {
     newBot.status = 'running';
   }
 
-  res.json({ success: true, bot: newBot });
+  res.json({ success: true, bot: newBot, fixes: appliedFixes });
+});
+
+// 1-Click ZIP inspection & missing data diagnosis endpoint
+app.post('/api/bots/inspect-zip', (req, res) => {
+  const { zipBase64, token, entryFile } = req.body;
+  if (!zipBase64) {
+    return res.status(400).json({ error: 'zipBase64 is required' });
+  }
+  const result = inspectZipAndDetectMissing(zipBase64, {
+    defaultToken: token,
+    requestedEntry: entryFile
+  });
+  res.json(result);
+});
+
+// 1-Click Auto-fix for existing bot
+app.post('/api/bots/:id/auto-fix', (req, res) => {
+  const botId = req.params.id;
+  const bot = getBotById(botId);
+  if (!bot) return res.status(404).json({ error: 'Bot not found' });
+  const botDir = path.join(HOSTED_BOTS_DIR, botId);
+  const result = scanAndAutoFixBotDirectory(botDir, {
+    defaultToken: bot.token,
+    requestedEntry: bot.entryFile
+  });
+  if (result.resolvedEntry && result.resolvedEntry !== bot.entryFile) {
+    bot.entryFile = result.resolvedEntry;
+    const reg = getRegistry();
+    const idx = reg.findIndex((b) => b.id === botId);
+    if (idx !== -1) {
+      reg[idx] = bot;
+      saveRegistry(reg);
+    }
+  }
+  appendLog(botId, 'info', `[Manual Auto-Fix] Applied fixes: ${result.fixesApplied.join(', ') || 'No missing data found'}`);
+  res.json({ success: true, result });
 });
 
 // Telegram Bot Token Verification endpoint

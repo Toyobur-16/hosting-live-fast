@@ -22,6 +22,7 @@ import { WebsitesPage } from './components/WebsitesPage';
 import { SocialTasksPage } from './components/SocialTasksPage';
 import { HostingTutorialPage } from './components/HostingTutorialPage';
 import { FAQPage } from './components/FAQPage';
+import { AiLiveSupportWidget } from './components/AiLiveSupportWidget';
 import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 import { checkIsAdmin } from './utils/adminCheck';
@@ -930,6 +931,13 @@ export default function App() {
           lang={lang}
         />
       )}
+
+      {/* 24/7 AI Live Support Robot Assistant (Bilingual: Bengali & English) */}
+      <AiLiveSupportWidget
+        currentUser={currentUser}
+        onNavigateToDeposit={() => setActiveTab('deposit-store')}
+        onNavigateToPlans={() => setActiveTab('plans')}
+      />
     </div>
   );
 }
