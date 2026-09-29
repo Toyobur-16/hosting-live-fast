@@ -5,9 +5,9 @@ import {
   Play, Square, RotateCw, Trash2, Check, Copy, ExternalLink, ShieldAlert,
   Plus, Wallet, ArrowRight, Link, Sparkles, Headphones, BellRing,
   ArrowUp, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, BarChart3, Layers, Sliders,
-  Upload, Image as ImageIcon, Loader2
+  Upload, Image as ImageIcon, Loader2, Eye
 } from 'lucide-react';
-import { PlanRequest, AuthUser, HostedBot, PaymentSettings, HostingPlan, FreeTrialSettings, CustomDepositMethod, CryptoNetworkItem } from '../types';
+import { PlanRequest, AuthUser, HostedBot, PaymentSettings, HostingPlan, FreeTrialSettings, CustomDepositMethod, CryptoNetworkItem, TaskCompletionLog } from '../types';
 import { AdminBannersManager } from './admin/AdminBannersManager';
 import { AdminSupportManager } from './admin/AdminSupportManager';
 import { AdminNoticesManager } from './admin/AdminNoticesManager';
@@ -18,6 +18,7 @@ import { AdminWebsitesManager } from './admin/AdminWebsitesManager';
 import { AdminDepositMethodsManager } from './admin/AdminDepositMethodsManager';
 import { Mail, Globe, Share2 } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, doc, updateDoc } from '../lib/firebase';
+import { playDepositSuccessSound } from '../utils/audioAlert';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -162,6 +163,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   } | null>(null);
 
   const [requests, setRequests] = useState<PlanRequest[]>([]);
+  const [taskSubmissions, setTaskSubmissions] = useState<TaskCompletionLog[]>([]);
+  const [requestCategory, setRequestCategory] = useState<'all' | 'plans_deposits' | 'tasks'>('all');
+  const [viewScreenshotUrl, setViewScreenshotUrl] = useState<string | null>(null);
+  const [rejectingTaskSub, setRejectingTaskSub] = useState<TaskCompletionLog | null>(null);
+  const [rejectTaskReason, setRejectTaskReason] = useState('');
+  const [rejectingPlanReq, setRejectingPlanReq] = useState<PlanRequest | null>(null);
+  const [rejectPlanReason, setRejectPlanReason] = useState('');
   const [users, setUsers] = useState<any[]>([]);
   const [plans, setPlans] = useState<HostingPlan[]>([]);
   const [allBots, setAllBots] = useState<HostedBot[]>([]);
@@ -367,9 +375,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       }
     }, () => {});
 
+    // Real-Time live listener: user task submissions appear immediately in real-time
+    const unsubTasks = onSnapshot(collection(db, 'task_completions'), (snapshot) => {
+      if (!snapshot.empty) {
+        setTaskSubmissions((prev) => {
+          const map = new Map<string, TaskCompletionLog>();
+          prev.forEach((t) => { if (t && t.id) map.set(t.id, t); });
+          snapshot.forEach((d) => {
+            const data = d.data() as TaskCompletionLog;
+            if (data && data.id) {
+              map.set(data.id, { ...map.get(data.id), ...data });
+            }
+          });
+          const list = Array.from(map.values());
+          list.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+          return list;
+        });
+      }
+    }, () => {});
+
     return () => {
       unsubPlan();
       unsubDep();
+      unsubTasks();
     };
   }, [isOpen]);
 
@@ -429,6 +457,38 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         setRequests(finalReqs);
       } catch (fbErr) {
         setRequests(combinedRequests);
+      }
+
+      // 2b. Task Submissions (Backend + Firestore Dual Fetch)
+      try {
+        let combinedTasks: TaskCompletionLog[] = [];
+        const taskRes = await fetch('/api/admin/social-tasks/submissions', { headers });
+        if (taskRes.ok) {
+          const taskData = await taskRes.json();
+          if (taskData.success && Array.isArray(taskData.logs)) {
+            combinedTasks = taskData.logs;
+          }
+        }
+
+        const taskMap = new Map<string, TaskCompletionLog>();
+        for (const t of combinedTasks) {
+          if (t && t.id) taskMap.set(t.id, t);
+        }
+
+        const taskSnap = await getDocs(collection(db, 'task_completions')).catch(() => null);
+        if (taskSnap && !taskSnap.empty) {
+          taskSnap.forEach((d) => {
+            const data = d.data() as TaskCompletionLog;
+            if (data && data.id && !taskMap.has(data.id)) {
+              taskMap.set(data.id, data);
+            }
+          });
+        }
+        const finalTasks = Array.from(taskMap.values());
+        finalTasks.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+        setTaskSubmissions(finalTasks);
+      } catch (tErr) {
+        console.warn('Error fetching task submissions:', tErr);
       }
 
       // 3. Users
@@ -568,6 +628,113 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       loadAllAdminData();
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleApproveTaskSubmission = async (submissionId: string) => {
+    setActionLoadingId('task_' + submissionId);
+    const token = localStorage.getItem('bot_auth_token');
+    try {
+      try {
+        await updateDoc(doc(db, 'task_completions', submissionId), {
+          status: 'approved',
+          completedAt: new Date().toISOString(),
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: currentUser?.name || currentUser?.email || 'Admin'
+        });
+      } catch (fbErr) {
+        console.warn('Firestore direct approve task notice:', fbErr);
+      }
+
+      const res = await fetch(`/api/admin/social-tasks/submissions/${submissionId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'টাস্ক অনুমোদন ব্যর্থ হয়েছে');
+      }
+
+      setTaskSubmissions((prev) =>
+        prev.map((t) =>
+          t.id === submissionId
+            ? {
+                ...t,
+                status: 'approved',
+                completedAt: new Date().toISOString(),
+                reviewedAt: new Date().toISOString(),
+                reviewedBy: currentUser?.name || currentUser?.email || 'Admin'
+              }
+            : t
+        )
+      );
+
+      playDepositSuccessSound();
+      setNotification({
+        type: 'success',
+        message: data.message || '✓ টাস্ক সফলভাবে অনুমোদন করা হয়েছে এবং ইউজারের ওয়ালেটে ব্যালেন্স জমা হয়েছে!'
+      });
+      loadAllAdminData();
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'টাস্ক অনুমোদন করতে সমস্যা হয়েছে।' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRejectTaskSubmission = async (submissionId: string, reason?: string) => {
+    setActionLoadingId('task_rej_' + submissionId);
+    const token = localStorage.getItem('bot_auth_token');
+    const rejectReason = reason?.trim() || 'প্রদত্ত স্ক্রিনশট প্রমাণ সঠিক নয়';
+
+    try {
+      try {
+        await updateDoc(doc(db, 'task_completions', submissionId), {
+          status: 'rejected',
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: currentUser?.name || currentUser?.email || 'Admin',
+          rejectReason
+        });
+      } catch (fbErr) {
+        console.warn('Firestore direct reject task notice:', fbErr);
+      }
+
+      const res = await fetch(`/api/admin/social-tasks/submissions/${submissionId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: rejectReason })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'টাস্ক বাতিল করতে ব্যর্থ হয়েছে');
+      }
+
+      setTaskSubmissions((prev) =>
+        prev.map((t) =>
+          t.id === submissionId
+            ? {
+                ...t,
+                status: 'rejected',
+                reviewedAt: new Date().toISOString(),
+                reviewedBy: currentUser?.name || currentUser?.email || 'Admin',
+                rejectReason
+              }
+            : t
+        )
+      );
+
+      setNotification({ type: 'success', message: 'টাস্ক সাবমিশন বাতিল করা হয়েছে।' });
+      loadAllAdminData();
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'বাতিল করতে সমস্যা হয়েছে।' });
     } finally {
       setActionLoadingId(null);
     }
@@ -830,9 +997,27 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       r.userEmail?.toLowerCase().includes(q) ||
       r.senderNumber?.includes(q) ||
       r.transactionId?.toLowerCase().includes(q) ||
+      (r.planName && r.planName.toLowerCase().includes(q)) ||
       (r.type && r.type.includes(q))
     );
   });
+
+  const filteredTaskSubmissions = taskSubmissions.filter((t) => {
+    if (filterStatus !== 'all' && t.status !== filterStatus) return false;
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (t.userName && t.userName.toLowerCase().includes(q)) ||
+      (t.userEmail && t.userEmail.toLowerCase().includes(q)) ||
+      (t.taskTitle && t.taskTitle.toLowerCase().includes(q)) ||
+      (t.platform && t.platform.toLowerCase().includes(q)) ||
+      (t.proofNote && t.proofNote.toLowerCase().includes(q))
+    );
+  });
+
+  const pendingPlanRequestsCount = requests.filter((r) => r.status === 'pending').length;
+  const pendingTasksCount = taskSubmissions.filter((t) => t.status === 'pending').length;
+  const totalPendingCount = pendingPlanRequestsCount + pendingTasksCount;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-start sm:justify-center p-0 sm:p-4 bg-[#030712]/95 backdrop-blur-md animate-in fade-in duration-200 pt-[max(0.35rem,env(safe-area-inset-top))] pb-[max(0.35rem,env(safe-area-inset-bottom))]">
@@ -994,7 +1179,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               className="flex items-center gap-1.5 overflow-x-auto py-0.5 scroll-smooth no-scrollbar flex-1"
             >
               {[
-                { id: 'requests' as AdminTabType, labelBn: 'অনুরোধ ও ডিপোজিট', labelEn: 'Requests & Deposits', icon: Clock, iconColor: 'text-sky-400', badge: overview?.pendingRequestsCount },
+                { id: 'requests' as AdminTabType, labelBn: 'অনুরোধ ও ডিপোজিট', labelEn: 'Requests & Deposits', icon: Clock, iconColor: 'text-sky-400', badge: Math.max(overview?.pendingRequestsCount || 0, totalPendingCount) },
                 { id: 'deposit-methods' as AdminTabType, labelBn: 'ডিপোজিট মেথড ও নাম্বার', labelEn: 'Deposit Methods', icon: CreditCard, iconColor: 'text-amber-400' },
                 { id: 'users' as AdminTabType, labelBn: 'ইউজার ও ওয়ালেট', labelEn: 'Users & Wallets', icon: Users, iconColor: 'text-indigo-400' },
                 { id: 'pricing' as AdminTabType, labelBn: 'প্যাকেজ ও প্রাইসিং', labelEn: 'Packages & Pricing', icon: DollarSign, iconColor: 'text-amber-400' },
@@ -1004,7 +1189,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 { id: 'payments' as AdminTabType, labelBn: 'পেমেন্ট নাম্বার', labelEn: 'Payment Numbers', icon: CreditCard, iconColor: 'text-purple-400' },
                 { id: 'bots' as AdminTabType, labelBn: 'সকল বট নিয়ন্ত্রণ', labelEn: 'All Bots Control', icon: Bot, iconColor: 'text-blue-400' },
                 { id: 'websites' as AdminTabType, labelBn: 'ওয়েবসাইট হোস্টিং', labelEn: 'Hosted Websites', icon: Globe, iconColor: 'text-cyan-400' },
-                { id: 'social-tasks' as AdminTabType, labelBn: 'সোশ্যাল টাস্ক', labelEn: 'Social Tasks', icon: Share2, iconColor: 'text-purple-400' },
+                { id: 'social-tasks' as AdminTabType, labelBn: 'সোশ্যাল টাস্ক', labelEn: 'Social Tasks', icon: Share2, iconColor: 'text-purple-400', badge: pendingTasksCount > 0 ? pendingTasksCount : undefined },
                 { id: 'smtp' as AdminTabType, labelBn: 'SMTP ইমেইল কনফিগ', labelEn: 'SMTP Config', icon: Mail, iconColor: 'text-emerald-400' },
                 { id: 'site' as AdminTabType, labelBn: 'সাইট লোগো ও নাম', labelEn: 'Site Logo & Branding', icon: Sliders, iconColor: 'text-amber-400' },
               ].map((tab) => {
@@ -1057,139 +1242,338 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         >
           {/* Tab 1: Requests & Deposits Queue */}
           {activeTab === 'requests' && (
-            <div className="space-y-3 pr-1">
-            {/* Filter & Search */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 bg-[#09101d] p-2 rounded-2xl border border-[#1a2942]">
-              <div className="flex items-center gap-1 bg-[#060b14] p-1 rounded-xl border border-[#16243b]">
-                {(['pending', 'approved', 'rejected', 'all'] as const).map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setFilterStatus(st)}
-                    className={`h-7 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      filterStatus === st
-                        ? 'bg-[#0088cc] text-white shadow-sm'
-                        : 'text-slate-400 hover:text-white hover:bg-[#121c2e]'
-                    }`}
-                  >
-                    {st === 'pending' ? (lang === 'bn' ? 'অপেক্ষমান' : 'Pending') :
-                     st === 'approved' ? (lang === 'bn' ? 'অনুমোদিত' : 'Approved') :
-                     st === 'rejected' ? (lang === 'bn' ? 'বাতিল' : 'Rejected') : (lang === 'bn' ? 'সবগুলো' : 'All')}
-                  </button>
-                ))}
+            <div className="space-y-3.5 pr-1">
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setRequestCategory('all')}
+                  className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
+                    requestCategory === 'all'
+                      ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-sm'
+                      : 'bg-[#09101d] border-[#1a2942] text-slate-400 hover:text-white hover:bg-[#121c2e]'
+                  }`}
+                >
+                  <span>{lang === 'bn' ? 'সব অনুরোধ' : 'All Requests'}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                    totalPendingCount > 0 ? 'bg-rose-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {totalPendingCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRequestCategory('plans_deposits')}
+                  className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
+                    requestCategory === 'plans_deposits'
+                      ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-sm'
+                      : 'bg-[#09101d] border-[#1a2942] text-slate-400 hover:text-white hover:bg-[#121c2e]'
+                  }`}
+                >
+                  <span>{lang === 'bn' ? '📦 প্ল্যান ও ডিপোজিট' : '📦 Plans & Deposits'}</span>
+                  {pendingPlanRequestsCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black">
+                      {pendingPlanRequestsCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRequestCategory('tasks')}
+                  className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
+                    requestCategory === 'tasks'
+                      ? 'bg-purple-500/20 border-purple-400 text-purple-300 shadow-sm'
+                      : 'bg-[#09101d] border-[#1a2942] text-slate-400 hover:text-white hover:bg-[#121c2e]'
+                  }`}
+                >
+                  <Share2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                  <span>{lang === 'bn' ? '🎯 সোশ্যাল টাস্ক সাবমিশন' : '🎯 Task Submissions'}</span>
+                  {pendingTasksCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[10px] font-black animate-pulse">
+                      {pendingTasksCount}
+                    </span>
+                  )}
+                </button>
               </div>
 
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={lang === 'bn' ? 'নাম, TrxID বা নাম্বার খুঁজুন...' : 'Search Name, TrxID, Phone...'}
-                  className="bg-[#060b14] border border-[#16243b] rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#0088cc]"
-                />
-              </div>
-            </div>
-
-            {/* Requests Cards */}
-            {filteredRequests.length === 0 ? (
-              <div className="p-8 text-center bg-[#0d1524] border border-[#1f2d48] rounded-2xl">
-                <Clock className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-xs text-slate-400">
-                  {lang === 'bn' ? 'কোনো অনুরোধ পাওয়া যায়নি।' : 'No requests found.'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {filteredRequests.map((req) => {
-                  const isDeposit = req.type === 'deposit';
-
-                  return (
-                    <div
-                      key={req.id}
-                      className="p-3.5 sm:p-4 rounded-2xl bg-[#0d1524] border border-[#1f2d48] flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 text-xs hover:border-slate-600 transition-colors"
+              {/* Status Filter & Search */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 bg-[#09101d] p-2.5 rounded-2xl border border-[#1a2942]">
+                <div className="flex items-center gap-1 bg-[#060b14] p-1 rounded-xl border border-[#16243b] flex-wrap">
+                  {(['pending', 'approved', 'rejected', 'all'] as const).map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setFilterStatus(st)}
+                      className={`h-7 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        filterStatus === st
+                          ? 'bg-[#0088cc] text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white hover:bg-[#121c2e]'
+                      }`}
                     >
-                      <div className="space-y-1.5 max-w-xl w-full">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                            isDeposit ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                          }`}>
-                            {isDeposit ? '💰 ওয়ালেট ডিপোজিট' : '📦 প্যাকেজ সাবস্ক্রিপশন'}
-                          </span>
-                          <span className="font-bold text-white text-sm">{req.userName}</span>
-                          <span className="text-slate-400 text-[11px]">({req.userEmail})</span>
-                        </div>
+                      {st === 'pending' ? (lang === 'bn' ? 'অপেক্ষমান' : 'Pending') :
+                       st === 'approved' ? (lang === 'bn' ? 'অনুমোদিত' : 'Approved') :
+                       st === 'rejected' ? (lang === 'bn' ? 'বাতিল' : 'Rejected') : (lang === 'bn' ? 'সবগুলো' : 'All')}
+                    </button>
+                  ))}
+                </div>
 
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 rounded-md bg-[#0088cc]/20 text-[#0088cc] font-bold text-[11px]">
-                            {req.planName}
-                          </span>
-                          <span className="font-black text-emerald-400 text-sm">
-                            ${req.amount} USDT
-                          </span>
-                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 uppercase font-bold text-[10px]">
-                            {req.method}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-3 text-[11px] text-slate-300 flex-wrap">
-                          <span>প্রেরক: <strong className="font-mono text-white">{req.senderNumber || req.senderIdentifier}</strong></span>
-                          <span className="flex items-center gap-1">
-                            TrxID: <strong className="font-mono text-pink-400">{req.transactionId}</strong>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(req.transactionId, req.id)}
-                              className="p-1 hover:text-white cursor-pointer"
-                            >
-                              {copiedId === req.id ? <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
-                            </button>
-                          </span>
-                        </div>
-
-                        <div className="text-[10px] text-slate-500">
-                          তারিখ: {new Date(req.createdAt).toLocaleString('bn-BD')} {req.note ? `• নোট: ${req.note}` : ''}
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-t-0 border-[#1f2d48]">
-                        {req.status === 'pending' ? (
-                          <>
-                            <button
-                              onClick={() => handleApproveRequest(req.id)}
-                              disabled={actionLoadingId === req.id}
-                              className="flex-1 sm:flex-initial min-h-[38px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-600/20 cursor-pointer disabled:opacity-50 transition-all shrink-0"
-                            >
-                              <CheckCircle2 className="w-4 h-4 shrink-0" />
-                              <span>{isDeposit ? (lang === 'bn' ? 'ডিপোজিট অনুমোদন করুন' : 'Approve Deposit') : (lang === 'bn' ? 'প্লান অনুমোদন করুন' : 'Approve Plan')}</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleRejectRequest(req.id)}
-                              disabled={actionLoadingId === req.id}
-                              className="min-h-[38px] px-3.5 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 transition-all shrink-0"
-                            >
-                              <XCircle className="w-4 h-4 shrink-0" />
-                              <span>{lang === 'bn' ? 'বাতিল' : 'Reject'}</span>
-                            </button>
-                          </>
-                        ) : req.status === 'approved' ? (
-                          <div className="w-full sm:w-auto px-3 py-2 rounded-xl bg-emerald-950/60 border border-emerald-800 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0">
-                            <CheckCircle2 className="w-4 h-4 shrink-0" />
-                            <span>{lang === 'bn' ? 'অনুমোদিত (Approved)' : 'Approved'}</span>
-                          </div>
-                        ) : (
-                          <div className="w-full sm:w-auto px-3 py-2 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-400 text-xs font-semibold text-center shrink-0">
-                            {lang === 'bn' ? 'বাতিলকৃত' : 'Rejected'}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={lang === 'bn' ? 'নাম, TrxID, টাস্ক বা নাম্বার খুঁজুন...' : 'Search Name, TrxID, Task, Phone...'}
+                    className="bg-[#060b14] border border-[#16243b] rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#0088cc] w-64"
+                  />
+                </div>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Notice Banner if Pending Tasks exist */}
+              {pendingTasksCount > 0 && requestCategory !== 'tasks' && (
+                <div className="p-3 rounded-2xl bg-purple-950/40 border border-purple-500/40 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span className="text-purple-200">
+                      {lang === 'bn'
+                        ? `ইউজারদের ${pendingTasksCount}টি সোশ্যাল টাস্ক প্রুফ সাবমিশন অপেক্ষমান রয়েছে!`
+                        : `${pendingTasksCount} user social task submissions waiting for review!`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRequestCategory('tasks')}
+                    className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] cursor-pointer shrink-0 transition-colors"
+                  >
+                    {lang === 'bn' ? 'টাস্কগুলো দেখুন →' : 'View Tasks →'}
+                  </button>
+                </div>
+              )}
+
+              {/* Combined Requests List */}
+              {((requestCategory === 'all' && filteredRequests.length === 0 && filteredTaskSubmissions.length === 0) ||
+                (requestCategory === 'plans_deposits' && filteredRequests.length === 0) ||
+                (requestCategory === 'tasks' && filteredTaskSubmissions.length === 0)) ? (
+                <div className="p-8 text-center bg-[#0d1524] border border-[#1f2d48] rounded-2xl">
+                  <Clock className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-xs text-slate-400">
+                    {lang === 'bn' ? 'কোনো অনুরোধ পাওয়া যায়নি।' : 'No requests found.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* 1. Task Completion Requests */}
+                  {(requestCategory === 'all' || requestCategory === 'tasks') &&
+                    filteredTaskSubmissions.map((task) => (
+                      <div
+                        key={task.id}
+                        className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-[#0d1524] to-[#121029] border border-purple-500/30 hover:border-purple-500/60 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs transition-colors shadow-md"
+                      >
+                        <div className="space-y-2 max-w-2xl w-full">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-purple-400" />
+                              <span>🎯 সোশ্যাল টাস্ক সাবমিশন</span>
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-800 text-slate-300 border border-slate-700">
+                              {task.platform}
+                            </span>
+                            <span className="font-extrabold text-white text-sm">{task.userName || 'User'}</span>
+                            <span className="text-slate-400 text-[11px]">({task.userEmail || task.userId})</span>
+                          </div>
+
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="font-bold text-slate-200 text-sm">
+                              {task.taskTitle}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 font-black text-emerald-400 text-xs">
+                              +${task.rewardUsd} USD ওয়ালেট রিওয়ার্ড
+                            </span>
+                          </div>
+
+                          {task.proofNote && (
+                            <div className="p-2 rounded-xl bg-[#080d18] border border-[#16243d] text-[11px] text-slate-300">
+                              <strong className="text-slate-400">প্রমাণ নোট / ইউজারনেম:</strong> {task.proofNote}
+                            </div>
+                          )}
+
+                          {/* Screenshot Proof Preview Thumbnail */}
+                          {task.screenshotUrl && (
+                            <div className="flex items-center gap-3 pt-1">
+                              <div
+                                onClick={() => setViewScreenshotUrl(task.screenshotUrl!)}
+                                className="relative group cursor-pointer rounded-xl overflow-hidden border border-[#2b3a58] hover:border-sky-400 transition-all w-24 h-16 bg-slate-950 shrink-0"
+                                title="স্ক্রিনশট বড় করে দেখুন"
+                              >
+                                <img
+                                  src={task.screenshotUrl}
+                                  alt="Proof thumbnail"
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
+                                />
+                                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/10 flex items-center justify-center transition-colors">
+                                  <Eye className="w-4 h-4 text-white drop-shadow-md" />
+                                </div>
+                              </div>
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => setViewScreenshotUrl(task.screenshotUrl!)}
+                                  className="text-xs font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1.5 cursor-pointer underline"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>স্ক্রিনশট প্রমাণ বড় করে দেখুন (View Proof)</span>
+                                </button>
+                                <p className="text-[10px] text-slate-500">ইউজারের দেওয়া কাজের প্রুফ স্ক্রিনশট</p>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="text-[10px] text-slate-500 pt-0.5">
+                            সাবমিট তারিখ: {task.submittedAt ? new Date(task.submittedAt).toLocaleString('bn-BD') : 'N/A'}
+                            {task.reviewedAt && ` • পর্যালোচনা: ${new Date(task.reviewedAt).toLocaleString('bn-BD')} (${task.reviewedBy || 'Admin'})`}
+                            {task.rejectReason && <span className="text-rose-400 font-bold ml-1.5">• কারণ: {task.rejectReason}</span>}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 flex-wrap md:flex-nowrap w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-[#1f2d48] shrink-0">
+                          {task.status === 'pending' ? (
+                            <>
+                              <button
+                                onClick={() => handleApproveTaskSubmission(task.id)}
+                                disabled={actionLoadingId === 'task_' + task.id}
+                                className="flex-1 md:flex-initial min-h-[40px] px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                              >
+                                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                <span>
+                                  {actionLoadingId === 'task_' + task.id
+                                    ? 'অনুমোদন হচ্ছে...'
+                                    : `✓ অনুমোদন ও ক্রেডিট (+$${task.rewardUsd} USD)`}
+                                </span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setRejectingTaskSub(task);
+                                  setRejectTaskReason('');
+                                }}
+                                disabled={actionLoadingId === 'task_' + task.id || actionLoadingId === 'task_rej_' + task.id}
+                                className="min-h-[40px] px-3.5 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                              >
+                                <XCircle className="w-4 h-4 shrink-0" />
+                                <span>বাতিল</span>
+                              </button>
+                            </>
+                          ) : task.status === 'approved' ? (
+                            <div className="w-full md:w-auto px-3.5 py-2 rounded-xl bg-emerald-950/60 border border-emerald-800 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0">
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                              <span>অনুমোদিত ও ক্রেডিট সম্পন্ন ✓</span>
+                            </div>
+                          ) : (
+                            <div className="w-full md:w-auto px-3.5 py-2 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-400 text-xs font-semibold text-center shrink-0">
+                              বাতিলকৃত (Rejected)
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                  {/* 2. Plan and Deposit Requests */}
+                  {(requestCategory === 'all' || requestCategory === 'plans_deposits') &&
+                    filteredRequests.map((req) => {
+                      const isDeposit = req.type === 'deposit';
+
+                      return (
+                        <div
+                          key={req.id}
+                          className="p-3.5 sm:p-4 rounded-2xl bg-[#0d1524] border border-[#1f2d48] flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 text-xs hover:border-slate-600 transition-colors"
+                        >
+                          <div className="space-y-1.5 max-w-xl w-full">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                isDeposit ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                              }`}>
+                                {isDeposit ? '💰 ওয়ালেট ডিপোজিট' : '📦 প্যাকেজ সাবস্ক্রিপশন'}
+                              </span>
+                              <span className="font-bold text-white text-sm">{req.userName}</span>
+                              <span className="text-slate-400 text-[11px]">({req.userEmail})</span>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-2 py-0.5 rounded-md bg-[#0088cc]/20 text-[#0088cc] font-bold text-[11px]">
+                                {req.planName}
+                              </span>
+                              <span className="font-black text-emerald-400 text-sm">
+                                ${req.amount} USDT
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 uppercase font-bold text-[10px]">
+                                {req.method}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-3 text-[11px] text-slate-300 flex-wrap">
+                              <span>প্রেরক: <strong className="font-mono text-white">{req.senderNumber || req.senderIdentifier}</strong></span>
+                              <span className="flex items-center gap-1">
+                                TrxID: <strong className="font-mono text-pink-400">{req.transactionId}</strong>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(req.transactionId, req.id)}
+                                  className="p-1 hover:text-white cursor-pointer"
+                                >
+                                  {copiedId === req.id ? <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
+                                </button>
+                              </span>
+                            </div>
+
+                            <div className="text-[10px] text-slate-500">
+                              তারিখ: {new Date(req.createdAt).toLocaleString('bn-BD')} {req.note ? `• নোট: ${req.note}` : ''}
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-t-0 border-[#1f2d48]">
+                            {req.status === 'pending' ? (
+                              <>
+                                <button
+                                  onClick={() => handleApproveRequest(req.id)}
+                                  disabled={actionLoadingId === req.id}
+                                  className="flex-1 sm:flex-initial min-h-[38px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-600/20 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                                >
+                                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                  <span>{isDeposit ? (lang === 'bn' ? 'ডিপোজিট অনুমোদন করুন' : 'Approve Deposit') : (lang === 'bn' ? 'প্লান অনুমোদন করুন' : 'Approve Plan')}</span>
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setRejectingPlanReq(req);
+                                    setRejectPlanReason('');
+                                  }}
+                                  disabled={actionLoadingId === req.id}
+                                  className="min-h-[38px] px-3.5 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                                >
+                                  <XCircle className="w-4 h-4 shrink-0" />
+                                  <span>{lang === 'bn' ? 'বাতিল' : 'Reject'}</span>
+                                </button>
+                              </>
+                            ) : req.status === 'approved' ? (
+                              <div className="w-full sm:w-auto px-3 py-2 rounded-xl bg-emerald-950/60 border border-emerald-800 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0">
+                                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                <span>{lang === 'bn' ? 'অনুমোদিত (Approved)' : 'Approved'}</span>
+                              </div>
+                            ) : (
+                              <div className="w-full sm:w-auto px-3 py-2 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-400 text-xs font-semibold text-center shrink-0">
+                                {lang === 'bn' ? 'বাতিলকৃত' : 'Rejected'}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
 
         {/* Dedicated Deposit Methods Manager Tab */}
         {activeTab === 'deposit-methods' && (
@@ -2665,7 +3049,233 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
         </div>
 
-        {/* Floating Quick Scroll to Top button */}
+        {/* 1. Fullscreen Screenshot Preview Modal */}
+        {viewScreenshotUrl && (
+          <div
+            className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6"
+            onClick={() => setViewScreenshotUrl(null)}
+          >
+            <div
+              className="relative max-w-4xl max-h-[92vh] w-full bg-[#0c1424] border border-[#2b3e64] rounded-3xl p-4 sm:p-5 flex flex-col items-center shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between w-full pb-3 border-b border-[#1f2d48]">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-cyan-400" />
+                  <h4 className="text-sm font-bold text-white">টাস্ক সম্পন্ন করার স্ক্রিনশট প্রমাণ (Task Proof Screenshot)</h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewScreenshotUrl(null)}
+                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-auto max-h-[72vh] w-full flex items-center justify-center p-2 my-2 bg-slate-950/70 rounded-2xl border border-slate-900">
+                <img
+                  src={viewScreenshotUrl}
+                  alt="Task completion proof"
+                  className="max-w-full max-h-[68vh] object-contain rounded-xl shadow-lg"
+                />
+              </div>
+
+              <div className="pt-2 w-full flex items-center justify-between">
+                <p className="text-[11px] text-slate-400">স্ক্রিনশটে ইউজারের চ্যানেল/টাস্ক সম্পন্ন করার প্রমাণ যাচাই করুন</p>
+                <a
+                  href={viewScreenshotUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>নতুন ট্যাবে বড় করে দেখুন</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. Task Submission Rejection Modal */}
+        {rejectingTaskSub && (
+          <div
+            className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setRejectingTaskSub(null)}
+          >
+            <div
+              className="max-w-md w-full bg-[#0d1526] border border-rose-500/40 rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-white"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-[#1f2d48] pb-3">
+                <div className="flex items-center gap-2 text-rose-400">
+                  <XCircle className="w-5 h-5" />
+                  <h4 className="text-sm font-black text-white">টাস্ক সাবমিশন বাতিল করুন (Reject Submission)</h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRejectingTaskSub(null)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <p className="text-slate-300">
+                  ইউজার: <strong className="text-white">{rejectingTaskSub.userName}</strong> ({rejectingTaskSub.userEmail})
+                </p>
+                <p className="text-slate-300">
+                  টাস্ক: <strong className="text-purple-300">{rejectingTaskSub.taskTitle}</strong>
+                </p>
+
+                <label className="block text-slate-400 font-bold pt-2">
+                  বাতিলের কারণ (Rejection Reason):
+                </label>
+                <textarea
+                  rows={3}
+                  value={rejectTaskReason}
+                  onChange={(e) => setRejectTaskReason(e.target.value)}
+                  placeholder="যেমন: প্রদত্ত স্ক্রিনশট প্রমাণ অস্পষ্ট অথবা চ্যানেলে জয়েন করা হয়নি..."
+                  className="w-full bg-[#060b14] border border-[#1d2d47] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-rose-500 placeholder-slate-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRejectingTaskSub(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                >
+                  ফিরে যান (Cancel)
+                </button>
+                <button
+                  type="button"
+                  disabled={actionLoadingId === 'task_rej_' + rejectingTaskSub.id}
+                  onClick={() => {
+                    const id = rejectingTaskSub.id;
+                    const r = rejectTaskReason;
+                    setRejectingTaskSub(null);
+                    handleRejectTaskSubmission(id, r);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md shadow-rose-600/30 cursor-pointer disabled:opacity-50"
+                >
+                  নিশ্চিত বাতিল করুন (Confirm Reject)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Plan / Deposit Request Rejection Modal */}
+        {rejectingPlanReq && (
+          <div
+            className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setRejectingPlanReq(null)}
+          >
+            <div
+              className="max-w-md w-full bg-[#0d1526] border border-rose-500/40 rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-white"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-[#1f2d48] pb-3">
+                <div className="flex items-center gap-2 text-rose-400">
+                  <XCircle className="w-5 h-5" />
+                  <h4 className="text-sm font-black text-white">অনুরোধ বাতিল করুন (Reject Request)</h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRejectingPlanReq(null)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <p className="text-slate-300">
+                  ইউজার: <strong className="text-white">{rejectingPlanReq.userName}</strong> ({rejectingPlanReq.userEmail})
+                </p>
+                <p className="text-slate-300">
+                  পরিমাণ / প্ল্যান: <strong className="text-amber-400">${rejectingPlanReq.amount} USDT ({rejectingPlanReq.planName})</strong>
+                </p>
+                <p className="text-slate-300">
+                  TrxID: <strong className="text-pink-400 font-mono">{rejectingPlanReq.transactionId}</strong>
+                </p>
+
+                <label className="block text-slate-400 font-bold pt-2">
+                  বাতিলের কারণ (Rejection Reason):
+                </label>
+                <textarea
+                  rows={3}
+                  value={rejectPlanReason}
+                  onChange={(e) => setRejectPlanReason(e.target.value)}
+                  placeholder="যেমন: ভুয়া TrxID অথবা পেমেন্ট জমা হয়নি..."
+                  className="w-full bg-[#060b14] border border-[#1d2d47] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-rose-500 placeholder-slate-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRejectingPlanReq(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                >
+                  ফিরে যান (Cancel)
+                </button>
+                <button
+                  type="button"
+                  disabled={actionLoadingId === rejectingPlanReq.id}
+                  onClick={async () => {
+                    const reqId = rejectingPlanReq.id;
+                    const r = rejectPlanReason.trim() || 'ভুয়া বা অননুমোদিত TrxID';
+                    setRejectingPlanReq(null);
+
+                    setActionLoadingId(reqId);
+                    const token = localStorage.getItem('bot_auth_token');
+                    try {
+                      try {
+                        await updateDoc(doc(db, 'plan_requests', reqId), {
+                          status: 'rejected',
+                          reviewedAt: new Date().toISOString(),
+                          reviewedBy: currentUser?.email || 'admin',
+                          note: r
+                        });
+                        await updateDoc(doc(db, 'deposits', reqId), {
+                          status: 'rejected',
+                          reviewedAt: new Date().toISOString(),
+                          reviewedBy: currentUser?.email || 'admin',
+                          note: r
+                        });
+                      } catch {}
+
+                      const res = await fetch(`/api/admin/plan-requests/${reqId}/reject`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ reason: r })
+                      });
+                      const data = await res.json();
+                      if (!res.ok || !data.success) {
+                        throw new Error(data.error || 'Rejection failed');
+                      }
+                      setNotification({ type: 'success', message: 'অনুরোধ বাতিল করা হয়েছে (Request rejected).' });
+                      loadAllAdminData();
+                    } catch (err: any) {
+                      setNotification({ type: 'error', message: err.message });
+                    } finally {
+                      setActionLoadingId(null);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md shadow-rose-600/30 cursor-pointer disabled:opacity-50"
+                >
+                  নিশ্চিত বাতিল করুন (Confirm Reject)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {showBackToTop && (
           <button
             type="button"

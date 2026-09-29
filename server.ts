@@ -49,6 +49,7 @@ import {
   getSocialTasks,
   saveSocialTasks,
   getTaskCompletions,
+  saveTaskCompletions,
   getUserCompletedTaskIds,
   getUserTaskSubmissions,
   submitSocialTaskProof,
@@ -4150,11 +4151,16 @@ app.get('/api/admin/overview', (req, res) => {
   const approvedRequests = requests.filter((r) => r.status === 'approved');
   const totalRevenue = approvedRequests.reduce((sum, r) => sum + (r.amount || 0), 0);
 
+  const taskLogs = getTaskCompletions();
+  const pendingTasks = taskLogs.filter((l) => l.status === 'pending');
+
   res.json({
     totalUsers: accounts.length,
     totalBots: reg.length,
     runningBots: runningProcesses.size,
-    pendingRequestsCount: pendingRequests.length,
+    pendingRequestsCount: pendingRequests.length + pendingTasks.length,
+    pendingPlanRequestsCount: pendingRequests.length,
+    pendingTasksCount: pendingTasks.length,
     approvedRequestsCount: approvedRequests.length,
     totalRevenueUsd: totalRevenue,
     totalRevenueBdt: totalRevenue,
@@ -7708,6 +7714,24 @@ async function initSiteConfigSync() {
     if (remoteMethods && Array.isArray(remoteMethods) && remoteMethods.length > 0) {
       saveDepositMethods(remoteMethods);
       console.log(`✅ Restored ${remoteMethods.length} deposit methods from Firebase Firestore!`);
+    }
+
+    const remoteTasks = await FirebaseSync.loadSocialTasksFromCloud();
+    if (remoteTasks && Array.isArray(remoteTasks) && remoteTasks.length > 0) {
+      saveSocialTasks(remoteTasks);
+      console.log(`✅ Restored ${remoteTasks.length} social tasks from Firebase Firestore!`);
+    }
+
+    const remoteCompletions = await FirebaseSync.loadTaskCompletionsFromCloud();
+    if (remoteCompletions && Array.isArray(remoteCompletions) && remoteCompletions.length > 0) {
+      const current = getTaskCompletions();
+      const map = new Map<string, any>();
+      current.forEach((c) => { if (c && c.id) map.set(c.id, c); });
+      remoteCompletions.forEach((c) => { if (c && c.id) map.set(c.id, c); });
+      const merged = Array.from(map.values());
+      merged.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+      saveTaskCompletions(merged);
+      console.log(`✅ Restored ${merged.length} task completions from Firebase Firestore!`);
     }
   } catch (err: any) {
     console.warn('initSiteConfigSync error:', err.message || err);

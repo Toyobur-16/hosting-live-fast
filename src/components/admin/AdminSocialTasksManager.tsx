@@ -31,6 +31,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { SocialTask, SocialPlatform, TaskCompletionLog } from '../../types';
+import { db, collection, onSnapshot, getDocs, doc, updateDoc } from '../../lib/firebase';
+import { playDepositSuccessSound } from '../../utils/audioAlert';
 
 interface AdminSocialTasksManagerProps {
   lang?: 'en' | 'bn';
@@ -87,6 +89,25 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
   useEffect(() => {
     fetchTasks();
     fetchSubmissions();
+
+    // Real-time Firestore live listener for instant task submission updates
+    const unsub = onSnapshot(collection(db, 'task_completions'), (snapshot) => {
+      if (!snapshot.empty) {
+        setSubmissions((prev) => {
+          const map = new Map<string, TaskCompletionLog>();
+          prev.forEach((s) => { if (s && s.id) map.set(s.id, s); });
+          snapshot.forEach((d) => {
+            const data = d.data() as TaskCompletionLog;
+            if (data && data.id) map.set(data.id, { ...map.get(data.id), ...data });
+          });
+          const list = Array.from(map.values());
+          list.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+          return list;
+        });
+      }
+    }, () => {});
+
+    return () => unsub();
   }, []);
 
   const fetchTasks = async () => {
@@ -115,15 +136,43 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
+      let combined: TaskCompletionLog[] = [];
       if (res.ok && data.success) {
-        setSubmissions(data.logs || []);
+        combined = data.logs || [];
       }
+
+      // Also read Firestore client-side
+      try {
+        const snap = await getDocs(collection(db, 'task_completions'));
+        if (!snap.empty) {
+          const map = new Map<string, TaskCompletionLog>();
+          combined.forEach((s) => { if (s && s.id) map.set(s.id, s); });
+          snap.forEach((d) => {
+            const item = d.data() as TaskCompletionLog;
+            if (item && item.id) map.set(item.id, { ...map.get(item.id), ...item });
+          });
+          combined = Array.from(map.values());
+          combined.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+        }
+      } catch {}
+
+      setSubmissions(combined);
     } catch {}
   };
 
   const handleApproveSubmission = async (submissionId: string) => {
     try {
       setProcessingSubId(submissionId);
+      // Optimistic Firestore direct update
+      try {
+        await updateDoc(doc(db, 'task_completions', submissionId), {
+          status: 'approved',
+          completedAt: new Date().toISOString(),
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: 'Admin'
+        });
+      } catch {}
+
       const token = localStorage.getItem('bot_auth_token');
       const res = await fetch(`/api/admin/social-tasks/submissions/${submissionId}/approve`, {
         method: 'POST',
@@ -131,7 +180,8 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setNotification({ type: 'success', text: data.message || 'টাস্ক সফলভাবে অ্যাপ্রুভ হয়েছে!' });
+        playDepositSuccessSound();
+        setNotification({ type: 'success', text: data.message || 'টাস্ক সফলভাবে অ্যাপ্রুভ হয়েছে এবং ওয়ালেটে ডলার যুক্ত হয়েছে!' });
         fetchSubmissions();
         fetchTasks();
       } else {
@@ -146,8 +196,19 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
 
   const handleRejectSubmission = async () => {
     if (!rejectingSub) return;
+    const reason = rejectReasonInput.trim() || 'প্রদত্ত স্ক্রিনশট প্রমাণ সঠিক নয়';
     try {
       setProcessingSubId(rejectingSub.id);
+      // Optimistic Firestore direct update
+      try {
+        await updateDoc(doc(db, 'task_completions', rejectingSub.id), {
+          status: 'rejected',
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: 'Admin',
+          rejectReason: reason
+        });
+      } catch {}
+
       const token = localStorage.getItem('bot_auth_token');
       const res = await fetch(`/api/admin/social-tasks/submissions/${rejectingSub.id}/reject`, {
         method: 'POST',
@@ -155,7 +216,7 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ reason: rejectReasonInput.trim() || 'প্রদত্ত স্ক্রিনশট প্রমাণ সঠিক নয়' })
+        body: JSON.stringify({ reason })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -368,199 +429,419 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-        <button
-          onClick={() => setActiveTab('tasks')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'tasks' ? 'bg-purple-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <Share2 className="w-3.5 h-3.5" />
-          <span>{lang === 'bn' ? 'টাস্কসমূহ' : 'Tasks List'} ({tasks.length})</span>
-        </button>
+      {(() => {
+        const pendingCount = submissions.filter((s) => s.status === 'pending').length;
+        const approvedCount = submissions.filter((s) => s.status === 'approved').length;
+        const rejectedCount = submissions.filter((s) => s.status === 'rejected').length;
 
-        <button
-          onClick={() => {
-            setActiveTab('submissions');
-            fetchSubmissions();
-          }}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'submissions' ? 'bg-purple-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5" />
-          <span>{lang === 'bn' ? 'কমপ্লিশন হিস্ট্রি' : 'Recent Claims'} ({submissions.length})</span>
-        </button>
-      </div>
+        const filteredSubmissions = submissions.filter((s) => {
+          if (submissionFilter === 'all') return true;
+          return s.status === submissionFilter;
+        });
 
-      {/* TAB 1: Tasks List */}
-      {activeTab === 'tasks' && (
-        <div className="space-y-3">
-          {tasks.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-[#080d19] border border-slate-800 text-slate-400">
-              <Share2 className="w-10 h-10 text-slate-600 mx-auto mb-2" />
-              <p className="text-sm font-bold">কোনো সোশ্যাল টাস্ক যোগ করা নেই</p>
+        return (
+          <>
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
               <button
-                onClick={handleOpenAdd}
-                className="mt-3 px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold cursor-pointer"
+                type="button"
+                onClick={() => setActiveTab('tasks')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'tasks'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white bg-[#0a0f1d] border border-slate-800'
+                }`}
               >
-                + প্রথম টাস্ক যোগ করুন
+                <Share2 className="w-3.5 h-3.5" />
+                <span>{lang === 'bn' ? 'টাস্কসমূহ' : 'Tasks List'} ({tasks.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('submissions');
+                  fetchSubmissions();
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  activeTab === 'submissions'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white bg-[#0a0f1d] border border-slate-800'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>{lang === 'bn' ? 'ইউজার সাবমিশন ও প্রুফ যাচাই' : 'User Submissions & Proofs'}</span>
+                {pendingCount > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
+                    {pendingCount} {lang === 'bn' ? 'অপেক্ষমান' : 'pending'}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-bold">
+                    {submissions.length}
+                  </span>
+                )}
               </button>
             </div>
-          ) : (
-            tasks.map((task) => {
-              const meta = getPlatformMeta(task.platform);
-              const PlatformIcon = meta.icon;
 
-              return (
-                <div
-                  key={task.id}
-                  className={`p-4 rounded-2xl border transition-all ${
-                    task.enabled
-                      ? 'bg-[#0a0f1d] border-slate-800 hover:border-slate-700'
-                      : 'bg-[#080c16]/60 border-slate-900 opacity-60'
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${meta.bg} ${meta.color}`}>
-                        <PlatformIcon className="w-6 h-6" />
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase border ${meta.bg} ${meta.color}`}>
-                            {meta.name}
-                          </span>
-                          {task.badgeText && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/15 border border-amber-500/30 text-amber-300">
-                              {task.badgeText}
-                            </span>
-                          )}
-                          <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                            +${task.rewardUsd.toFixed(2)} USD
-                          </span>
-                        </div>
-
-                        <h4 className="text-sm font-black text-white">{task.titleBn || task.title}</h4>
-                        {task.descriptionBn && (
-                          <p className="text-xs text-slate-400 max-w-xl">{task.descriptionBn}</p>
-                        )}
-
-                        <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-500">
-                          <a
-                            href={task.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sky-400 hover:underline flex items-center gap-1 font-mono"
-                          >
-                            <span>{task.link}</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-amber-400" />
-                            <span>{task.timerSeconds || 8}s টাইমার</span>
-                          </span>
-                          <span>•</span>
-                          <span className="text-emerald-400 font-bold">
-                            {task.totalCompletions || 0} জন সম্পন্ন করেছে
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(task)}
-                        className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
-                          task.enabled
-                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
-                        }`}
-                        title={task.enabled ? 'টাস্ক বন্ধ করুন' : 'টাস্ক চালু করুন'}
-                      >
-                        {task.enabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                        <span className="text-[11px]">{task.enabled ? 'সক্রিয়' : 'বন্ধ'}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(task)}
-                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors"
-                        title="এডিট করুন"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(task.id)}
-                        className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 cursor-pointer transition-colors"
-                        title="মুছে ফেলুন"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+            {/* Pending Alert Banner when on Tasks tab */}
+            {pendingCount > 0 && activeTab === 'tasks' && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in">
+                <div className="flex items-center gap-2.5">
+                  <Clock className="w-5 h-5 text-amber-400 shrink-0 animate-spin" />
+                  <div>
+                    <p className="text-xs font-bold text-white">
+                      {lang === 'bn'
+                        ? `🔔 ${pendingCount} টি নতুন সোশ্যাল টাস্ক প্রুফ অনুমোদনের জন্য অপেক্ষমান রয়েছে!`
+                        : `🔔 ${pendingCount} task submissions waiting for review!`}
+                    </p>
+                    <p className="text-[11px] text-amber-300/80">
+                      {lang === 'bn'
+                        ? 'ইউজাররা স্ক্রিনশট জমা দিয়েছেন। সাবমিশন ট্যাবে গিয়ে প্রুফ দেখে অনুমোদন দিন।'
+                        : 'Users submitted screenshot proofs. Please review and approve.'}
+                    </p>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
-      )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('submissions');
+                    setSubmissionFilter('pending');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer shrink-0 transition shadow-md"
+                >
+                  {lang === 'bn' ? 'প্রুফগুলো রিভিউ করুন →' : 'Review Submissions →'}
+                </button>
+              </div>
+            )}
 
-      {/* TAB 2: Submissions Log */}
-      {activeTab === 'submissions' && (
-        <div className="space-y-2">
-          {submissions.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-[#080d19] border border-slate-800 text-slate-400">
-              <p className="text-sm font-bold">এখনো কোনো ইউজার টাস্ক ক্লেইম করেনি।</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-800">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#0c1322] text-slate-400 uppercase text-[10px] font-black border-b border-slate-800">
-                  <tr>
-                    <th className="p-3">ইউজার / নাম</th>
-                    <th className="p-3">টাস্ক</th>
-                    <th className="p-3">প্ল্যাটফর্ম</th>
-                    <th className="p-3">রিওয়ার্ড</th>
-                    <th className="p-3">তারিখ ও সময়</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 bg-[#070b14]">
-                  {submissions.map((sub) => {
-                    const meta = getPlatformMeta(sub.platform);
+            {/* TAB 1: Tasks List */}
+            {activeTab === 'tasks' && (
+              <div className="space-y-3">
+                {tasks.length === 0 ? (
+                  <div className="p-8 text-center rounded-2xl bg-[#080d19] border border-slate-800 text-slate-400">
+                    <Share2 className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                    <p className="text-sm font-bold">কোনো সোশ্যাল টাস্ক যোগ করা নেই</p>
+                    <button
+                      onClick={handleOpenAdd}
+                      className="mt-3 px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold cursor-pointer"
+                    >
+                      + প্রথম টাস্ক যোগ করুন
+                    </button>
+                  </div>
+                ) : (
+                  tasks.map((task) => {
+                    const meta = getPlatformMeta(task.platform);
+                    const PlatformIcon = meta.icon;
+
                     return (
-                      <tr key={sub.id} className="hover:bg-slate-900/50">
-                        <td className="p-3">
-                          <div className="font-bold text-white">{sub.userName || 'User'}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">{sub.userEmail || sub.userId}</div>
-                        </td>
-                        <td className="p-3 font-semibold text-slate-200">{sub.taskTitle}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${meta.bg} ${meta.color}`}>
-                            {meta.name}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className="font-black text-emerald-400">+${sub.rewardUsd.toFixed(2)} USD</span>
-                        </td>
-                        <td className="p-3 text-slate-400 text-[11px] font-mono">
-                          {new Date(sub.completedAt).toLocaleString()}
-                        </td>
-                      </tr>
+                      <div
+                        key={task.id}
+                        className={`p-4 rounded-2xl border transition-all ${
+                          task.enabled
+                            ? 'bg-[#0a0f1d] border-slate-800 hover:border-slate-700'
+                            : 'bg-[#080c16]/60 border-slate-900 opacity-60'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${meta.bg} ${meta.color}`}>
+                              <PlatformIcon className="w-6 h-6" />
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase border ${meta.bg} ${meta.color}`}>
+                                  {meta.name}
+                                </span>
+                                {task.badgeText && (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                                    {task.badgeText}
+                                  </span>
+                                )}
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                                  +${task.rewardUsd.toFixed(2)} USD
+                                </span>
+                              </div>
+
+                              <h4 className="text-sm font-black text-white">{task.titleBn || task.title}</h4>
+                              {task.descriptionBn && (
+                                <p className="text-xs text-slate-400 max-w-xl">{task.descriptionBn}</p>
+                              )}
+
+                              <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-500">
+                                <a
+                                  href={task.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sky-400 hover:underline flex items-center gap-1 font-mono"
+                                >
+                                  <span>{task.link}</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                                <span>•</span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-amber-400" />
+                                  <span>{task.timerSeconds || 8}s টাইমার</span>
+                                </span>
+                                <span>•</span>
+                                <span className="text-emerald-400 font-bold">
+                                  {task.totalCompletions || 0} জন সম্পন্ন করেছে
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStatus(task)}
+                              className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                                task.enabled
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
+                              }`}
+                              title={task.enabled ? 'টাস্ক বন্ধ করুন' : 'টাস্ক চালু করুন'}
+                            >
+                              {task.enabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                              <span className="text-[11px]">{task.enabled ? 'সক্রিয়' : 'বন্ধ'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(task)}
+                              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                              title="এডিট করুন"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(task.id)}
+                              className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 cursor-pointer transition-colors"
+                              title="মুছে ফেলুন"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+                  })
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: Submissions Log */}
+            {activeTab === 'submissions' && (
+              <div className="space-y-4">
+                {/* Submissions Filter Pills */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 bg-[#080d19] p-2.5 rounded-2xl border border-slate-800">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setSubmissionFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        submissionFilter === 'all'
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'bg-[#0f172a] text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      {lang === 'bn' ? 'সবগুলো' : 'All'} ({submissions.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSubmissionFilter('pending')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        submissionFilter === 'pending'
+                          ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                          : 'bg-[#0f172a] text-amber-400 hover:text-amber-300 border border-amber-500/30'
+                      }`}
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{lang === 'bn' ? 'অপেক্ষমান' : 'Pending'}</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500 text-white">
+                        {pendingCount}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSubmissionFilter('approved')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        submissionFilter === 'approved'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-[#0f172a] text-emerald-400 hover:text-emerald-300 border border-emerald-500/30'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{lang === 'bn' ? 'অনুমোদিত' : 'Approved'}</span>
+                      <span>({approvedCount})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSubmissionFilter('rejected')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        submissionFilter === 'rejected'
+                          ? 'bg-rose-600 text-white shadow-md'
+                          : 'bg-[#0f172a] text-rose-400 hover:text-rose-300 border border-rose-500/30'
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>{lang === 'bn' ? 'বাতিলকৃত' : 'Rejected'}</span>
+                      <span>({rejectedCount})</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={fetchSubmissions}
+                    className="text-xs text-slate-400 hover:text-white font-bold flex items-center gap-1.5 cursor-pointer px-2.5 py-1.5 rounded-lg bg-slate-800"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{lang === 'bn' ? 'রিফ্রেশ' : 'Refresh'}</span>
+                  </button>
+                </div>
+
+                {filteredSubmissions.length === 0 ? (
+                  <div className="p-10 text-center rounded-3xl bg-[#080d19] border border-slate-800 space-y-2">
+                    <FileText className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-sm font-bold text-slate-300">
+                      {submissionFilter === 'pending'
+                        ? (lang === 'bn' ? 'কোনো অপেক্ষমান টাস্ক প্রুফ নেই।' : 'No pending submissions.')
+                        : (lang === 'bn' ? 'কোনো সাবমিশন রেকর্ড পাওয়া যায়নি।' : 'No submissions found.')}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3.5">
+                    {filteredSubmissions.map((sub) => {
+                      const meta = getPlatformMeta(sub.platform);
+                      const PlatformIcon = meta.icon;
+                      const isProcessing = processingSubId === sub.id;
+
+                      return (
+                        <div
+                          key={sub.id}
+                          className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+                            sub.status === 'pending'
+                              ? 'bg-[#0c1426] border-amber-500/40 shadow-lg shadow-amber-500/5'
+                              : sub.status === 'approved'
+                              ? 'bg-[#080e1a] border-emerald-500/30'
+                              : 'bg-[#080c16] border-slate-800/80 opacity-75'
+                          }`}
+                        >
+                          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                            {/* Left: User & Task info */}
+                            <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                              <div className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${meta.bg} ${meta.color}`}>
+                                <PlatformIcon className="w-6 h-6" />
+                              </div>
+
+                              <div className="space-y-1 min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-extrabold text-sm text-white">{sub.userName || 'User'}</span>
+                                  <span className="text-xs text-slate-400 font-mono">({sub.userEmail || sub.userId})</span>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${meta.bg} ${meta.color}`}>
+                                    {meta.name}
+                                  </span>
+                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                                    +${sub.rewardUsd.toFixed(2)} USD
+                                  </span>
+                                </div>
+
+                                <h4 className="text-sm font-bold text-slate-200">{sub.taskTitle}</h4>
+
+                                <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+                                  <span>
+                                    {lang === 'bn' ? 'জমা দেওয়া হয়েছে:' : 'Submitted:'}{' '}
+                                    {new Date(sub.submittedAt || sub.completedAt || Date.now()).toLocaleDateString()}{' '}
+                                    {new Date(sub.submittedAt || sub.completedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                  {sub.reviewedBy && (
+                                    <span>• {lang === 'bn' ? 'পর্যালোচক:' : 'Reviewer:'} {sub.reviewedBy}</span>
+                                  )}
+                                </div>
+
+                                {sub.proofNote && (
+                                  <p className="text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg mt-1 inline-block">
+                                    📝 <strong>{lang === 'bn' ? 'ইউজার নোট:' : 'User Note:'}</strong> {sub.proofNote}
+                                  </p>
+                                )}
+
+                                {sub.status === 'rejected' && sub.rejectReason && (
+                                  <p className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg mt-1 inline-block">
+                                    ✕ <strong>{lang === 'bn' ? 'বাতিলের কারণ:' : 'Reason:'}</strong> {sub.rejectReason}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Right: Screenshot Preview & Actions */}
+                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 self-end lg:self-center shrink-0 w-full sm:w-auto justify-end">
+                              {/* Screenshot thumbnail button */}
+                              {sub.screenshotUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setViewScreenshotUrl(sub.screenshotUrl || null)}
+                                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border border-slate-700 shadow-sm"
+                                  title="স্ক্রিনশট প্রমাণ বড় করে দেখুন"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span>{lang === 'bn' ? 'স্ক্রিনশট দেখুন' : 'View Proof'}</span>
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 italic px-2">
+                                  {lang === 'bn' ? 'স্ক্রিনশট নেই' : 'No screenshot'}
+                                </span>
+                              )}
+
+                              {/* Status / Action Buttons */}
+                              {sub.status === 'pending' ? (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={isProcessing}
+                                    onClick={() => handleApproveSubmission(sub.id)}
+                                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                    <span>{isProcessing ? 'অনুমোদন হচ্ছে...' : (lang === 'bn' ? 'অনুমোদন ও ক্রেডিট' : 'Approve & Credit')}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={isProcessing}
+                                    onClick={() => {
+                                      setRejectingSub(sub);
+                                      setRejectReasonInput('');
+                                    }}
+                                    className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                                  >
+                                    <X className="w-4 h-4" />
+                                    <span>{lang === 'bn' ? 'বাতিল' : 'Reject'}</span>
+                                  </button>
+                                </div>
+                              ) : sub.status === 'approved' ? (
+                                <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                  <span>{lang === 'bn' ? 'অনুমোদিত (ক্রেডিট সম্পন্ন)' : 'Approved'}</span>
+                                </span>
+                              ) : (
+                                <span className="px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5">
+                                  <X className="w-4 h-4 text-rose-400" />
+                                  <span>{lang === 'bn' ? 'বাতিলকৃত' : 'Rejected'}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* ADD / EDIT TASK MODAL */}
       {showModal && (
@@ -791,6 +1072,96 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* SCREENSHOT PREVIEW MODAL */}
+      {viewScreenshotUrl && (
+        <div
+          onClick={() => setViewScreenshotUrl(null)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 cursor-pointer animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-3xl w-full bg-[#0a0f1d] border border-cyan-500/40 rounded-3xl p-4 shadow-2xl space-y-3 cursor-default"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                <Eye className="w-4 h-4 text-cyan-400" />
+                {lang === 'bn' ? 'ইউজারের জমাকৃত স্ক্রিনশট প্রমাণ' : 'Submitted Screenshot Proof'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewScreenshotUrl(null)}
+                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="max-h-[75vh] overflow-auto rounded-2xl bg-black flex items-center justify-center p-1">
+              <img
+                src={viewScreenshotUrl}
+                alt="Task Proof"
+                className="max-h-[72vh] w-auto object-contain rounded-xl"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REJECTION REASON MODAL */}
+      {rejectingSub && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="max-w-md w-full bg-[#0d1424] border border-rose-500/40 rounded-3xl p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <h4 className="text-sm font-black text-rose-300 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400" />
+                <span>{lang === 'bn' ? 'টাস্ক সাবমিশন বাতিল করুন' : 'Reject Task Submission'}</span>
+              </h4>
+              <button
+                type="button"
+                onClick={() => setRejectingSub(null)}
+                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-300 space-y-1">
+              <p>ইউজার: <strong>{rejectingSub.userName}</strong> ({rejectingSub.userEmail})</p>
+              <p>টাস্ক: <strong>{rejectingSub.taskTitle}</strong></p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                {lang === 'bn' ? 'বাতিলের কারণ লিখুন *' : 'Reason for rejection *'}
+              </label>
+              <textarea
+                rows={3}
+                value={rejectReasonInput}
+                onChange={(e) => setRejectReasonInput(e.target.value)}
+                placeholder={lang === 'bn' ? 'যেমন: প্রদত্ত স্ক্রিনশট অস্পষ্ট অথবা চ্যানেল জয়েন সম্পন্ন হয়নি।' : 'e.g. Invalid screenshot or task not completed'}
+                className="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setRejectingSub(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+              >
+                {lang === 'bn' ? 'ফিরে যান' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={processingSubId === rejectingSub.id}
+                onClick={handleRejectSubmission}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {processingSubId === rejectingSub.id ? 'বাতিল হচ্ছে...' : (lang === 'bn' ? 'নিশ্চিত বাতিল করুন' : 'Confirm Reject')}
+              </button>
+            </div>
           </div>
         </div>
       )}

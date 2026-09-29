@@ -296,13 +296,14 @@ export async function submitSocialTaskProof(
     taskTitle: task.titleBn || task.title,
     rewardUsd: reward,
     status: 'pending',
-    screenshotUrl,
+    screenshotUrl: screenshotUrl || '',
     proofNote: proofNote?.trim() || '',
     submittedAt: new Date().toISOString()
   };
 
   logs.unshift(newSubmission);
   saveTaskCompletions(logs);
+  FirebaseSync.syncTaskCompletionSingleToCloud(newSubmission).catch(() => {});
 
   return {
     success: true,
@@ -358,6 +359,7 @@ export async function approveSocialTaskSubmission(
   }
 
   saveTaskCompletions(logs);
+  FirebaseSync.syncTaskCompletionSingleToCloud(submission).catch(() => {});
 
   return {
     success: true,
@@ -386,6 +388,7 @@ export async function rejectSocialTaskSubmission(
   submission.rejectReason = (reason || 'স্ক্রিনশট বা প্রুফ সঠিক নয়').trim();
 
   saveTaskCompletions(logs);
+  FirebaseSync.syncTaskCompletionSingleToCloud(submission).catch(() => {});
 
   return {
     success: true,

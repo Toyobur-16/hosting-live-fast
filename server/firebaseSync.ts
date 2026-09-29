@@ -1124,6 +1124,38 @@ export class FirebaseSync {
     }
   }
 
+  static async syncTaskCompletionSingleToCloud(comp: any): Promise<boolean> {
+    if (!comp || !comp.id) return false;
+    try {
+      const docId = encodeURIComponent(String(comp.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+
+      const fields: Record<string, any> = {};
+      for (const [key, val] of Object.entries(comp)) {
+        if (val !== undefined && val !== null) {
+          fields[key] = toFirestoreValue(val);
+        }
+      }
+      fields['updatedAt'] = toFirestoreValue(Date.now());
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      const url = `${BASE_URL}/task_completions/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ fields })
+      });
+      return Boolean(res && res.ok);
+    } catch (err: any) {
+      console.warn('syncTaskCompletionSingleToCloud error:', err.message || err);
+      return false;
+    }
+  }
+
   static async loadTaskCompletionsFromCloud(): Promise<any[] | null> {
     try {
       const idToken = await getAdminIdToken();

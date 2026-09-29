@@ -30,6 +30,7 @@ import {
   ListOrdered
 } from 'lucide-react';
 import { SocialTask, SocialPlatform, TaskCompletionLog } from '../types';
+import { db, doc, setDoc } from '../lib/firebase';
 
 interface SocialTasksPageProps {
   user: any;
@@ -183,6 +184,16 @@ export const SocialTasksPage: React.FC<SocialTasksPageProps> = ({
 
       const data = await res.json();
       if (res.ok && data.success) {
+        // Direct real-time sync to Firestore so admin panel catches it live immediately
+        if (data.submission) {
+          try {
+            const cleanSub = JSON.parse(JSON.stringify(data.submission));
+            await setDoc(doc(db, 'task_completions', data.submission.id), cleanSub);
+          } catch (fbErr) {
+            console.warn('Direct Firestore task submission sync notice:', fbErr);
+          }
+        }
+
         setSuccessToast({
           title: activeTask.titleBn || activeTask.title,
           reward: activeTask.rewardUsd,
