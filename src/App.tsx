@@ -90,9 +90,25 @@ export default function App() {
       }
     }, () => {});
 
+    // Live Firebase Firestore listener for uploaded site logo image
+    const unsubLogo = onSnapshot(doc(db, 'site_images', 'site_logo'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const logo = data?.base64 || data?.url;
+        if (logo) {
+          setSiteSettings((prev) => ({ ...prev, logoUrl: logo }));
+          const iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+          if (iconLink) iconLink.href = logo;
+          const appleIcon = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
+          if (appleIcon) appleIcon.href = logo;
+        }
+      }
+    }, () => {});
+
     return () => {
       window.removeEventListener('site-settings-updated', handleSettingsUpdate);
       unsub();
+      unsubLogo();
     };
   }, []);
 

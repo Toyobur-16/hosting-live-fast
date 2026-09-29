@@ -393,15 +393,23 @@ export function DepositStorePage({
   };
 
   const renderCardLogo = (m: DepositMethodItem) => {
-    if (m.qrImageUrl) {
+    // 1. If method has a custom or uploaded logo URL, use it!
+    if (m.logoUrl) {
       return (
-        <img
-          src={m.qrImageUrl}
-          alt={m.name}
-          className="w-10 h-10 rounded-xl object-cover border border-white/20 shrink-0"
-        />
+        <div className="w-10 h-10 rounded-xl bg-black/60 border border-white/20 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-md">
+          <img
+            src={m.logoUrl}
+            alt={m.name}
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = '/logo-icon.png';
+            }}
+          />
+        </div>
       );
     }
+
+    // 2. Fall back to stylized brand badges (NOT QR Code!)
     switch (m.logoType) {
       case 'bkash':
         return (

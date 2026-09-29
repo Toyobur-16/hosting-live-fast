@@ -60,7 +60,8 @@
         "memoOrTag": { "type": "string", "description": "Optional memo or tag" },
         "instructions": { "type": "string", "description": "Instructions for user payment" },
         "logoType": { "type": "string", "description": "Logo style key" },
-        "qrImageUrl": { "type": "string", "description": "Direct QR image or logo URL" },
+        "logoUrl": { "type": "string", "description": "Payment method logo image URL or base64 data" },
+        "qrImageUrl": { "type": "string", "description": "Direct QR image URL for scanning" },
         "enabled": { "type": "boolean", "description": "Whether the method is active" },
         "rateToBdt": { "type": "number", "description": "Exchange rate from USD to BDT" }
       },
@@ -203,9 +204,27 @@
         "createdAt": { "type": "string", "description": "Timestamp" }
       },
       "required": ["id", "title", "message"]
+    },
+    "SiteImage": {
+      "title": "SiteImage",
+      "description": "Website logo, deposit method logos, and site branding images permanently stored in Firestore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Image identifier or filename key" },
+        "fileName": { "type": "string", "description": "Original file name" },
+        "contentType": { "type": "string", "description": "MIME type" },
+        "base64": { "type": "string", "description": "Base64 encoded image binary string" },
+        "type": { "type": "string", "description": "Image category e.g. site_logo or payment_logo" },
+        "updatedAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["id", "base64"]
     }
   },
   "firestore": {
+    "/site_images/{imageId}": {
+      "schema": "SiteImage",
+      "description": "Website logo, deposit method logos, and branding images"
+    },
     "/accounts/{userId}": {
       "schema": "Account",
       "description": "User accounts, passwords, roles, and balances"

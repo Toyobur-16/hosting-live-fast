@@ -320,6 +320,7 @@ export const DEFAULT_DEPOSIT_METHODS: DepositMethodItem[] = [
     accountLabel: 'বিকাশ পার্সোনাল নম্বর (Send Money):',
     instructions: 'বিকাশ পার্সোনাল নাম্বারে Send Money করুন। টাকা পাঠানো শেষে TrxID ও যে নাম্বার থেকে পাঠিয়েছেন তা নিচে লিখে কনফার্ম করুন।',
     logoType: 'bkash',
+    logoUrl: 'https://images.seeklogo.com/logo-png/43/1/bkash-logo-png_seeklogo-434057.png',
     enabled: true,
     rateToBdt: 120,
     color: '#E2136E'
@@ -334,6 +335,7 @@ export const DEFAULT_DEPOSIT_METHODS: DepositMethodItem[] = [
     accountLabel: 'নগদ পার্সোনাল নম্বর (Send Money):',
     instructions: 'নগদ পার্সোনাল নাম্বারে Send Money করুন। টাকা পাঠানো শেষে TrxID ও যে নাম্বার থেকে পাঠিয়েছেন তা নিচে লিখে কনফার্ম করুন।',
     logoType: 'nagad',
+    logoUrl: 'https://images.seeklogo.com/logo-png/37/1/nagad-logo-png_seeklogo-379505.png',
     enabled: true,
     rateToBdt: 120,
     color: '#F15A24'
@@ -348,6 +350,7 @@ export const DEFAULT_DEPOSIT_METHODS: DepositMethodItem[] = [
     accountLabel: 'Binance Pay ID / UID:',
     instructions: 'Binance Pay ID / UID তে ডলার সেন্ড করুন (০% ফি ও তাৎক্ষণিক)। পেমেন্ট শেষ হলে Binance Order ID / Trx ID দিন।',
     logoType: 'binance',
+    logoUrl: 'https://cryptologos.cc/logos/binance-coin-bnb-logo.png',
     enabled: true,
     color: '#F3BA2F'
   },
@@ -361,6 +364,7 @@ export const DEFAULT_DEPOSIT_METHODS: DepositMethodItem[] = [
     accountLabel: 'BNB Smart Chain (BEP-20) ওয়ালেট এড্রেস:',
     instructions: 'শুধুমাত্র BNB Smart Chain (BEP-20) নেটওয়ার্কে USDT সেন্ড করবেন। পেমেন্ট শেষ হলে ট্রানজেকশন হ্যাশ (TxID) নিচে দিন।',
     logoType: 'bep20',
+    logoUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.png',
     enabled: true,
     color: '#F59E0B'
   },
@@ -374,6 +378,7 @@ export const DEFAULT_DEPOSIT_METHODS: DepositMethodItem[] = [
     accountLabel: 'Tron (TRC-20) ওয়ালেট এড্রেস:',
     instructions: 'শুধুমাত্র Tron (TRC-20) নেটওয়ার্কে USDT সেন্ড করবেন। পেমেন্ট সম্পন্ন হলে ট্রানজেকশন হ্যাশ (TxID) নিচে দিন।',
     logoType: 'trc20',
+    logoUrl: 'https://cryptologos.cc/logos/tron-trx-logo.png',
     enabled: true,
     color: '#EF4444'
   }

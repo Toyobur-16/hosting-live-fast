@@ -81,6 +81,14 @@ export function AdminSiteSettingsManager() {
               base64: base64Data,
               updatedAt: Date.now()
             }, { merge: true });
+
+            await setDoc(doc(db, 'site_images', 'website_logo'), {
+              id: 'website_logo',
+              fileName: file.name,
+              contentType: file.type || 'image/png',
+              base64: base64Data,
+              updatedAt: Date.now()
+            }, { merge: true });
           } catch (e) {
             console.warn('Firestore site_images write error:', e);
           }
@@ -166,6 +174,20 @@ export function AdminSiteSettingsManager() {
           ...settings,
           updatedAt: Date.now()
         }, { merge: true });
+
+        if (settings.logoUrl) {
+          await setDoc(doc(db, 'site_images', 'site_logo'), {
+            id: 'site_logo',
+            url: settings.logoUrl,
+            updatedAt: Date.now()
+          }, { merge: true });
+
+          await setDoc(doc(db, 'site_images', 'website_logo'), {
+            id: 'website_logo',
+            url: settings.logoUrl,
+            updatedAt: Date.now()
+          }, { merge: true });
+        }
       } catch (e) {
         console.warn('Firestore site_settings save error:', e);
       }

@@ -5136,7 +5136,7 @@ app.post('/api/admin/upload-file', async (req, res) => {
     const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const timestamp = Date.now();
 
-    const isImage = fileType === 'thumbnail' || fileType === 'image' || fileType === 'payment_qr' || fileType === 'site_logo' || fileType === 'logo' || /\.(png|jpe?g|webp|gif|svg|ico)$/i.test(fileName);
+    const isImage = fileType === 'thumbnail' || fileType === 'image' || fileType === 'payment_qr' || fileType === 'payment_logo' || fileType === 'method_logo' || fileType === 'site_logo' || fileType === 'logo' || /\.(png|jpe?g|webp|gif|svg|ico)$/i.test(fileName);
     if (!isImage) {
       return res.status(400).json({ error: 'শুধুমাত্র ইমেজ/লোগো ফাইল আপলোড করা যাবে।' });
     }
@@ -5160,12 +5160,16 @@ app.post('/api/admin/upload-file', async (req, res) => {
     // 100% Guaranteed Cloud Persistence: Save image to Firebase Firestore
     FirebaseSync.saveSiteImageToCloud(storedFileName, fileName, contentType, base64Data).catch(() => {});
 
-    if (fileType === 'site_logo') {
+    if (fileType === 'site_logo' || fileType === 'logo') {
       FirebaseSync.saveSiteImageToCloud('site_logo', fileName, contentType, base64Data).catch(() => {});
       try {
         const publicLogo = path.join(process.cwd(), 'public', 'site-logo.png');
         fs.writeFileSync(publicLogo, buffer);
       } catch {}
+    }
+
+    if (fileType === 'payment_logo' || fileType === 'method_logo') {
+      FirebaseSync.saveSiteImageToCloud(`logo_${cleanName}`, fileName, contentType, base64Data).catch(() => {});
     }
 
     return res.json({
@@ -7916,6 +7920,32 @@ async function initSiteConfigSync() {
     if (remoteMethods && Array.isArray(remoteMethods) && remoteMethods.length > 0) {
       saveDepositMethods(remoteMethods);
       console.log(`✅ Restored ${remoteMethods.length} deposit methods from Firebase Firestore!`);
+      for (const m of remoteMethods) {
+        if (m.logoUrl && m.logoUrl.startsWith('/api/store/thumbnails/')) {
+          const imgName = path.basename(m.logoUrl);
+          const diskPath = path.join(STORE_THUMBNAILS_DIR, imgName);
+          if (!fs.existsSync(diskPath)) {
+            const cloudImg = await FirebaseSync.loadSiteImageFromCloud(imgName);
+            if (cloudImg && cloudImg.base64) {
+              try {
+                fs.writeFileSync(diskPath, Buffer.from(cloudImg.base64, 'base64'));
+              } catch {}
+            }
+          }
+        }
+        if (m.qrImageUrl && m.qrImageUrl.startsWith('/api/store/thumbnails/')) {
+          const imgName = path.basename(m.qrImageUrl);
+          const diskPath = path.join(STORE_THUMBNAILS_DIR, imgName);
+          if (!fs.existsSync(diskPath)) {
+            const cloudImg = await FirebaseSync.loadSiteImageFromCloud(imgName);
+            if (cloudImg && cloudImg.base64) {
+              try {
+                fs.writeFileSync(diskPath, Buffer.from(cloudImg.base64, 'base64'));
+              } catch {}
+            }
+          }
+        }
+      }
     }
 
     const remoteTasks = await FirebaseSync.loadSocialTasksFromCloud();

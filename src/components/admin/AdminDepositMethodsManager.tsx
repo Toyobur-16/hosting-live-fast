@@ -326,6 +326,7 @@ export const AdminDepositMethodsManager: React.FC<AdminDepositMethodsManagerProp
       memoOrTag: formMemo.trim() || undefined,
       instructions: formInstructions.trim() || `${formName} এর উল্লেখিত একাউন্টে পেমেন্ট করে TrxID বা TxHash নিচে দিন।`,
       logoType: formLogoType,
+      logoUrl: formLogoUrl.trim() || undefined,
       qrImageUrl: formQrImageUrl.trim() || undefined,
       enabled: editingMethod ? editingMethod.enabled : true,
       rateToBdt: formCurrency === 'BDT' ? formRateToBdt : undefined
@@ -570,8 +571,17 @@ export const AdminDepositMethodsManager: React.FC<AdminDepositMethodsManagerProp
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      {/* Logo / QR Thumbnail */}
-                      {m.qrImageUrl ? (
+                      {/* Logo / Method Picture Thumbnail */}
+                      {m.logoUrl ? (
+                        <img
+                          src={m.logoUrl}
+                          alt={m.name}
+                          className="w-10 h-10 rounded-xl object-contain bg-black/60 border border-white/20 p-1 shrink-0"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : m.qrImageUrl ? (
                         <img
                           src={m.qrImageUrl}
                           alt={m.name}
@@ -869,17 +879,137 @@ export const AdminDepositMethodsManager: React.FC<AdminDepositMethodsManagerProp
               </div>
             )}
 
+            {/* DEPOSIT METHOD LOGO PICTURE SECTION (NOT QR SCANNER - SAVES TO FIREBASE) */}
+            <div className="sm:col-span-2 p-4 rounded-xl bg-[#060b17] border-2 border-amber-500/50 shadow-lg space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black text-amber-300 flex items-center gap-1.5 flex-wrap">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>{lang === 'bn' ? 'মেথড লগো ছবি (Deposit Method Logo Picture)' : 'Deposit Method Logo Picture'}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/40">
+                      🔥 ফায়ারবেজে সেভ হবে
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-1">
+                    {lang === 'bn'
+                      ? 'এটি ডিপোজিট মেথডের মূল লগো/ছবি (যেমন bKash, Nagad, Binance, Bank ইত্যাদি)। এটি কিউআর কোড স্ক্যানার নয়, মেথড লগো।'
+                      : 'This is the official payment method logo/picture (e.g. bKash, Nagad, Binance, Bank). Not the QR scanner.'}
+                  </p>
+                </div>
+
+                <label className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition shrink-0 active:scale-95">
+                  {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  <span>{uploadingLogo ? 'লগো সেভ হচ্ছে...' : '📁 মেথড লগো ছবি আপলোড'}</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                </label>
+              </div>
+
+              {/* Logo Preview & Custom URL Input */}
+              {formLogoUrl ? (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-xl bg-[#0a1224] border border-amber-500/40">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-black/80 border-2 border-amber-400 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-md">
+                      <img
+                        src={formLogoUrl}
+                        alt="Method Logo Preview"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/logo-icon.png';
+                        }}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-black text-emerald-400 flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{lang === 'bn' ? 'লগো সফলভাবে ফায়ারবেজে ক্লাউডে সংযুক্ত আছে' : 'Logo attached to Firebase Cloud'}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono block truncate max-w-xs mt-0.5">
+                        {formLogoUrl}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setFormLogoUrl('')}
+                      className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold cursor-pointer transition"
+                    >
+                      {lang === 'bn' ? 'লগো মুছুন' : 'Remove'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={formLogoUrl}
+                      onChange={(e) => setFormLogoUrl(e.target.value)}
+                      placeholder={lang === 'bn' ? 'বা মেথড লগো ছবির সরাসরি লিংক দিন (https://...)' : 'Or paste direct logo URL (https://...)'}
+                      className="flex-1 bg-[#05080f] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                    />
+                  </div>
+
+                  {/* Preset quick buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span className="text-[10px] font-bold text-slate-400 mr-1">লগো কুইক চয়েস:</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormLogoUrl('https://images.seeklogo.com/logo-png/43/1/bkash-logo-png_seeklogo-434057.png')}
+                      className="px-2 py-1 rounded-lg bg-[#141f33] hover:bg-[#1f304f] text-[10px] font-bold text-pink-400 border border-pink-500/20 cursor-pointer"
+                    >
+                      bKash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormLogoUrl('https://images.seeklogo.com/logo-png/37/1/nagad-logo-png_seeklogo-379505.png')}
+                      className="px-2 py-1 rounded-lg bg-[#141f33] hover:bg-[#1f304f] text-[10px] font-bold text-orange-400 border border-orange-500/20 cursor-pointer"
+                    >
+                      Nagad
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormLogoUrl('https://cryptologos.cc/logos/binance-coin-bnb-logo.png')}
+                      className="px-2 py-1 rounded-lg bg-[#141f33] hover:bg-[#1f304f] text-[10px] font-bold text-amber-400 border border-amber-500/20 cursor-pointer"
+                    >
+                      Binance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormLogoUrl('https://cryptologos.cc/logos/tether-usdt-logo.png')}
+                      className="px-2 py-1 rounded-lg bg-[#141f33] hover:bg-[#1f304f] text-[10px] font-bold text-emerald-400 border border-emerald-500/20 cursor-pointer"
+                    >
+                      USDT
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormLogoUrl('https://cryptologos.cc/logos/tron-trx-logo.png')}
+                      className="px-2 py-1 rounded-lg bg-[#141f33] hover:bg-[#1f304f] text-[10px] font-bold text-red-400 border border-red-500/20 cursor-pointer"
+                    >
+                      TRON
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* QR / Image Upload Section */}
             <div className="sm:col-span-2 p-3.5 rounded-xl bg-[#050912] border border-[#141f33] space-y-2">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-[11px] font-bold text-slate-200">
-                    📷 {lang === 'bn' ? 'পেমেন্ট QR কোড বা ছবি আপলোড (Cloud Upload)' : 'Payment QR Code or Picture Upload'}
+                    📷 {lang === 'bn' ? 'পেমেন্ট QR কোড স্ক্যানার ছবি (ঐচ্ছিক - QR Scanner)' : 'Payment QR Code for Scanner (Optional)'}
                   </div>
                   <div className="text-[10px] text-slate-400">
                     {lang === 'bn'
-                      ? 'ডিপোজিট পেজে ইউজাররা এই QR কোড স্ক্যান করে সরাসরি পেমেন্ট করতে পারবেন।'
-                      : 'Users can scan this QR code directly on the deposit page.'}
+                      ? 'ইউজাররা ডিপোজিট পেজে স্ক্যান করে পেমেন্ট করার জন্য এই QR কোডটি দেখতে পাবে।'
+                      : 'Users can scan this QR code directly on the deposit page to pay.'}
                   </div>
                 </div>
 
