@@ -363,8 +363,13 @@ export function AdminBannersManager() {
                 <input
                   type="number"
                   min="1"
-                  value={editingBanner.order || 1}
-                  onChange={(e) => setEditingBanner({ ...editingBanner, order: parseInt(e.target.value, 10) || 1 })}
+                  step="1"
+                  value={editingBanner.order ?? ''}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setEditingBanner({ ...editingBanner, order: v === '' ? ('' as any) : parseInt(v, 10) });
+                  }}
                   className="w-full px-3 py-2 rounded-xl bg-[#070b14] border border-[#1e293b] text-xs text-white"
                 />
               </div>

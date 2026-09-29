@@ -796,10 +796,15 @@ export const AdminDepositMethodsManager: React.FC<AdminDepositMethodsManagerProp
                 </label>
                 <input
                   type="number"
-                  min="50"
-                  max="200"
-                  value={formRateToBdt}
-                  onChange={(e) => setFormRateToBdt(Number(e.target.value) || 120)}
+                  step="any"
+                  min="1"
+                  max="500"
+                  value={formRateToBdt || ''}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormRateToBdt(val === '' ? ('' as any) : Number(val));
+                  }}
                   className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
                 />
               </div>

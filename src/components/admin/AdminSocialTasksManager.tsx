@@ -72,6 +72,11 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [rewardInput, setRewardInput] = useState<string>('0.05');
+  const [timerInput, setTimerInput] = useState<string>('8');
+  const [orderInput, setOrderInput] = useState<string>('1');
+  const [taskToDelete, setTaskToDelete] = useState<SocialTask | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState<Partial<SocialTask>>({
     platform: 'telegram',
     title: '',
@@ -249,21 +254,51 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
       enabled: true,
       order: tasks.length + 1
     });
+    setRewardInput('0.05');
+    setTimerInput('8');
+    setOrderInput(String(tasks.length + 1));
     setShowModal(true);
   };
 
   const handleOpenEdit = (task: SocialTask) => {
     setIsEditing(true);
     setFormData({ ...task });
+    setRewardInput(task.rewardUsd !== undefined ? String(task.rewardUsd) : '0.05');
+    setTimerInput(task.timerSeconds !== undefined ? String(task.timerSeconds) : '8');
+    setOrderInput(task.order !== undefined ? String(task.order) : '1');
     setShowModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.link) {
-      setNotification({ type: 'error', text: 'টাস্ক শিরোনাম ও লিংক দেওয়া আবশ্যক!' });
+    const finalTitleBn = (formData.titleBn || formData.title || '').trim();
+    const finalTitle = (formData.title || formData.titleBn || '').trim();
+    const finalLink = (formData.link || '').trim();
+
+    if (!finalTitle || !finalLink) {
+      setNotification({ type: 'error', text: 'টাস্ক শিরোনাম ও লিংক দেওয়া আবশ্যক! (Title & Link are required)' });
       return;
     }
+
+    const parsedReward = parseFloat(rewardInput);
+    if (isNaN(parsedReward) || parsedReward <= 0) {
+      setNotification({ type: 'error', text: 'অনুগ্রহ করে সঠিক রিওয়ার্ড অ্যামাউন্ট ($ USD) লিখুন! (Please enter a valid reward amount)' });
+      return;
+    }
+
+    const parsedTimer = parseInt(timerInput, 10);
+    const finalTimer = isNaN(parsedTimer) || parsedTimer < 1 ? 8 : parsedTimer;
+    const parsedOrder = parseInt(orderInput, 10) || (tasks.length + 1);
+
+    const payload = {
+      ...formData,
+      title: finalTitle,
+      titleBn: finalTitleBn,
+      link: finalLink,
+      rewardUsd: parsedReward,
+      timerSeconds: finalTimer,
+      order: parsedOrder
+    };
 
     try {
       setSubmitting(true);
@@ -274,7 +309,7 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -295,20 +330,35 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('আপনি কি নিশ্চিত যে এই টাস্কটি মুছে ফেলতে চান?')) return;
+  const handleDelete = (task: SocialTask) => {
+    setTaskToDelete(task);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!taskToDelete) return;
     try {
+      setIsDeleting(true);
       const token = localStorage.getItem('bot_auth_token');
-      const res = await fetch(`/api/admin/social-tasks/${id}`, {
+      const res = await fetch(`/api/admin/social-tasks/${taskToDelete.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        setNotification({ type: 'success', text: 'টাস্ক সফলভাবে ডিলিট করা হয়েছে।' });
+        setNotification({
+          type: 'success',
+          text: `টাস্ক "${taskToDelete.titleBn || taskToDelete.title}" সফলভাবে ডিলিট করা হয়েছে।`
+        });
+        setTaskToDelete(null);
         fetchTasks();
         setTimeout(() => setNotification(null), 3000);
+      } else {
+        setNotification({ type: 'error', text: 'টাস্ক ডিলিট করতে সমস্যা হয়েছে।' });
       }
-    } catch {}
+    } catch (err: any) {
+      setNotification({ type: 'error', text: err.message || 'নেটওয়ার্ক এরর' });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleToggleStatus = async (task: SocialTask) => {
@@ -616,7 +666,7 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
 
                             <button
                               type="button"
-                              onClick={() => handleDelete(task.id)}
+                              onClick={() => handleDelete(task)}
                               className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 cursor-pointer transition-colors"
                               title="মুছে ফেলুন"
                             >
@@ -902,9 +952,15 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                   </label>
                   <input
                     type="text"
-                    required
                     value={formData.titleBn || ''}
-                    onChange={(e) => setFormData({ ...formData, titleBn: e.target.value, title: formData.title || e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        titleBn: val,
+                        title: prev.title ? prev.title : val
+                      }));
+                    }}
                     placeholder="যেমন: অফিসিয়াল টেলিগ্রাম চ্যানেলে জয়েন করুন"
                     className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                   />
@@ -912,13 +968,12 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
 
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">
-                    Task Title (English) *
+                    Task Title (English) <span className="text-slate-500 font-normal">(ঐচ্ছিক - খালি রাখলে বাংলা নাম ব্যবহার হবে)</span>
                   </label>
                   <input
                     type="text"
-                    required
                     value={formData.title || ''}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
                     placeholder="e.g. Join Official Telegram Channel"
                     className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                   />
@@ -935,7 +990,7 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                     type="url"
                     required
                     value={formData.link || ''}
-                    onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, link: e.target.value }))}
                     placeholder="https://t.me/hostinglivefast বা https://youtube.com/@channel"
                     className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500 pr-10"
                   />
@@ -954,45 +1009,80 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
               </div>
 
               {/* Reward in USD ($) and Quick Select Buttons */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/30 to-purple-950/30 border border-emerald-500/30 space-y-2">
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/30 to-purple-950/30 border border-emerald-500/30 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
                     <DollarSign className="w-4 h-4 text-emerald-400" />
                     <span>ইউজার কত ডলার ($ USD) রিওয়ার্ড পাবে? *</span>
                   </label>
                   <span className="text-sm font-black text-emerald-400 font-mono">
-                    ${Number(formData.rewardUsd || 0).toFixed(2)} USD
+                    ${(() => {
+                      const n = parseFloat(rewardInput);
+                      return isNaN(n) ? '0.00' : n.toFixed(3).replace(/\.?0+$/, '') || '0';
+                    })()} USD
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="0.005"
-                    min="0.001"
-                    max="10"
-                    required
-                    value={formData.rewardUsd || ''}
-                    onChange={(e) => setFormData({ ...formData, rewardUsd: parseFloat(e.target.value) || 0.01 })}
-                    className="w-32 bg-[#070b14] border border-emerald-500/50 rounded-xl px-3 py-2 text-sm font-black text-emerald-400 focus:outline-none font-mono"
-                  />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-emerald-400 font-bold text-sm">$</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.0001"
+                      required
+                      value={rewardInput}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setRewardInput(val);
+                        const num = parseFloat(val);
+                        if (!isNaN(num)) {
+                          setFormData((prev) => ({ ...prev, rewardUsd: num }));
+                        }
+                      }}
+                      placeholder="0.05"
+                      className="w-36 bg-[#070b14] border border-emerald-500/50 rounded-xl pl-7 pr-3 py-2 text-sm font-black text-emerald-400 focus:outline-none font-mono"
+                    />
+                  </div>
+
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {[0.02, 0.03, 0.05, 0.10, 0.20, 0.50].map((amt) => (
+                    {[0.01, 0.02, 0.03, 0.05, 0.10, 0.20, 0.50, 1.00].map((amt) => (
                       <button
                         key={amt}
                         type="button"
-                        onClick={() => setFormData({ ...formData, rewardUsd: amt })}
-                        className={`px-2 py-1 rounded-lg text-[10px] font-black transition-colors cursor-pointer ${
-                          formData.rewardUsd === amt
-                            ? 'bg-emerald-500 text-slate-950 font-bold'
+                        onClick={() => {
+                          setRewardInput(String(amt));
+                          setFormData((prev) => ({ ...prev, rewardUsd: amt }));
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-colors cursor-pointer ${
+                          parseFloat(rewardInput) === amt
+                            ? 'bg-emerald-500 text-slate-950 font-bold ring-2 ring-emerald-400 shadow-sm'
                             : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                         }`}
                       >
                         ${amt}
                       </button>
                     ))}
+
+                    {rewardInput !== '' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRewardInput('');
+                          setFormData((prev) => ({ ...prev, rewardUsd: 0 }));
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[10px] text-slate-400 hover:text-rose-400 bg-slate-900 border border-slate-800 cursor-pointer"
+                        title="ক্লিয়ার / মুছে ফেলুন"
+                      >
+                        ক্লিয়ার (✕)
+                      </button>
+                    )}
                   </div>
                 </div>
+                <p className="text-[10px] text-slate-400">
+                  💡 ইচ্ছেমত যে কোনো সংখ্যা লিখুন (যেমন 0.025, 0.05, 0.1, 1 ইত্যাদি)। ব্যাকস্পেস চেপে পুরো মুছে নতুন মান দিতে পারবেন।
+                </p>
               </div>
 
               {/* Description */}
@@ -1003,24 +1093,57 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                 <textarea
                   rows={2}
                   value={formData.descriptionBn || ''}
-                  onChange={(e) => setFormData({ ...formData, descriptionBn: e.target.value })}
-                  placeholder="যেমন: চ্যানেলে জয়েন করুন এবং ১০ সেকেন্ড অপেক্ষা করে ক্লেইম করুন।"
+                  onChange={(e) => setFormData((prev) => ({ ...prev, descriptionBn: e.target.value }))}
+                  placeholder="যেমন: চ্যানেলে জয়েন করুন এবং ১০ সেকেন্ড অপেক্ষা করে স্ক্রিনশট দিয়ে ক্লেইম করুন।"
                   className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                 />
               </div>
 
-              {/* Extra Settings: Timer, Badge, Active */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              {/* Extra Settings: Timer, Badge, Order, Active */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">
                     ভেরিফিকেশন টাইমার (সেকেন্ড)
                   </label>
                   <input
                     type="number"
-                    min="3"
-                    max="60"
-                    value={formData.timerSeconds || 8}
-                    onChange={(e) => setFormData({ ...formData, timerSeconds: parseInt(e.target.value, 10) || 8 })}
+                    step="1"
+                    min="1"
+                    max="600"
+                    value={timerInput}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTimerInput(val);
+                      const num = parseInt(val, 10);
+                      if (!isNaN(num)) {
+                        setFormData((prev) => ({ ...prev, timerSeconds: num }));
+                      }
+                    }}
+                    placeholder="8"
+                    className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    টাস্ক ক্রম (Order)
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={orderInput}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOrderInput(val);
+                      const num = parseInt(val, 10);
+                      if (!isNaN(num)) {
+                        setFormData((prev) => ({ ...prev, order: num }));
+                      }
+                    }}
+                    placeholder="1"
                     className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
                   />
                 </div>
@@ -1032,7 +1155,7 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                   <input
                     type="text"
                     value={formData.badgeText || ''}
-                    onChange={(e) => setFormData({ ...formData, badgeText: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, badgeText: e.target.value }))}
                     placeholder="HOT / POPULAR / EASY"
                     className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white uppercase"
                   />
@@ -1046,7 +1169,7 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                     <input
                       type="checkbox"
                       checked={formData.enabled !== false}
-                      onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, enabled: e.target.checked }))}
                       className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
                     />
                     <span className="text-xs font-bold text-white">সক্রিয় রাখুন (Active)</span>
@@ -1072,6 +1195,49 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* TASK DELETE CONFIRMATION MODAL (In-App Modal, Safe from iframe window.confirm blocks) */}
+      {taskToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-[#0d1424] border border-rose-500/40 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h4 className="text-base font-black text-white">
+                আপনি কি নিশ্চিত যে এই টাস্কটি মুছে ফেলতে চান?
+              </h4>
+              <p className="text-xs text-slate-300 font-medium pt-1">
+                "{taskToDelete.titleBn || taskToDelete.title}" (${taskToDelete.rewardUsd} USD)
+              </p>
+              <p className="text-[11px] text-slate-400">
+                টাস্কটি ডিলিট করলে ইউজাররা আর এটি দেখতে বা সম্পন্ন করতে পারবে না।
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setTaskToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+              >
+                না, রাখুন (Cancel)
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black cursor-pointer shadow-lg shadow-rose-600/30 disabled:opacity-50"
+              >
+                {isDeleting ? 'ডিলিট হচ্ছে...' : 'হ্যাঁ, মুছে ফেলুন'}
+              </button>
+            </div>
           </div>
         </div>
       )}

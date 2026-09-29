@@ -1773,8 +1773,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     <input
                       type="number"
                       min="1"
-                      value={freeTrialSettings.durationDays}
-                      onChange={(e) => setFreeTrialSettings({ ...freeTrialSettings, durationDays: Number(e.target.value) || 30 })}
+                      step="1"
+                      value={freeTrialSettings.durationDays || ''}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFreeTrialSettings({ ...freeTrialSettings, durationDays: val === '' ? ('' as any) : Number(val) });
+                      }}
                       className="w-full bg-[#090f1a] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-hidden focus:border-emerald-500 font-mono"
                     />
                   </div>
@@ -1785,8 +1790,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     <input
                       type="number"
                       min="1"
-                      value={freeTrialSettings.maxBots}
-                      onChange={(e) => setFreeTrialSettings({ ...freeTrialSettings, maxBots: Number(e.target.value) || 1 })}
+                      step="1"
+                      value={freeTrialSettings.maxBots || ''}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFreeTrialSettings({ ...freeTrialSettings, maxBots: val === '' ? ('' as any) : Number(val) });
+                      }}
                       className="w-full bg-[#090f1a] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-hidden focus:border-emerald-500 font-mono"
                     />
                   </div>

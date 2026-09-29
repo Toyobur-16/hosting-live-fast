@@ -7049,7 +7049,11 @@ app.post('/api/admin/social-tasks', (req, res) => {
     order
   } = req.body;
 
-  if (!title || !link) {
+  const effectiveTitle = (title || titleBn || '').trim();
+  const effectiveTitleBn = (titleBn || title || '').trim();
+  const effectiveLink = (link || '').trim();
+
+  if (!effectiveTitle || !effectiveLink) {
     return res.status(400).json({ error: 'টাস্ক শিরোনাম ও লিংক দেওয়া আবশ্যক (Title and link required)' });
   }
 
@@ -7063,11 +7067,11 @@ app.post('/api/admin/social-tasks', (req, res) => {
   const taskData: SocialTask = {
     id: taskId,
     platform: platform || 'telegram',
-    title: title.trim(),
-    titleBn: (titleBn || title).trim(),
+    title: effectiveTitle,
+    titleBn: effectiveTitleBn,
     description: (description || '').trim(),
     descriptionBn: (descriptionBn || description || '').trim(),
-    link: link.trim(),
+    link: effectiveLink,
     rewardUsd: finalReward,
     badgeText: badgeText?.trim() || '',
     timerSeconds: parseInt(timerSeconds, 10) || 8,
