@@ -157,12 +157,70 @@
         "timestamp": { "type": "string", "description": "Transaction ISO timestamp" }
       },
       "required": ["id", "userId", "amount", "currency", "balanceAfter"]
+    },
+    "Bot": {
+      "title": "Bot",
+      "description": "Hosted Telegram or Discord bot instance belonging to user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique bot ID" },
+        "name": { "type": "string", "description": "Display name of bot" },
+        "ownerId": { "type": "string", "description": "User ID of owner" },
+        "ownerEmail": { "type": "string", "description": "Email of owner" },
+        "status": { "type": "string", "enum": ["running", "stopped", "starting", "error"], "description": "Runtime status" },
+        "runtime": { "type": "string", "description": "Bot runtime environment (e.g. node, python)" },
+        "mainFile": { "type": "string", "description": "Entry point script" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "name"]
+    },
+    "Website": {
+      "title": "Website",
+      "description": "Static HTML/JS website deployment hosted on platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique site ID" },
+        "name": { "type": "string", "description": "Site title" },
+        "subdomain": { "type": "string", "description": "Assigned subdomain slug" },
+        "userId": { "type": "string", "description": "Owner user ID" },
+        "userEmail": { "type": "string", "description": "Owner email" },
+        "liveUrl": { "type": "string", "description": "Public URL" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "name", "subdomain"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System and user inbox alerts and updates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique alert ID" },
+        "userId": { "type": "string", "description": "Target user ID or 'all'" },
+        "title": { "type": "string", "description": "Notification title" },
+        "message": { "type": "string", "description": "Notification body" },
+        "type": { "type": "string", "description": "Alert category" },
+        "read": { "type": "boolean", "description": "Read flag" },
+        "createdAt": { "type": "string", "description": "Timestamp" }
+      },
+      "required": ["id", "title", "message"]
     }
   },
   "firestore": {
     "/accounts/{userId}": {
       "schema": "Account",
       "description": "User accounts, passwords, roles, and balances"
+    },
+    "/bots/{botId}": {
+      "schema": "Bot",
+      "description": "Hosted bot metadata and configurations"
+    },
+    "/websites/{websiteId}": {
+      "schema": "Website",
+      "description": "Hosted websites metadata and domain mapping"
+    },
+    "/notifications/{notifId}": {
+      "schema": "Notification",
+      "description": "User alerts and system notifications"
     },
     "/plan_requests/{reqId}": {
       "schema": "PlanRequest",

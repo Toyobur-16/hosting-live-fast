@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
 import { HostedWebsite, WebsiteSettings } from '../src/types';
+import { FirebaseSync } from './firebaseSync';
 import {
   createNetlifySite,
   deployDirectoryToNetlify,
@@ -93,6 +94,13 @@ export function saveWebsites(websites: HostedWebsite[]): void {
       fs.mkdirSync(HOSTED_BOTS_DIR, { recursive: true });
     }
     fs.writeFileSync(WEBSITES_FILE, JSON.stringify(websites, null, 2), 'utf-8');
+    if (Array.isArray(websites)) {
+      for (const w of websites) {
+        if (w && w.id) {
+          FirebaseSync.syncWebsiteToCloud(w).catch(() => {});
+        }
+      }
+    }
   } catch (err) {
     console.error('Error saving websites.json:', err);
   }
@@ -608,6 +616,7 @@ export function deleteWebsite(siteId: string, userId?: string): { success: boole
 
   websites.splice(index, 1);
   saveWebsites(websites);
+  FirebaseSync.deleteWebsiteFromCloud(siteId).catch(() => {});
 
   return { success: true };
 }

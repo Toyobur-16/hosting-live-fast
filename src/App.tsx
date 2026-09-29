@@ -26,6 +26,7 @@ import { AiLiveSupportWidget } from './components/AiLiveSupportWidget';
 import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 import { checkIsAdmin } from './utils/adminCheck';
+import { db, doc, onSnapshot, setDoc } from './lib/firebase';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'wallet' | 'support' | 'profile' | 'plans' | 'bots' | 'terminal' | 'deposit-store' | 'websites' | 'rewards' | 'guide' | 'faq'>('home');
@@ -349,6 +350,46 @@ export default function App() {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Real-time Firebase Firestore account listener & two-way sync
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const userDocRef = doc(db, 'accounts', currentUser.id);
+
+    // Initial backup write to Firestore
+    setDoc(userDocRef, {
+      ...currentUser,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(() => {});
+
+    // Listen to real-time changes in Firestore (e.g., admin wallet top-ups, plan updates, verification)
+    const unsub = onSnapshot(userDocRef, (snap) => {
+      if (snap.exists()) {
+        const cloudData = snap.data();
+        if (cloudData) {
+          setCurrentUser((prev: any) => {
+            if (!prev) return cloudData as AuthUser;
+            const hasChanged =
+              cloudData.balanceUsd !== prev.balanceUsd ||
+              cloudData.balanceBdt !== prev.balanceBdt ||
+              cloudData.plan !== prev.plan ||
+              cloudData.role !== prev.role ||
+              cloudData.name !== prev.name ||
+              cloudData.phoneNumber !== prev.phoneNumber ||
+              cloudData.avatar !== prev.avatar;
+            if (hasChanged) {
+              const merged = { ...prev, ...cloudData };
+              localStorage.setItem('bot_auth_user', JSON.stringify(merged));
+              return merged;
+            }
+            return prev;
+          });
+        }
+      }
+    }, () => {});
+
+    return () => unsub();
+  }, [currentUser?.id]);
 
   useEffect(() => {
     fetchBots();

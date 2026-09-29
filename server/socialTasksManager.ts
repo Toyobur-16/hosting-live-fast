@@ -156,7 +156,7 @@ export function getSocialTasks(): SocialTask[] {
   try {
     if (fs.existsSync(SOCIAL_TASKS_FILE)) {
       const data = JSON.parse(fs.readFileSync(SOCIAL_TASKS_FILE, 'utf-8'));
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         return data;
       }
     }

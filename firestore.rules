@@ -6,6 +6,21 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Bots collection
+    match /bots/{botId} {
+      allow read, write: if true;
+    }
+
+    // Static websites collection
+    match /websites/{websiteId} {
+      allow read, write: if true;
+    }
+
+    // Notifications collection
+    match /notifications/{notifId} {
+      allow read, write: if true;
+    }
+
     // Plan & deposit requests collection
     match /plan_requests/{reqId} {
       allow read, write: if true;

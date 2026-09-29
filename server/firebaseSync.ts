@@ -1045,9 +1045,47 @@ export class FirebaseSync {
           }
         })
       });
+
+      // Also sync each task to /social_tasks/{taskId} collection for direct collection queries
+      for (const task of tasks) {
+        if (!task || !task.id) continue;
+        const docId = encodeURIComponent(String(task.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+        const fields: Record<string, any> = {};
+        for (const [k, v] of Object.entries(task)) {
+          if (v !== undefined && v !== null) {
+            fields[k] = toFirestoreValue(v);
+          }
+        }
+        fields['updatedAt'] = toFirestoreValue(Date.now());
+        fetch(`${BASE_URL}/social_tasks/${docId}?key=${API_KEY}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ fields })
+        }).catch(() => {});
+      }
+
       return res.ok;
     } catch (err: any) {
       console.warn('FirebaseSync syncSocialTasksToCloud error:', err.message || err);
+      return false;
+    }
+  }
+
+  static async deleteSocialTaskFromCloud(taskId: string): Promise<boolean> {
+    if (!taskId) return false;
+    try {
+      const docId = encodeURIComponent(String(taskId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+      const url = `${BASE_URL}/social_tasks/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, { method: 'DELETE', headers }).catch(() => null);
+      return Boolean(res && res.ok);
+    } catch {
       return false;
     }
   }
@@ -1220,6 +1258,207 @@ export class FirebaseSync {
         headers: { 'Authorization': `Bearer ${idToken}` }
       });
       if (res.ok) {
+        const data: any = await res.json();
+        if (data.documents && Array.isArray(data.documents)) {
+          for (const doc of data.documents) {
+            const parsed = fromFirestoreFields(doc.fields || {});
+            if (parsed && parsed.id) list.push(parsed);
+          }
+        }
+      }
+    } catch {}
+    return list;
+  }
+
+  // ==========================================
+  // BOTS FIRESTORE SYNC
+  // ==========================================
+  static async syncBotToCloud(bot: any): Promise<boolean> {
+    if (!bot || !bot.id) return false;
+    try {
+      const docId = encodeURIComponent(String(bot.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+
+      const fields: Record<string, any> = {};
+      for (const [key, val] of Object.entries(bot)) {
+        if (val !== undefined && val !== null) {
+          fields[key] = toFirestoreValue(val);
+        }
+      }
+      fields['updatedAt'] = toFirestoreValue(Date.now());
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      const url = `${BASE_URL}/bots/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ fields })
+      });
+      return Boolean(res && res.ok);
+    } catch (err: any) {
+      console.warn('FirebaseSync syncBotToCloud error:', err?.message || err);
+      return false;
+    }
+  }
+
+  static async deleteBotFromCloud(botId: string): Promise<boolean> {
+    if (!botId) return false;
+    try {
+      const docId = encodeURIComponent(String(botId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+      const url = `${BASE_URL}/bots/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, { method: 'DELETE', headers }).catch(() => null);
+      return Boolean(res && res.ok);
+    } catch {
+      return false;
+    }
+  }
+
+  static async loadBotsFromCloud(): Promise<any[]> {
+    const list: any[] = [];
+    try {
+      const idToken = await getAdminIdToken();
+      const url = `${BASE_URL}/bots?pageSize=300&key=${API_KEY}`;
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+      const res = await fetch(url, { headers });
+      if (res && res.ok) {
+        const data: any = await res.json();
+        if (data.documents && Array.isArray(data.documents)) {
+          for (const doc of data.documents) {
+            const parsed = fromFirestoreFields(doc.fields || {});
+            if (parsed && parsed.id) list.push(parsed);
+          }
+        }
+      }
+    } catch {}
+    return list;
+  }
+
+  // ==========================================
+  // WEBSITES FIRESTORE SYNC
+  // ==========================================
+  static async syncWebsiteToCloud(site: any): Promise<boolean> {
+    if (!site || !site.id) return false;
+    try {
+      const docId = encodeURIComponent(String(site.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+
+      const fields: Record<string, any> = {};
+      for (const [key, val] of Object.entries(site)) {
+        if (val !== undefined && val !== null) {
+          fields[key] = toFirestoreValue(val);
+        }
+      }
+      fields['updatedAt'] = toFirestoreValue(Date.now());
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      const url = `${BASE_URL}/websites/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ fields })
+      });
+      return Boolean(res && res.ok);
+    } catch {
+      return false;
+    }
+  }
+
+  static async deleteWebsiteFromCloud(siteId: string): Promise<boolean> {
+    if (!siteId) return false;
+    try {
+      const docId = encodeURIComponent(String(siteId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+      const url = `${BASE_URL}/websites/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, { method: 'DELETE', headers }).catch(() => null);
+      return Boolean(res && res.ok);
+    } catch {
+      return false;
+    }
+  }
+
+  static async loadWebsitesFromCloud(): Promise<any[]> {
+    const list: any[] = [];
+    try {
+      const idToken = await getAdminIdToken();
+      const url = `${BASE_URL}/websites?pageSize=300&key=${API_KEY}`;
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+      const res = await fetch(url, { headers });
+      if (res && res.ok) {
+        const data: any = await res.json();
+        if (data.documents && Array.isArray(data.documents)) {
+          for (const doc of data.documents) {
+            const parsed = fromFirestoreFields(doc.fields || {});
+            if (parsed && parsed.id) list.push(parsed);
+          }
+        }
+      }
+    } catch {}
+    return list;
+  }
+
+  // ==========================================
+  // NOTIFICATIONS FIRESTORE SYNC
+  // ==========================================
+  static async syncNotificationToCloud(notif: any): Promise<boolean> {
+    if (!notif || !notif.id) return false;
+    try {
+      const docId = encodeURIComponent(String(notif.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+
+      const fields: Record<string, any> = {};
+      for (const [key, val] of Object.entries(notif)) {
+        if (val !== undefined && val !== null) {
+          fields[key] = toFirestoreValue(val);
+        }
+      }
+      fields['updatedAt'] = toFirestoreValue(Date.now());
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      const url = `${BASE_URL}/notifications/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ fields })
+      });
+      return Boolean(res && res.ok);
+    } catch {
+      return false;
+    }
+  }
+
+  static async loadNotificationsFromCloud(): Promise<any[]> {
+    const list: any[] = [];
+    try {
+      const idToken = await getAdminIdToken();
+      const url = `${BASE_URL}/notifications?pageSize=200&key=${API_KEY}`;
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+      const res = await fetch(url, { headers });
+      if (res && res.ok) {
         const data: any = await res.json();
         if (data.documents && Array.isArray(data.documents)) {
           for (const doc of data.documents) {

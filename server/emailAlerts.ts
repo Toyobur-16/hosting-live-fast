@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import dns from 'dns';
 import net from 'net';
+import { FirebaseSync } from './firebaseSync';
 
 // Force Node.js to prefer IPv4 first globally to prevent ENETUNREACH on cloud containers (e.g. Render) without IPv6 routes
 if (typeof (dns as any).setDefaultResultOrder === 'function') {
@@ -451,6 +452,13 @@ export function getStoredNotifications(): any[] {
 export function saveStoredNotifications(list: any[]) {
   try {
     fs.writeFileSync(NOTIFICATIONS_FILE, JSON.stringify(list, null, 2), 'utf-8');
+    if (Array.isArray(list)) {
+      for (const n of list.slice(0, 50)) {
+        if (n && n.id) {
+          FirebaseSync.syncNotificationToCloud(n).catch(() => {});
+        }
+      }
+    }
   } catch (err) {
     console.error('Failed to save notifications:', err);
   }

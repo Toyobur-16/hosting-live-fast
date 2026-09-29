@@ -30,7 +30,7 @@ import {
   ListOrdered
 } from 'lucide-react';
 import { SocialTask, SocialPlatform, TaskCompletionLog } from '../types';
-import { db, doc, setDoc } from '../lib/firebase';
+import { db, doc, setDoc, collection, onSnapshot, getDocs } from '../lib/firebase';
 
 interface SocialTasksPageProps {
   user: any;
@@ -84,6 +84,27 @@ export const SocialTasksPage: React.FC<SocialTasksPageProps> = ({
 
   useEffect(() => {
     fetchTasksAndSubmissions();
+
+    // Real-time Firestore sync for instant task appearance & removal
+    const unsubTasks = onSnapshot(collection(db, 'social_tasks'), (snapshot) => {
+      if (!snapshot.empty) {
+        const cloudTasks: SocialTask[] = [];
+        snapshot.forEach((d) => {
+          const item = d.data() as SocialTask;
+          if (item && item.id && item.enabled !== false) {
+            cloudTasks.push(item);
+          }
+        });
+        if (cloudTasks.length > 0) {
+          cloudTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setTasks(cloudTasks);
+        }
+      }
+    }, () => {});
+
+    return () => {
+      unsubTasks();
+    };
   }, [user]);
 
   const fetchTasksAndSubmissions = async () => {

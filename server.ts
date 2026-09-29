@@ -60,6 +60,7 @@ import {
 } from './server/socialTasksManager';
 import {
   getWebsites,
+  saveWebsites,
   getWebsiteById,
   getWebsiteBySlug,
   createWebsite,
@@ -619,6 +620,13 @@ function getRegistry(): any[] {
 
 function saveRegistry(data: any[]) {
   fs.writeFileSync(REGISTRY_FILE, JSON.stringify(data, null, 2) + '\n', 'utf-8');
+  if (Array.isArray(data)) {
+    for (const b of data) {
+      if (b && b.id) {
+        FirebaseSync.syncBotToCloud(b).catch(() => {});
+      }
+    }
+  }
 }
 
 // Bot Deployment History Helpers
@@ -1193,18 +1201,18 @@ function isUserAdmin(user: any): boolean {
   if (!user) return false;
   if (user.role === 'admin') return true;
   const email = (user.email || '').toLowerCase().trim();
-  if (
-    email === 'toyoburrahman83@gmail.com' ||
-    email === 'toyoburrahman9090@gmail.com' ||
-    email === 'toyoburrahman526@gmail.com' ||
-    email === 'mdtayburrahman1111@gmail.com' ||
-    email === 'badsharahmanbd@gmail.com' ||
-    email === 'badsharahman250@gmail.com' ||
-    email === 'toyobur@telegram.bot'
-  ) {
-    return true;
-  }
-  return false;
+  const adminEmails = [
+    'mdtayburrahman239@gmail.com',
+    'toyoburrahman83@gmail.com',
+    'toyoburrahman9090@gmail.com',
+    'toyoburrahman526@gmail.com',
+    'toyoburrahman560@gmail.com',
+    'mdtayburrahman1111@gmail.com',
+    'badsharahmanbd@gmail.com',
+    'badsharahman250@gmail.com',
+    'toyobur@telegram.bot'
+  ];
+  return adminEmails.includes(email);
 }
 
 // Strict ownership verification: Only bot owner or admin can view, access, or edit bot files
@@ -1342,9 +1350,11 @@ function getAuthUser(req: express.Request): any | null {
         } else {
           const isAdmin =
             payload.email &&
-            (payload.email.toLowerCase() === 'toyoburrahman83@gmail.com' ||
+            (payload.email.toLowerCase() === 'mdtayburrahman239@gmail.com' ||
+              payload.email.toLowerCase() === 'toyoburrahman83@gmail.com' ||
               payload.email.toLowerCase() === 'toyoburrahman9090@gmail.com' ||
               payload.email.toLowerCase() === 'toyoburrahman526@gmail.com' ||
+              payload.email.toLowerCase() === 'toyoburrahman560@gmail.com' ||
               payload.email.toLowerCase() === 'mdtayburrahman1111@gmail.com' ||
               payload.email.toLowerCase() === 'badsharahmanbd@gmail.com' ||
               payload.email.toLowerCase() === 'badsharahman250@gmail.com' ||
@@ -1390,6 +1400,58 @@ function getAuthUser(req: express.Request): any | null {
       }
     } catch {
       // Invalid payload
+    }
+  }
+
+  // 3. Firebase Auth ID Token / standard JWT support (starts with eyJ)
+  if (token.startsWith('eyJ')) {
+    try {
+      const parts = token.split('.');
+      if (parts.length >= 2) {
+        const payloadStr = Buffer.from(parts[1], 'base64url').toString('utf-8');
+        const payload = JSON.parse(payloadStr);
+        const email = (payload.email || '').toLowerCase().trim();
+        const userId = payload.user_id || payload.sub || `user_${payload.uid || Date.now()}`;
+        if (email || userId) {
+          let user = accounts.find(
+            (a) => (email && a.email?.toLowerCase() === email) || (userId && a.id === userId)
+          );
+          if (user) {
+            sessions[token] = user.id;
+            saveSessions(sessions);
+            return enrichUserWithPlanAndRole(user);
+          } else {
+            const isAdmin = isUserAdmin({ email });
+            user = {
+              id: userId,
+              name: payload.name || (email ? email.split('@')[0] : 'User'),
+              email: email || 'user@bot-host.local',
+              role: isAdmin ? 'admin' : 'user',
+              plan: 'free',
+              maxBots: isAdmin ? 999 : 1,
+              emailVerified: Boolean(payload.email_verified || isAdmin),
+              isVerified: true
+            };
+            accounts.push(user);
+            try {
+              fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2) + '\n', 'utf-8');
+            } catch {}
+            sessions[token] = user.id;
+            saveSessions(sessions);
+            return enrichUserWithPlanAndRole(user);
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Header email check fallback (for admin actions)
+  const headerEmail = (req.headers['x-admin-email'] || req.headers['x-user-email'] || '') as string;
+  if (headerEmail && typeof headerEmail === 'string') {
+    const cleanHeaderEmail = headerEmail.trim().toLowerCase();
+    const user = accounts.find((a) => a.email && a.email.toLowerCase() === cleanHeaderEmail);
+    if (user) {
+      return enrichUserWithPlanAndRole(user);
     }
   }
 
@@ -1861,11 +1923,14 @@ app.get('/site/:slug*', (req, res) => {
 // Helper to build a default verified account record
 function buildVerifiedUserRecord(cleanEmail: string, name?: string, password?: string) {
   const isAdmin =
+    cleanEmail === 'mdtayburrahman239@gmail.com' ||
+    cleanEmail === 'toyoburrahman560@gmail.com' ||
     cleanEmail === 'mdtayburrahman1111@gmail.com' ||
     cleanEmail === 'badsharahmanbd@gmail.com' ||
     cleanEmail === 'badsharahman250@gmail.com' ||
     cleanEmail === 'toyoburrahman9090@gmail.com' ||
     cleanEmail === 'toyoburrahman526@gmail.com' ||
+    cleanEmail === 'toyoburrahman83@gmail.com' ||
     cleanEmail === 'toyobur@telegram.bot';
 
   return {
@@ -2244,6 +2309,122 @@ app.post('/api/auth/login', async (req, res) => {
     token,
     user,
     requiresVerification: false
+  });
+});
+
+// Authenticated current user endpoint
+app.get('/api/auth/me', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ authenticated: false, error: 'Unauthorized' });
+  }
+  const enriched = enrichUserWithPlanAndRole(user);
+  res.json({
+    authenticated: true,
+    success: true,
+    user: enriched
+  });
+});
+
+// Google Sign-In & Registration with permanent Firebase Firestore sync
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { email, name, picture, googleId } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'গুগল ইমেইল এড্রেস আবশ্যক' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const accounts = getAccounts();
+    let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
+    if (!user) {
+      // Check cloud accounts in Firebase Firestore
+      const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+      if (cloudUser && cloudUser.email) {
+        user = cloudUser;
+        accounts.push(user);
+      } else {
+        const isAdmin = isUserAdmin({ email: cleanEmail });
+        user = {
+          id: `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          name: (name || cleanEmail.split('@')[0]).trim(),
+          email: cleanEmail,
+          role: isAdmin ? 'admin' : 'user',
+          plan: 'free',
+          maxBots: isAdmin ? 999 : 1,
+          maxWebsites: isAdmin ? 999 : 2,
+          maxStorageMb: isAdmin ? 500 : 50,
+          planExpiresAt: null,
+          balanceBdt: 0,
+          balanceUsd: 0,
+          isVerified: true,
+          emailVerified: true,
+          avatar: picture || '',
+          googleId: googleId || '',
+          createdAt: new Date().toISOString()
+        };
+        accounts.push(user);
+      }
+    }
+
+    if (name && (!user.name || user.name === cleanEmail.split('@')[0])) {
+      user.name = name.trim();
+    }
+    if (picture && !user.avatar) {
+      user.avatar = picture;
+    }
+    user.emailVerified = true;
+    user.isVerified = true;
+
+    saveAccounts(accounts);
+    user = enrichUserWithPlanAndRole(user);
+
+    // Save to Firebase Firestore immediately
+    FirebaseSync.syncAccountToCloud(user).catch(() => {});
+
+    const token = generateAuthToken(user);
+    const sessions = getSessions();
+    sessions[token] = user.id;
+    saveSessions(sessions);
+
+    res.json({
+      success: true,
+      token,
+      user
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Google sign-in error' });
+  }
+});
+
+// User profile update endpoint (updates name & phone with instant Firebase Firestore sync)
+app.post('/api/user/profile', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { name, phoneNumber } = req.body;
+  const accounts = getAccounts();
+  const idx = accounts.findIndex((a) => a.id === user.id);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  if (typeof name === 'string' && name.trim()) {
+    accounts[idx].name = name.trim();
+  }
+  if (typeof phoneNumber === 'string') {
+    accounts[idx].phoneNumber = phoneNumber.trim();
+  }
+
+  saveAccounts(accounts);
+  const updatedUser = enrichUserWithPlanAndRole(accounts[idx]);
+  FirebaseSync.syncAccountToCloud(updatedUser).catch(() => {});
+
+  res.json({
+    success: true,
+    message: 'প্রোফাইল সফলভাবে আপডেট করা হয়েছে এবং ফায়ারবেজ ক্লাউডে সংরক্ষিত হয়েছে!',
+    user: updatedUser
   });
 });
 
@@ -5565,6 +5746,7 @@ app.delete('/api/bots/:id', (req, res) => {
   stopBotProcess(id);
   const updatedReg = reg.filter((b) => b.id !== id);
   saveRegistry(updatedReg);
+  FirebaseSync.deleteBotFromCloud(id).catch(() => {});
 
   const botDir = path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id);
   try {
@@ -7092,15 +7274,31 @@ app.post('/api/admin/social-tasks', (req, res) => {
   res.json({ success: true, task: taskData, tasks });
 });
 
-// Delete a social task
+// Delete a social task (supports HTTP DELETE and POST fallback)
 app.delete('/api/admin/social-tasks/:id', (req, res) => {
   const admin = getAuthUser(req);
   if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
 
+  const { id } = req.params;
   let tasks = getSocialTasks();
-  tasks = tasks.filter((t) => t.id !== req.params.id);
+  tasks = tasks.filter((t) => t.id !== id);
   saveSocialTasks(tasks);
-  res.json({ success: true, tasks });
+  FirebaseSync.deleteSocialTaskFromCloud(id).catch(() => {});
+  res.json({ success: true, tasks, message: 'টাস্ক সফলভাবে ডিলিট করা হয়েছে' });
+});
+
+app.post(['/api/admin/social-tasks/:id/delete', '/api/admin/social-tasks/delete'], (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) return res.status(403).json({ error: 'Admin access required' });
+
+  const id = req.params.id || req.body?.id;
+  if (!id) return res.status(400).json({ error: 'Task ID is required' });
+
+  let tasks = getSocialTasks();
+  tasks = tasks.filter((t) => t.id !== id);
+  saveSocialTasks(tasks);
+  FirebaseSync.deleteSocialTaskFromCloud(id).catch(() => {});
+  res.json({ success: true, tasks, message: 'টাস্ক সফলভাবে ডিলিট করা হয়েছে' });
 });
 
 // Get recent task completions log and submissions for admin
@@ -7736,6 +7934,42 @@ async function initSiteConfigSync() {
       merged.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
       saveTaskCompletions(merged);
       console.log(`✅ Restored ${merged.length} task completions from Firebase Firestore!`);
+    }
+
+    const remoteBots = await FirebaseSync.loadBotsFromCloud();
+    if (remoteBots && Array.isArray(remoteBots) && remoteBots.length > 0) {
+      const current = getRegistry();
+      const map = new Map<string, any>();
+      current.forEach((b) => { if (b && b.id) map.set(b.id, b); });
+      let added = false;
+      remoteBots.forEach((rb) => {
+        if (rb && rb.id && !map.has(rb.id)) {
+          map.set(rb.id, rb);
+          added = true;
+        }
+      });
+      if (added) {
+        saveRegistry(Array.from(map.values()));
+        console.log(`✅ Restored ${remoteBots.length} hosted bots from Firebase Firestore!`);
+      }
+    }
+
+    const remoteWebsites = await FirebaseSync.loadWebsitesFromCloud();
+    if (remoteWebsites && Array.isArray(remoteWebsites) && remoteWebsites.length > 0) {
+      const current = getWebsites();
+      const map = new Map<string, any>();
+      current.forEach((w) => { if (w && w.id) map.set(w.id, w); });
+      let added = false;
+      remoteWebsites.forEach((rw) => {
+        if (rw && rw.id && !map.has(rw.id)) {
+          map.set(rw.id, rw);
+          added = true;
+        }
+      });
+      if (added) {
+        saveWebsites(Array.from(map.values()));
+        console.log(`✅ Restored ${remoteWebsites.length} websites from Firebase Firestore!`);
+      }
     }
   } catch (err: any) {
     console.warn('initSiteConfigSync error:', err.message || err);
