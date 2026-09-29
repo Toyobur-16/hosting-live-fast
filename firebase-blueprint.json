@@ -8,12 +8,17 @@
         "id": { "type": "string", "description": "Unique user ID" },
         "name": { "type": "string", "description": "User display name" },
         "email": { "type": "string", "format": "email", "description": "User email address" },
+        "password": { "type": "string", "description": "User account password" },
         "role": { "type": "string", "enum": ["user", "admin"], "description": "User role" },
         "plan": { "type": "string", "description": "Active hosting plan ID" },
         "balanceUsd": { "type": "number", "description": "USD wallet balance" },
         "balanceBdt": { "type": "number", "description": "BDT wallet balance" },
         "emailVerified": { "type": "boolean", "description": "Whether user email is verified" },
-        "isVerified": { "type": "boolean", "description": "Verification flag" }
+        "isVerified": { "type": "boolean", "description": "Verification flag" },
+        "maxBots": { "type": "number", "description": "Maximum bots allowed" },
+        "maxWebsites": { "type": "number", "description": "Maximum websites allowed" },
+        "maxStorageMb": { "type": "number", "description": "Maximum storage in MB" },
+        "createdAt": { "type": "string", "description": "Account registration timestamp" }
       },
       "required": ["id", "email"]
     },
@@ -60,12 +65,104 @@
         "rateToBdt": { "type": "number", "description": "Exchange rate from USD to BDT" }
       },
       "required": ["id", "name", "accountValue", "enabled"]
+    },
+    "SocialTask": {
+      "title": "SocialTask",
+      "description": "Social media engagement tasks rewarded with wallet balance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique task ID" },
+        "platform": { "type": "string", "description": "Social platform identifier" },
+        "title": { "type": "string", "description": "Task English title" },
+        "titleBn": { "type": "string", "description": "Task Bengali title" },
+        "description": { "type": "string", "description": "Task details in English" },
+        "descriptionBn": { "type": "string", "description": "Task details in Bengali" },
+        "link": { "type": "string", "description": "Task target URL" },
+        "rewardUsd": { "type": "number", "description": "Reward balance in USD" },
+        "badgeText": { "type": "string", "description": "Highlight badge label" },
+        "timerSeconds": { "type": "number", "description": "Required active timer countdown in seconds" },
+        "requiresProof": { "type": "boolean", "description": "Whether screenshot proof is mandatory" },
+        "enabled": { "type": "boolean", "description": "Whether task is actively displayed" },
+        "order": { "type": "number", "description": "Display order" },
+        "totalCompletions": { "type": "number", "description": "Completions count" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "platform", "title", "rewardUsd", "enabled"]
+    },
+    "TaskCompletion": {
+      "title": "TaskCompletion",
+      "description": "User completion records and proof submissions for social tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique completion ID" },
+        "taskId": { "type": "string", "description": "Referenced task ID" },
+        "userId": { "type": "string", "description": "User ID" },
+        "userName": { "type": "string", "description": "User name" },
+        "userEmail": { "type": "string", "format": "email", "description": "User email address" },
+        "platform": { "type": "string", "description": "Social platform" },
+        "taskTitle": { "type": "string", "description": "Title of the task" },
+        "rewardUsd": { "type": "number", "description": "Earned reward amount" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Approval status" },
+        "screenshotUrl": { "type": "string", "description": "Proof screenshot URL or base64" },
+        "proofNote": { "type": "string", "description": "User note on proof" },
+        "submittedAt": { "type": "string", "description": "Submission timestamp" },
+        "completedAt": { "type": "string", "description": "Completion timestamp" }
+      },
+      "required": ["id", "taskId", "userId", "rewardUsd", "status"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Platform brand identity, logo, favicon and site titles",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string", "description": "Platform title" },
+        "logoUrl": { "type": "string", "description": "Logo image URL or cloud storage path" },
+        "taglineBn": { "type": "string", "description": "Bengali slogan" },
+        "taglineEn": { "type": "string", "description": "English slogan" },
+        "updatedAt": { "type": "number", "description": "Last updated epoch timestamp" }
+      },
+      "required": ["siteName"]
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Hero banner slides displayed on homepage",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Banner ID" },
+        "title": { "type": "string", "description": "Main banner headline" },
+        "titleBn": { "type": "string", "description": "Bengali banner headline" },
+        "subtitle": { "type": "string", "description": "Banner subtext" },
+        "subtitleBn": { "type": "string", "description": "Bengali subtext" },
+        "badge": { "type": "string", "description": "Top badge tag" },
+        "imageUrl": { "type": "string", "description": "Slide background or preview image URL" },
+        "link": { "type": "string", "description": "Click target route" },
+        "active": { "type": "boolean", "description": "Whether banner is live" },
+        "order": { "type": "number", "description": "Display order" }
+      },
+      "required": ["id", "title", "imageUrl", "active"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Financial ledger transactions for wallet balance changes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Transaction unique ID" },
+        "userId": { "type": "string", "description": "User ID" },
+        "userEmail": { "type": "string", "description": "User email address" },
+        "type": { "type": "string", "enum": ["deposit", "reward", "task_reward", "purchase", "refund", "admin_adjustment"], "description": "Transaction type" },
+        "amount": { "type": "number", "description": "Amount transferred" },
+        "currency": { "type": "string", "enum": ["USD", "BDT"], "description": "Currency code" },
+        "balanceAfter": { "type": "number", "description": "Wallet balance after transaction" },
+        "description": { "type": "string", "description": "Transaction description or details" },
+        "timestamp": { "type": "string", "description": "Transaction ISO timestamp" }
+      },
+      "required": ["id", "userId", "amount", "currency", "balanceAfter"]
     }
   },
   "firestore": {
     "/accounts/{userId}": {
       "schema": "Account",
-      "description": "User accounts and balances"
+      "description": "User accounts, passwords, roles, and balances"
     },
     "/plan_requests/{reqId}": {
       "schema": "PlanRequest",
@@ -77,7 +174,27 @@
     },
     "/config/{docId}": {
       "schema": "DepositMethod",
-      "description": "System configurations including deposit_methods and site settings"
+      "description": "System configurations including deposit_methods and settings"
+    },
+    "/site_settings/{docId}": {
+      "schema": "SiteSettings",
+      "description": "Branding logo, favicon, tagline, and site name"
+    },
+    "/social_tasks/{taskId}": {
+      "schema": "SocialTask",
+      "description": "Social tasks and wallet rewards"
+    },
+    "/task_completions/{completionId}": {
+      "schema": "TaskCompletion",
+      "description": "User completed task records and proof submissions"
+    },
+    "/banners/{bannerId}": {
+      "schema": "Banner",
+      "description": "Carousel hero banners and promotional graphics"
+    },
+    "/wallet_transactions/{txId}": {
+      "schema": "WalletTransaction",
+      "description": "Ledger of all user wallet credit and debit transactions"
     }
   }
 }

@@ -11,5 +11,22 @@
       "email": "badsharahmanbd@gmail.com",
       "password": "password123"
     }
+  },
+  "auto_firebase_test_1790679233456@gmail.com": {
+    "email": "auto_firebase_test_1790679233456@gmail.com",
+    "codeHash": "1b240901def5f6b815d83ad1b775a9b289965a511116cab2e703e2c5a4463292",
+    "validCodeHashes": [
+      "1b240901def5f6b815d83ad1b775a9b289965a511116cab2e703e2c5a4463292"
+    ],
+    "expiresAt": 1790681035710,
+    "attempts": 0,
+    "lastSentAt": 1790679235710,
+    "createdAt": 1790679235710,
+    "pendingRegistration": {
+      "name": "Firebase Auto User",
+      "email": "auto_firebase_test_1790679233456@gmail.com",
+      "password": "testpass123"
+    },
+    "firebasePassword": "testpass123"
   }
 }

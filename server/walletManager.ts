@@ -113,6 +113,11 @@ export function modifyUserWallet(
   if (transactions.length > 2000) transactions.splice(2000);
   saveTransactions(transactions);
 
+  // Sync transaction to Firebase Firestore immediately
+  try {
+    FirebaseSync.syncTransactionToCloud(transaction).catch(() => {});
+  } catch {}
+
   return {
     success: true,
     newBalanceUsd: user.balanceUsd,

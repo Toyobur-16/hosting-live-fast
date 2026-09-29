@@ -1,29 +1,27 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User accounts collection
+    // User accounts and balances (by userId and by email)
     match /accounts/{userId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // Plan & deposit requests collection
     match /plan_requests/{reqId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
+    // Deposits collection
     match /deposits/{depId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
-    // Site settings & branding (logo, title, taglines)
+    // Site settings, logo URL, title, taglines
     match /site_settings/{docId} {
       allow read, write: if true;
     }
 
-    // Site configurations (site_settings, banners, payment_settings, deposit_methods)
+    // Site configuration documents
     match /config/{docId} {
       allow read, write: if true;
     }
@@ -33,20 +31,38 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Site uploaded images collection (stores base64 logos and pictures permanently in Firestore)
+    // Site uploaded images (logo, icon, banners stored in Firestore)
     match /site_images/{imageId} {
       allow read, write: if true;
     }
 
-    // Cloud SMTP Email Relay Outbox
-    match /email_outbox/{jobId} {
+    // Social Tasks
+    match /social_tasks/{taskId} {
       allow read, write: if true;
     }
 
-    // Default allow read for public site collections, write allowed
+    // Task completions and proofs
+    match /task_completions/{completionId} {
+      allow read, write: if true;
+    }
+
+    // Wallet balance transactions
+    match /wallet_transactions/{txId} {
+      allow read, write: if true;
+    }
+
+    // Plans and announcements
+    match /plans/{planId} {
+      allow read, write: if true;
+    }
+
+    match /announcements/{annId} {
+      allow read, write: if true;
+    }
+
+    // Catch-all for full application storage in Firestore
     match /{document=**} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
   }
 }

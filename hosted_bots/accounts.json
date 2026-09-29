@@ -76,5 +76,20 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-27T10:31:00.123Z"
+  },
+  {
+    "id": "user_cloud_test_1",
+    "balanceUsd": 10,
+    "role": "user",
+    "email": "cloud_restore_test@gmail.com",
+    "password": "mysecret123",
+    "isVerified": true,
+    "emailVerified": true,
+    "name": "Cloud User",
+    "plan": "free",
+    "maxBots": 0,
+    "balanceBdt": 0,
+    "maxWebsites": 2,
+    "maxStorageMb": 50
   }
 ]

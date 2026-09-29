@@ -197,6 +197,7 @@ export function getTaskCompletions(): TaskCompletionLog[] {
 export function saveTaskCompletions(logs: TaskCompletionLog[]): void {
   try {
     fs.writeFileSync(TASK_COMPLETIONS_FILE, JSON.stringify(logs, null, 2) + '\n', 'utf-8');
+    FirebaseSync.syncTaskCompletionsToCloud(logs).catch(() => {});
   } catch (err) {
     console.error('Error saving task completions:', err);
   }

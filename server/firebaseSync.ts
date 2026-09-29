@@ -238,29 +238,80 @@ export class FirebaseSync {
   /**
    * Upsert a single user account to their personal Firebase Auth Cloud Vault + Firestore
    */
+  /**
+   * Upsert a single user account to Firebase Firestore + Firebase Auth
+   */
   static async syncAccountToCloud(user: any): Promise<boolean> {
     if (!user || !user.id || !user.email) return false;
     try {
       const cleanUser = stripHeavyFields(user);
-      const { vaultEmail, vaultPassword } = getUserVaultIdentity(cleanUser.email);
-      await writeVaultData(vaultEmail, vaultPassword, cleanUser.email, cleanUser);
+      const cleanEmail = cleanUser.email.trim().toLowerCase();
+      const idToken = await getAdminIdToken();
 
-      // Best-effort Firestore sync
-      const docId = encodeURIComponent(cleanUser.id);
       const fields: Record<string, any> = {};
       for (const [key, val] of Object.entries(cleanUser)) {
-        if (val !== undefined) {
+        if (val !== undefined && val !== null) {
           fields[key] = toFirestoreValue(val);
         }
       }
-      const url = `${BASE_URL}/accounts/${docId}?key=${API_KEY}`;
-      fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields })
-      }).catch(() => {});
+      fields['updatedAt'] = toFirestoreValue(Date.now());
 
-      return true;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+      };
+
+      const bodyStr = JSON.stringify({ fields });
+
+      // 1. Save by User ID
+      const userDocId = encodeURIComponent(String(cleanUser.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const urlById = `${BASE_URL}/accounts/${userDocId}?key=${API_KEY}`;
+      const resById = await fetch(urlById, {
+        method: 'PATCH',
+        headers,
+        body: bodyStr
+      }).catch((e) => {
+        console.warn('syncAccountToCloud fetch error by id:', e?.message || e);
+        return null;
+      });
+
+      // 2. Save by Email for instant direct lookup
+      const emailDocId = encodeURIComponent(cleanEmail);
+      const urlByEmail = `${BASE_URL}/accounts/${emailDocId}?key=${API_KEY}`;
+      const resByEmail = await fetch(urlByEmail, {
+        method: 'PATCH',
+        headers,
+        body: bodyStr
+      }).catch((e) => {
+        console.warn('syncAccountToCloud fetch error by email:', e?.message || e);
+        return null;
+      });
+
+      // 3. Also sync to Firebase Auth if password exists
+      if (cleanUser.password) {
+        try {
+          await fetch(`${AUTH_BASE_URL}:signUp?key=${API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: cleanEmail,
+              password: cleanUser.password,
+              displayName: cleanUser.name || '',
+              returnSecureToken: false
+            })
+          });
+        } catch {}
+      }
+
+      // Also best-effort backup to personal vault
+      const { vaultEmail, vaultPassword } = getUserVaultIdentity(cleanEmail);
+      writeVaultData(vaultEmail, vaultPassword, cleanEmail, cleanUser).catch(() => {});
+
+      const success = Boolean((resById && resById.ok) || (resByEmail && resByEmail.ok));
+      if (success) {
+        console.log(`✅ [Firebase Firestore] Saved account for ${cleanEmail} to cloud!`);
+      }
+      return success;
     } catch (err: any) {
       console.warn('FirebaseSync syncAccountToCloud error:', err.message || err);
       return false;
@@ -286,6 +337,11 @@ export class FirebaseSync {
         .filter((a) => a && a.id && a.email)
         .map(stripHeavyFields);
 
+      // Save each to Firestore
+      for (const acc of cleaned) {
+        await this.syncAccountToCloud(acc).catch(() => {});
+      }
+
       // Each shard comfortably holds up to 12 accounts compressed
       const SHARD_SIZE = 12;
       const totalShards = Math.min(10, Math.ceil(cleaned.length / SHARD_SIZE));
@@ -305,55 +361,124 @@ export class FirebaseSync {
   }
 
   /**
-   * Instant on-demand lookup of a single user account from their personal Cloud Vault by email
+   * Instant on-demand lookup of a single user account from Firebase Firestore
    */
   static async loadSingleAccountByEmail(email: string): Promise<any | null> {
     if (!email || !email.includes('@')) return null;
+    const cleanEmail = email.trim().toLowerCase();
     try {
-      const { vaultEmail, vaultPassword } = getUserVaultIdentity(email);
-      const data = await readVaultData(vaultEmail, vaultPassword);
-      if (data && data.id && data.email) {
-        return data;
+      const idToken = await getAdminIdToken();
+      const headers: Record<string, string> = {
+        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+      };
+
+      // 1. Direct lookup by email document ID in Firestore
+      const emailDocId = encodeURIComponent(cleanEmail);
+      const urlDirect = `${BASE_URL}/accounts/${emailDocId}?key=${API_KEY}`;
+      const resDirect = await fetch(urlDirect, { headers }).catch(() => null);
+      if (resDirect && resDirect.ok) {
+        const docData: any = await resDirect.json();
+        if (docData && docData.fields) {
+          const parsed = fromFirestoreFields(docData.fields);
+          if (parsed && parsed.email) {
+            console.log(`✅ [Firebase Firestore] Found user account ${cleanEmail} directly!`);
+            return parsed;
+          }
+        }
       }
-    } catch {}
+
+      // 2. Structured query search in Firestore by email field
+      const runQueryUrl = `${BASE_URL}:runQuery?key=${API_KEY}`;
+      const queryBody = {
+        structuredQuery: {
+          from: [{ collectionId: 'accounts' }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: 'email' },
+              op: 'EQUAL',
+              value: { stringValue: cleanEmail }
+            }
+          },
+          limit: 1
+        }
+      };
+      const queryRes = await fetch(runQueryUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify(queryBody)
+      }).catch(() => null);
+
+      if (queryRes && queryRes.ok) {
+        const queryData: any = await queryRes.json();
+        if (Array.isArray(queryData) && queryData[0]?.document?.fields) {
+          const parsed = fromFirestoreFields(queryData[0].document.fields);
+          if (parsed && parsed.email) {
+            console.log(`✅ [Firebase Firestore] Found user account ${cleanEmail} via query!`);
+            return parsed;
+          }
+        }
+      }
+
+      // 3. Fallback: Check Personal Vault
+      const { vaultEmail, vaultPassword } = getUserVaultIdentity(cleanEmail);
+      const vaultData = await readVaultData(vaultEmail, vaultPassword);
+      if (vaultData && vaultData.id && vaultData.email) {
+        return vaultData;
+      }
+    } catch (err: any) {
+      console.warn('FirebaseSync loadSingleAccountByEmail error:', err?.message || err);
+    }
     return null;
   }
 
   /**
-   * Load all accounts from Master Cloud Shards + Firestore
+   * Load all accounts from Firestore + Master Cloud Shards
    */
   static async loadAccountsFromCloud(): Promise<any[]> {
     const collected: any[] = [];
+    const seenEmails = new Set<string>();
+
     try {
-      // 1. Read Master Cloud Shards from Firebase Auth
-      const { shardEmail: s0Email, shardPassword: s0Pass } = getMasterShardIdentity(0);
-      const shard0 = await readVaultData(s0Email, s0Pass);
-      if (shard0) {
-        if (Array.isArray(shard0)) {
-          collected.push(...shard0);
-        } else if (Array.isArray(shard0.accounts)) {
-          collected.push(...shard0.accounts);
-          const totalShards = Math.min(10, Number(shard0.totalShards) || 1);
-          for (let i = 1; i < totalShards; i++) {
-            const { shardEmail, shardPassword } = getMasterShardIdentity(i);
-            const nextShard = await readVaultData(shardEmail, shardPassword);
-            if (nextShard && Array.isArray(nextShard.accounts)) {
-              collected.push(...nextShard.accounts);
+      const idToken = await getAdminIdToken();
+      const headers: Record<string, string> = {
+        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+      };
+
+      // 1. Read all documents from Firestore /accounts collection
+      const url = `${BASE_URL}/accounts?pageSize=300&key=${API_KEY}`;
+      const res = await fetch(url, { headers }).catch(() => null);
+      if (res && res.ok) {
+        const data: any = await res.json();
+        if (data.documents && Array.isArray(data.documents)) {
+          for (const docItem of data.documents) {
+            const acc = fromFirestoreFields(docItem.fields || {});
+            if (acc && acc.email) {
+              const clean = acc.email.trim().toLowerCase();
+              if (!seenEmails.has(clean)) {
+                seenEmails.add(clean);
+                collected.push(acc);
+              }
             }
           }
         }
       }
 
-      // 2. Also check Firestore if accessible
-      const url = `${BASE_URL}/accounts?pageSize=300&key=${API_KEY}`;
-      const res = await fetch(url).catch(() => null);
-      if (res && res.ok) {
-        const data: any = await res.json();
-        if (data.documents && Array.isArray(data.documents)) {
-          const remoteAccounts = data.documents
-            .map((docItem: any) => fromFirestoreFields(docItem.fields || {}))
-            .filter((acc: any) => acc && acc.id);
-          collected.push(...remoteAccounts);
+      // 2. Read Master Cloud Shards from Firebase Auth as backup
+      const { shardEmail: s0Email, shardPassword: s0Pass } = getMasterShardIdentity(0);
+      const shard0 = await readVaultData(s0Email, s0Pass);
+      if (shard0) {
+        const list = Array.isArray(shard0) ? shard0 : Array.isArray(shard0.accounts) ? shard0.accounts : [];
+        for (const acc of list) {
+          if (acc && acc.email) {
+            const clean = acc.email.trim().toLowerCase();
+            if (!seenEmails.has(clean)) {
+              seenEmails.add(clean);
+              collected.push(acc);
+            }
+          }
         }
       }
     } catch (err: any) {
@@ -895,4 +1020,134 @@ export class FirebaseSync {
     } catch {}
     return null;
   }
+
+  // ==========================================
+  // TASK COMPLETIONS & PROOFS FIRESTORE SYNC
+  // ==========================================
+  static async syncTaskCompletionsToCloud(completions: any[]): Promise<boolean> {
+    if (!Array.isArray(completions)) return false;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return false;
+
+      // 1. Bulk sync to /config/task_completions
+      const url = `${BASE_URL}/config/task_completions`;
+      await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          fields: {
+            completions: toFirestoreValue(completions),
+            updatedAt: toFirestoreValue(Date.now())
+          }
+        })
+      });
+
+      // 2. Individual documents in /task_completions/{id} for recent 100
+      const recent = completions.slice(0, 100);
+      for (const comp of recent) {
+        if (!comp || !comp.id) continue;
+        const docId = encodeURIComponent(String(comp.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+        const fields: Record<string, any> = {};
+        for (const [k, v] of Object.entries(comp)) {
+          if (v !== undefined && v !== null) {
+            fields[k] = toFirestoreValue(v);
+          }
+        }
+        fetch(`${BASE_URL}/task_completions/${docId}?key=${API_KEY}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ fields })
+        }).catch(() => {});
+      }
+
+      return true;
+    } catch (err: any) {
+      console.warn('FirebaseSync syncTaskCompletionsToCloud error:', err.message || err);
+      return false;
+    }
+  }
+
+  static async loadTaskCompletionsFromCloud(): Promise<any[] | null> {
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return null;
+
+      const url = `${BASE_URL}/config/task_completions`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (data && data.fields?.completions) {
+        const val = fromFirestoreValue(data.fields.completions);
+        if (Array.isArray(val)) return val;
+      }
+    } catch {}
+    return null;
+  }
+
+  // ==========================================
+  // WALLET TRANSACTIONS FIRESTORE SYNC
+  // ==========================================
+  static async syncTransactionToCloud(tx: any): Promise<boolean> {
+    if (!tx || !tx.id) return false;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return false;
+
+      const docId = encodeURIComponent(String(tx.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const fields: Record<string, any> = {};
+      for (const [k, v] of Object.entries(tx)) {
+        if (v !== undefined && v !== null) {
+          fields[k] = toFirestoreValue(v);
+        }
+      }
+      fields['updatedAt'] = toFirestoreValue(Date.now());
+
+      const url = `${BASE_URL}/wallet_transactions/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ fields })
+      });
+      return res.ok;
+    } catch (err: any) {
+      console.warn('FirebaseSync syncTransactionToCloud error:', err.message || err);
+      return false;
+    }
+  }
+
+  static async loadTransactionsFromCloud(): Promise<any[]> {
+    const list: any[] = [];
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return list;
+
+      const url = `${BASE_URL}/wallet_transactions?pageSize=300&key=${API_KEY}`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (res.ok) {
+        const data: any = await res.json();
+        if (data.documents && Array.isArray(data.documents)) {
+          for (const doc of data.documents) {
+            const parsed = fromFirestoreFields(doc.fields || {});
+            if (parsed && parsed.id) list.push(parsed);
+          }
+        }
+      }
+    } catch {}
+    return list;
+  }
 }
+
