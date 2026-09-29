@@ -50,9 +50,9 @@ export interface SmtpSettingsData {
 export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
   host: 'smtp.gmail.com',
   port: 587,
-  user: 'badsharahmanbd@gmail.com',
-  pass: 'crjzmhuzjnvsadpq',
-  from: '"hosting live fast" <badsharahmanbd@gmail.com>',
+  user: 'hostinglivefast.official@gmail.com',
+  pass: 'ykulrbgpoduzbawk',
+  from: '"hosting live fast" <hostinglivefast.official@gmail.com>',
   secure: false
 };
 
@@ -1261,7 +1261,7 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
 
   if (transporter) {
     try {
-      const senderAddress = fileConfig?.user || process.env.SMTP_USER || 'badsharahmanbd@gmail.com';
+      const senderAddress = fileConfig?.user || process.env.SMTP_USER || 'hostinglivefast.official@gmail.com';
       const cleanMsgId = `<hlf_${Date.now()}_${Math.random().toString(36).substring(2, 8)}@gmail.com>`;
       const info = await transporter.sendMail({
         from: fromFormatted,
