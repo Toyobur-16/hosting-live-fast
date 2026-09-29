@@ -33,6 +33,16 @@ interface AuthModalProps {
   initialMode?: AuthMode;
 }
 
+async function safeJsonParse(res: Response): Promise<any> {
+  try {
+    const text = await res.text();
+    if (!text) return null;
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export const AuthModal = ({
   isOpen,
   onClose,
@@ -432,9 +442,9 @@ export const AuthModal = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase() })
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to resend code');
+      const data = await safeJsonParse(res);
+      if (!res.ok || (data && !data.success)) {
+        throw new Error(data?.error || (lang === 'bn' ? 'কোড পুনরায় পাঠানো সম্ভব হয়নি' : 'Failed to resend code'));
       }
 
       setResendCooldown(15);
@@ -447,7 +457,12 @@ export const AuthModal = ({
       );
       digitInputRefs.current[0]?.focus();
     } catch (err: any) {
-      setError(err.message || 'Error resending code');
+      const msg = err?.message || '';
+      if (msg.includes('Unexpected token') || msg.includes('<!DOCTYPE') || msg.includes('is not valid JSON')) {
+        setError(lang === 'bn' ? 'সার্ভার সংযোগে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' : 'Network connection issue. Please try again.');
+      } else {
+        setError(msg || (lang === 'bn' ? 'কোড পুনরায় পাঠাতে ত্রুটি হয়েছে' : 'Error resending code'));
+      }
     } finally {
       setResending(false);
     }
@@ -502,8 +517,8 @@ export const AuthModal = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: name.trim(), email: cleanEmail, password })
         });
-        const data = await res.json();
-        if (data.alreadyRegistered) {
+        const data = await safeJsonParse(res);
+        if (data?.alreadyRegistered) {
           setMode('login');
           setError(null);
           setSuccessMessage(
@@ -514,11 +529,11 @@ export const AuthModal = ({
           setLoading(false);
           return;
         }
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
+        if (!res.ok || (data && !data.success)) {
+          throw new Error(data?.error || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
         }
 
-        if (data.requiresVerification || !data.token || !data.user) {
+        if (data?.requiresVerification || !data?.token || !data?.user) {
           // Strictly do NOT store any auth token or user session until 6-digit OTP code is verified!
           localStorage.removeItem('bot_auth_token');
           localStorage.removeItem('bot_auth_user');
@@ -544,12 +559,12 @@ export const AuthModal = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: cleanEmail, password })
         });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || (lang === 'bn' ? 'লগইন ব্যর্থ হয়েছে' : 'Login failed'));
+        const data = await safeJsonParse(res);
+        if (!res.ok || (data && !data.success)) {
+          throw new Error(data?.error || (lang === 'bn' ? 'লগইন ব্যর্থ হয়েছে' : 'Login failed'));
         }
 
-        if (data.requiresVerification || !data.token || !data.user) {
+        if (data?.requiresVerification || !data?.token || !data?.user) {
           // Do NOT store auth token or user session until 6-digit OTP code is verified!
           localStorage.removeItem('bot_auth_token');
           localStorage.removeItem('bot_auth_user');
@@ -571,7 +586,12 @@ export const AuthModal = ({
         }
       }
     } catch (err: any) {
-      setError(err.message || 'ত্রুটি ঘটেছে');
+      const msg = err?.message || '';
+      if (msg.includes('Unexpected token') || msg.includes('<!DOCTYPE') || msg.includes('is not valid JSON')) {
+        setError(lang === 'bn' ? 'সার্ভার সংযোগে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' : 'Network connection issue. Please try again.');
+      } else {
+        setError(msg || (lang === 'bn' ? 'ত্রুটি ঘটেছে' : 'An error occurred'));
+      }
     } finally {
       setLoading(false);
     }
@@ -594,9 +614,9 @@ export const AuthModal = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail })
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || (lang === 'bn' ? 'রিসেট কোড পাঠানো সম্ভব হয়নি' : 'Failed to send reset code'));
+      const data = await safeJsonParse(res);
+      if (!res.ok || (data && !data.success)) {
+        throw new Error(data?.error || (lang === 'bn' ? 'রিসেট কোড পাঠানো সম্ভব হয়নি। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।' : 'Failed to send reset code'));
       }
 
       setResetStep('verify_and_set');
@@ -612,7 +632,12 @@ export const AuthModal = ({
         digitInputRefs.current[0]?.focus();
       }, 150);
     } catch (err: any) {
-      setError(err.message || 'Error sending reset code');
+      const msg = err?.message || '';
+      if (msg.includes('Unexpected token') || msg.includes('<!DOCTYPE') || msg.includes('is not valid JSON')) {
+        setError(lang === 'bn' ? 'সার্ভার সংযোগে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' : 'Network connection issue. Please try again.');
+      } else {
+        setError(msg || (lang === 'bn' ? 'রিসেট কোড পাঠাতে ত্রুটি হয়েছে' : 'Error sending reset code'));
+      }
     } finally {
       setLoading(false);
     }
@@ -645,9 +670,9 @@ export const AuthModal = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, code, newPassword })
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || (lang === 'bn' ? 'পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে' : 'Password reset failed'));
+      const data = await safeJsonParse(res);
+      if (!res.ok || (data && !data.success)) {
+        throw new Error(data?.error || (lang === 'bn' ? 'পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে' : 'Password reset failed'));
       }
 
       localStorage.setItem('bot_auth_token', data.token);
@@ -658,7 +683,12 @@ export const AuthModal = ({
         if (onClose) onClose();
       }, 1000);
     } catch (err: any) {
-      setError(err.message || 'Password reset error');
+      const msg = err?.message || '';
+      if (msg.includes('Unexpected token') || msg.includes('<!DOCTYPE') || msg.includes('is not valid JSON')) {
+        setError(lang === 'bn' ? 'সার্ভার সংযোগে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' : 'Network connection issue. Please try again.');
+      } else {
+        setError(msg || (lang === 'bn' ? 'পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে' : 'Password reset error'));
+      }
     } finally {
       setLoading(false);
     }

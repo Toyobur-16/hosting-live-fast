@@ -2580,132 +2580,176 @@ app.post('/api/user/profile', (req, res) => {
 
 // Request 6-digit password reset OTP code
 app.post('/api/auth/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'আপনার নিবন্ধিত ইমেইল এড্রেস লিখুন' });
-  }
-  const cleanEmail = email.trim().toLowerCase();
-  const accounts = getAccounts();
-  let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'আপনার নিবন্ধিত ইমেইল এড্রেস লিখুন' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return res.status(400).json({ success: false, error: 'সঠিক ইমেইল এড্রেস লিখুন' });
+    }
 
-  if (!user) {
-    const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
-    if (cloudUser && cloudUser.email) {
-      user = cloudUser;
+    const accounts = getAccounts();
+    let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
+    if (!user) {
+      try {
+        const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+        if (cloudUser && cloudUser.email) {
+          user = cloudUser;
+          accounts.push(user);
+          saveAccounts(accounts);
+        }
+      } catch {}
+    }
+
+    if (!user) {
+      try {
+        const existsInFb = await checkEmailExistsInFirebaseAuth(cleanEmail);
+        if (existsInFb) {
+          user = buildVerifiedUserRecord(cleanEmail);
+          accounts.push(user);
+          saveAccounts(accounts);
+        }
+      } catch {}
+    }
+
+    // If still not found, build account stub so the user can easily reset password and log in
+    if (!user) {
+      const pending = getPendingRegistration(cleanEmail);
+      user = buildVerifiedUserRecord(cleanEmail, pending?.name || cleanEmail.split('@')[0], pending?.password || '');
       accounts.push(user);
       saveAccounts(accounts);
-    } else {
-      const existsInFb = await checkEmailExistsInFirebaseAuth(cleanEmail);
-      if (existsInFb) {
-        user = buildVerifiedUserRecord(cleanEmail);
-        accounts.push(user);
-        saveAccounts(accounts);
-      }
     }
-  }
 
-  if (!user) {
-    return res.status(404).json({ error: 'এই ইমেইল দিয়ে কোনো নিবন্ধিত অ্যাকাউন্ট পাওয়া যায়নি।' });
-  }
+    const result = await createAndSendPasswordResetCode(cleanEmail, user.name);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
 
-  const result = await createAndSendPasswordResetCode(cleanEmail, user.name);
-  if (!result.success) {
-    return res.status(400).json(result);
+    return res.json({
+      success: true,
+      message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠিয়েছি।'
+    });
+  } catch (err: any) {
+    console.error('forgot-password route error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'পাসওয়ার্ড রিসেট রিকোয়েস্টে ত্রুটি হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
+    });
   }
-
-  res.json({
-    success: true,
-    message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠিয়েছি।'
-  });
 });
 
 // Resend 6-digit password reset OTP code
 app.post('/api/auth/resend-reset-code', async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'ইমেইল এড্রেস প্রদান করুন' });
-  }
-  const cleanEmail = email.trim().toLowerCase();
-  const accounts = getAccounts();
-  let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
-  if (!user) {
-    const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
-    if (cloudUser && cloudUser.email) {
-      user = cloudUser;
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস প্রদান করুন' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const accounts = getAccounts();
+    let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+    if (!user) {
+      try {
+        const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+        if (cloudUser && cloudUser.email) {
+          user = cloudUser;
+          accounts.push(user);
+          saveAccounts(accounts);
+        }
+      } catch {}
+    }
+    if (!user) {
+      user = buildVerifiedUserRecord(cleanEmail);
       accounts.push(user);
       saveAccounts(accounts);
     }
-  }
-  if (!user) {
-    return res.status(404).json({ error: 'অ্যাকাউন্ট খুঁজে পাওয়া যায়নি' });
-  }
 
-  const result = await createAndSendPasswordResetCode(cleanEmail, user.name);
-  if (!result.success) {
-    return res.status(429).json(result);
-  }
+    const result = await createAndSendPasswordResetCode(cleanEmail, user.name);
+    if (!result.success) {
+      return res.status(429).json(result);
+    }
 
-  res.json({
-    success: true,
-    message: 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।'
-  });
+    return res.json({
+      success: true,
+      message: 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।'
+    });
+  } catch (err: any) {
+    console.error('resend-reset-code route error:', err);
+    return res.status(500).json({ success: false, error: 'রিসেট কোড পাঠাতে সমস্যা হয়েছে।' });
+  }
 });
 
 // Verify 6-digit code and set new password
 app.post('/api/auth/reset-password', async (req, res) => {
-  const { email, code, newPassword } = req.body;
-  if (!email || !newPassword) {
-    return res.status(400).json({ error: 'ইমেইল এবং নতুন পাসওয়ার্ড প্রদান করুন' });
-  }
-  if (!code) {
-    return res.status(400).json({ error: 'ইমেইলে পাঠানো ৬ সংখ্যার কোড প্রদান করুন' });
-  }
-  if (typeof newPassword !== 'string' || newPassword.length < 6) {
-    return res.status(400).json({ error: 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' });
-  }
-
-  const cleanEmail = email.trim().toLowerCase();
-  const verifyResult = verifyPasswordResetCode(cleanEmail, code);
-  if (!verifyResult.success) {
-    return res.status(400).json(verifyResult);
-  }
-
-  const accounts = getAccounts();
-  let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
-  if (!user) {
-    const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
-    if (cloudUser && cloudUser.email) {
-      user = cloudUser;
-      accounts.push(user);
-    } else {
-      user = buildVerifiedUserRecord(cleanEmail, undefined, newPassword);
-      accounts.push(user);
-    }
-  }
-
-  user.password = newPassword;
-  user.emailVerified = true;
-  user.isVerified = true;
-  saveAccounts(accounts);
-
-  const enriched = enrichUserWithPlanAndRole(user);
-  const token = generateAuthToken(enriched);
-  const sessions = getSessions();
-  sessions[token] = user.id;
-  saveSessions(sessions);
-
-  // Sync to Cloud Vault & Firebase Auth
   try {
-    FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
-    syncUserPasswordToFirebaseAuth(cleanEmail, newPassword, enriched.name).catch(() => {});
-  } catch {}
+    const { email, code, newPassword } = req.body || {};
+    if (!email || !newPassword) {
+      return res.status(400).json({ success: false, error: 'ইমেইল এবং নতুন পাসওয়ার্ড প্রদান করুন' });
+    }
+    if (!code) {
+      return res.status(400).json({ success: false, error: 'ইমেইলে পাঠানো ৬ সংখ্যার কোড প্রদান করুন' });
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' });
+    }
 
-  res.json({
-    success: true,
-    message: '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে এবং আপনি সফলভাবে লগইন হয়েছেন!',
-    token,
-    user: enriched
-  });
+    const cleanEmail = String(email).trim().toLowerCase();
+    const verifyResult = verifyPasswordResetCode(cleanEmail, String(code));
+    if (!verifyResult.success) {
+      return res.status(400).json(verifyResult);
+    }
+
+    const accounts = getAccounts();
+    let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+    if (!user) {
+      try {
+        const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+        if (cloudUser && cloudUser.email) {
+          user = cloudUser;
+          accounts.push(user);
+        } else {
+          user = buildVerifiedUserRecord(cleanEmail, undefined, newPassword);
+          accounts.push(user);
+        }
+      } catch {
+        user = buildVerifiedUserRecord(cleanEmail, undefined, newPassword);
+        accounts.push(user);
+      }
+    }
+
+    user.password = newPassword;
+    user.emailVerified = true;
+    user.isVerified = true;
+    saveAccounts(accounts);
+
+    const enriched = enrichUserWithPlanAndRole(user);
+    const token = generateAuthToken(enriched);
+    const sessions = getSessions();
+    sessions[token] = user.id;
+    saveSessions(sessions);
+
+    // Sync to Cloud Vault & Firebase Auth
+    try {
+      FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+      syncUserPasswordToFirebaseAuth(cleanEmail, newPassword, enriched.name).catch(() => {});
+    } catch {}
+
+    return res.json({
+      success: true,
+      message: '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে এবং আপনি সফলভাবে লগইন হয়েছেন!',
+      token,
+      user: enriched
+    });
+  } catch (err: any) {
+    console.error('reset-password route error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'পাসওয়ার্ড সংরক্ষণে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
+    });
+  }
 });
 
 // USD Wallet & Transactions endpoints
