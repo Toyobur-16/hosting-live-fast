@@ -58,10 +58,8 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
 
 const CLOUD_SMTP_BRIDGE_URLS = [
   process.env.SMTP_BRIDGE_URL,
-  'https://ais-pre-yrhbxl4ld56shfzeazpafe-35885551412.asia-east1.run.app/api/smtp-cloud-bridge',
-  'https://ais-dev-yrhbxl4ld56shfzeazpafe-35885551412.asia-east1.run.app/api/smtp-cloud-bridge',
-  'https://ais-pre-oyxapnknxxidkcvabyrcx2-291103210196.asia-southeast1.run.app/api/smtp-cloud-bridge',
-  'https://ais-dev-oyxapnknxxidkcvabyrcx2-291103210196.asia-southeast1.run.app/api/smtp-cloud-bridge'
+  'https://ais-pre-ykmsp67mhlegotwyvf4twj-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge',
+  'https://ais-dev-ykmsp67mhlegotwyvf4twj-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge'
 ].filter(Boolean) as string[];
 
 export const SMTP_BRIDGE_SECRET = 'hlf_cloud_smtp_bridge_2026_key';
@@ -1312,27 +1310,6 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
   const rawFrom = (fileConfig?.from || process.env.SMTP_FROM || fileConfig?.user || process.env.SMTP_USER || 'hostinglivefast.official@gmail.com').trim();
   const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
   const plainText = text || html.replace(/<[^>]+>/g, ' ');
-
-  // On Render (where outbound SMTP ports 25/465/587 are blocked by firewall), immediately use HTTPS Firestore Relay
-  const isRender = Boolean(process.env.RENDER || process.env.IS_RENDER || process.env.RENDER_SERVICE_ID);
-  if (isRender) {
-    const bridgeRes = await relayViaHttpsBridge({
-      action: 'send',
-      smtp: fileConfig,
-      mail: {
-        from: fromFormatted,
-        to,
-        subject,
-        text: plainText,
-        html
-      }
-    });
-
-    if (bridgeRes.success) {
-      console.log(`[EMAIL ALERT SENT VIA RENDER FIRESTORE QUEUE] To: ${to} | MsgId: ${bridgeRes.messageId}`);
-      return { success: true, messageId: bridgeRes.messageId };
-    }
-  }
 
   const transporter = (await getTransporterAsync()) || getTransporter();
 

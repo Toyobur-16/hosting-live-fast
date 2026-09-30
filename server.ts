@@ -4899,15 +4899,26 @@ app.post('/api/smtp-cloud-bridge', async (req, res) => {
   const pass = String(smtp?.pass || saved.pass || DEFAULT_SMTP_SETTINGS.pass).replace(/\s+/g, '');
   const secure = smtp?.secure !== undefined ? Boolean(smtp.secure) : (port === 465);
 
+  const effectivePort = port === 587 && !secure ? 587 : 465;
+  const isSecure = effectivePort === 465;
+
   try {
-    const transport = nodemailer.createTransport(buildTransportOptions({
+    const isGmail = host.toLowerCase().includes('gmail.com');
+    const transport = nodemailer.createTransport(isGmail ? {
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+      connectionTimeout: 8000,
+      tls: { rejectUnauthorized: false }
+    } : buildTransportOptions({
       hostOrIp: host,
       originalHost: host,
-      port: 587,
-      secure: false,
+      port: effectivePort,
+      secure: isSecure,
       user,
       pass
-    }));
+    }) as any);
 
     if (action === 'verify') {
       await transport.verify();
