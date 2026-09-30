@@ -57,5 +57,21 @@
     "attempts": 0,
     "lastSentAt": 1790758683571,
     "createdAt": 1790758551204
+  },
+  "mtayburrahman8989@gmail.com": {
+    "email": "mtayburrahman8989@gmail.com",
+    "codeHash": "8893b76927ad62e35df308d0195769ed8fccf188409a7dbe54b5fdc96b65abf7",
+    "validCodeHashes": [
+      "8893b76927ad62e35df308d0195769ed8fccf188409a7dbe54b5fdc96b65abf7"
+    ],
+    "expiresAt": 1790762353402,
+    "attempts": 0,
+    "lastSentAt": 1790760553402,
+    "createdAt": 1790760553402,
+    "pendingRegistration": {
+      "name": "Taybur",
+      "email": "mtayburrahman8989@gmail.com",
+      "password": "mypassword123"
+    }
   }
 }

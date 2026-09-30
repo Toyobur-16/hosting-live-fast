@@ -759,7 +759,7 @@ export const AuthModal = ({
             )}
 
             {/* 6 Individual Digit Inputs */}
-            <div className="flex items-center justify-between gap-2 mb-5">
+            <div className="grid grid-cols-6 gap-1.5 sm:gap-2 mb-5 w-full">
               {digits.map((digit, idx) => (
                 <input
                   key={idx}
@@ -772,7 +772,7 @@ export const AuthModal = ({
                   value={digit}
                   onChange={(e) => handleDigitChange(idx, e.target.value)}
                   onKeyDown={(e) => handleDigitKeyDown(idx, e)}
-                  className="w-12 h-14 rounded-2xl bg-[#0b1220] border-2 border-slate-700 focus:border-cyan-400 text-cyan-300 text-2xl font-bold font-mono text-center focus:outline-none transition-all shadow-inner"
+                  className="w-full h-12 sm:h-14 max-w-[48px] mx-auto rounded-xl sm:rounded-2xl bg-[#0b1220] border-2 border-slate-700 focus:border-cyan-400 text-cyan-300 text-xl sm:text-2xl font-bold font-mono text-center focus:outline-none transition-all shadow-inner"
                 />
               ))}
             </div>
@@ -886,7 +886,7 @@ export const AuthModal = ({
                 <label className="block text-[11px] font-medium text-slate-300 mb-1.5 text-center">
                   {lang === 'bn' ? '৬ সংখ্যার রিসেট কোড' : '6-Digit Reset Code'}
                 </label>
-                <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="grid grid-cols-6 gap-1.5 sm:gap-2 mb-2 w-full">
                   {digits.map((digit, idx) => (
                     <input
                       key={idx}
@@ -899,7 +899,7 @@ export const AuthModal = ({
                       value={digit}
                       onChange={(e) => handleDigitChange(idx, e.target.value)}
                       onKeyDown={(e) => handleDigitKeyDown(idx, e)}
-                      className="w-12 h-14 rounded-2xl bg-[#0b1220] border-2 border-slate-700 focus:border-pink-500 text-pink-300 text-2xl font-bold font-mono text-center focus:outline-none transition-all shadow-inner"
+                      className="w-full h-12 sm:h-14 max-w-[48px] mx-auto rounded-xl sm:rounded-2xl bg-[#0b1220] border-2 border-slate-700 focus:border-pink-500 text-pink-300 text-xl sm:text-2xl font-bold font-mono text-center focus:outline-none transition-all shadow-inner"
                     />
                   ))}
                 </div>

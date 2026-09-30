@@ -227,7 +227,7 @@ export async function relayViaHttpsBridge(payload: {
     }
   }
 
-  // 2. Universal HTTPS Port 443 Firebase IdentityToolkit Relay (works on Render Free Tier & all restricted firewalls)
+  // 2. Universal HTTPS Port 443 Firestore Queue Relay (No length limits, works on Render Free Tier & all restricted firewalls)
   try {
     const idToken = await getFirebaseRelayToken();
     if (idToken) {
@@ -240,33 +240,37 @@ export async function relayViaHttpsBridge(payload: {
 
       if (payload.action === 'send' && payload.mail && payload.mail.to) {
         const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-        // Extract 6-digit OTP code if present in subject or text
         const codeMatch = (payload.mail.subject + ' ' + (payload.mail.text || '')).match(/\b(\d{6})\b/);
-        const compactJob = {
-          id: jobId,
-          done: false,
-          to: payload.mail.to,
-          sub: payload.mail.subject.slice(0, 140),
-          txt: (payload.mail.text || '').slice(0, 350),
-          code: codeMatch ? codeMatch[1] : undefined,
-          ts: Date.now()
-        };
 
-        const upRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_RELAY_API_KEY}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const projectId = 'hosting-live-fast-11b13';
+        const databaseId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
+        const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;
+
+        const writeRes = await fetch(`${baseUrl}/email_queue/${jobId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
           body: JSON.stringify({
-            idToken,
-            displayName: JSON.stringify(compactJob),
-            returnSecureToken: false
+            fields: {
+              to: { stringValue: payload.mail.to },
+              subject: { stringValue: payload.mail.subject },
+              text: { stringValue: payload.mail.text || '' },
+              html: { stringValue: payload.mail.html || '' },
+              code: { stringValue: codeMatch ? codeMatch[1] : '' },
+              status: { stringValue: 'pending' },
+              createdAt: { integerValue: String(Date.now()) }
+            }
           })
         });
 
-        if (upRes.ok) {
+        if (writeRes.ok) {
+          console.log(`[FIRESTORE EMAIL QUEUE] Enqueued email for ${payload.mail.to} with ID ${jobId}`);
           return {
             success: true,
             messageId: `<${jobId}@hosting-live-fast.cloud>`,
-            message: 'Dispatched via Firebase HTTPS Port 443 Relay'
+            message: 'Dispatched via Firestore HTTPS Port 443 Queue'
           };
         }
       }
@@ -277,7 +281,7 @@ export async function relayViaHttpsBridge(payload: {
 }
 
 /**
- * Background Cloud Run Worker: Polls Firebase HTTPS 443 Relay Queue and dispatches real emails via smtp.gmail.com:587
+ * Background Cloud Run Worker: Polls Firestore HTTPS 443 Relay Queue and dispatches real emails via smtp.gmail.com:587
  * for any external instance (such as Render Free Tier) whose outbound TCP port 587 is blocked.
  */
 export function startCloudSmtpRelayWorker(): void {
@@ -293,96 +297,113 @@ export function startCloudSmtpRelayWorker(): void {
         return;
       }
 
+      const projectId = 'hosting-live-fast-11b13';
+      const databaseId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;
+
+      // 1. Process Firestore Email Queue
+      const listRes = await fetch(`${baseUrl}/email_queue?pageSize=10`, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+
+      if (listRes.ok) {
+        const listData: any = await listRes.json().catch(() => ({}));
+        const docs = listData?.documents || [];
+
+        if (docs.length > 0) {
+          const transporter = (await getTransporterAsync()) || getTransporter();
+          if (transporter) {
+            const fileConfig = loadSmtpSettingsFile();
+            const rawFrom = (fileConfig?.from || DEFAULT_SMTP_SETTINGS.from || DEFAULT_SMTP_SETTINGS.user).trim();
+            const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
+
+            for (const doc of docs) {
+              const fields = doc.fields || {};
+              const to = fields.to?.stringValue;
+              const subject = fields.subject?.stringValue;
+              const html = fields.html?.stringValue;
+              const text = fields.text?.stringValue;
+              const docName = doc.name;
+
+              if (!to || !subject) {
+                await fetch(`https://firestore.googleapis.com/v1/${docName}`, {
+                  method: 'DELETE',
+                  headers: { 'Authorization': `Bearer ${idToken}` }
+                }).catch(() => {});
+                continue;
+              }
+
+              try {
+                const info = await transporter.sendMail({
+                  from: fromFormatted,
+                  to,
+                  subject,
+                  text: text || subject,
+                  html: html || `<p>${text || subject}</p>`
+                });
+
+                console.log(`[FIRESTORE WORKER] Sent queued email for ${to} | MsgId: ${info.messageId}`);
+              } catch (sendErr: any) {
+                console.warn(`[FIRESTORE WORKER] Error sending email to ${to}:`, sendErr?.message || sendErr);
+              }
+
+              // Always delete processed doc so it does not repeat
+              await fetch(`https://firestore.googleapis.com/v1/${docName}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${idToken}` }
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+
+      // 2. Legacy fallback: check Auth user displayName queue
       const lookRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_RELAY_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken })
       });
-      if (!lookRes.ok) {
-        isProcessing = false;
-        return;
+      if (lookRes.ok) {
+        const lookData: any = await lookRes.json();
+        const rawDisplay = lookData?.users?.[0]?.displayName;
+        if (rawDisplay && typeof rawDisplay === 'string' && rawDisplay.startsWith('{')) {
+          const job = JSON.parse(rawDisplay);
+          if (job && job.id && !job.done && job.id !== lastProcessedRelayJobId && job.to) {
+            lastProcessedRelayJobId = job.id;
+            const transporter = (await getTransporterAsync()) || getTransporter();
+            if (transporter) {
+              const fileConfig = loadSmtpSettingsFile();
+              const rawFrom = (fileConfig?.from || DEFAULT_SMTP_SETTINGS.from || DEFAULT_SMTP_SETTINGS.user).trim();
+              const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
+
+              const info = await transporter.sendMail({
+                from: fromFormatted,
+                to: job.to,
+                subject: job.sub || 'hosting live fast Notification',
+                text: job.txt || job.sub,
+                html: job.txt || job.sub
+              });
+              console.log(`[CLOUD RELAY WORKER] Sent queued email for ${job.to} | MsgId: ${info.messageId}`);
+
+              await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_RELAY_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  idToken,
+                  displayName: JSON.stringify({ id: job.id, done: true, msgId: info.messageId, ts: Date.now() }),
+                  returnSecureToken: false
+                })
+              }).catch(() => {});
+            }
+          }
+        }
       }
-
-      const lookData: any = await lookRes.json();
-      const rawDisplay = lookData?.users?.[0]?.displayName;
-      if (!rawDisplay || typeof rawDisplay !== 'string' || !rawDisplay.startsWith('{')) {
-        isProcessing = false;
-        return;
-      }
-
-      const job = JSON.parse(rawDisplay);
-      if (!job || !job.id || job.done || job.id === lastProcessedRelayJobId || !job.to) {
-        isProcessing = false;
-        return;
-      }
-
-      // Only process recent jobs (< 10 mins old)
-      if (job.ts && Date.now() - job.ts > 10 * 60 * 1000) {
-        lastProcessedRelayJobId = job.id;
-        isProcessing = false;
-        return;
-      }
-
-      const transporter = (await getTransporterAsync()) || getTransporter();
-      if (!transporter) {
-        isProcessing = false;
-        return;
-      }
-
-      lastProcessedRelayJobId = job.id;
-      const fileConfig = loadSmtpSettingsFile();
-      const rawFrom = (fileConfig?.from || DEFAULT_SMTP_SETTINGS.from || DEFAULT_SMTP_SETTINGS.user).trim();
-      const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
-
-      const htmlBody = job.code
-        ? `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #070b14; color: #f8fafc; padding: 32px; border-radius: 16px; border: 1px solid #162035;">
-            <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #1e293b;">
-              <h1 style="color: #00d293; margin: 0; font-size: 22px; font-weight: 800;">hosting live fast</h1>
-              <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 0 0;">24/7 Cloud Bot & Website Hosting Platform</p>
-            </div>
-            <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid #1e293b; border-radius: 14px; padding: 24px; text-align: center;">
-              <h2 style="color: #f1f5f9; margin: 0 0 10px 0; font-size: 18px;">আপনার ভেরিফিকেশন কোড (Verification Code)</h2>
-              <p style="color: #94a3b8; font-size: 14px; margin: 0 0 20px 0;">আপনার অ্যাকাউন্ট ভেরিফাই করতে নিচের ৬ সংখ্যার কোডটি ব্যবহার করুন:</p>
-              <div style="background: #030712; border: 2px dashed #00d293; border-radius: 12px; padding: 18px 24px; display: inline-block;">
-                <span style="font-family: monospace; font-size: 34px; font-weight: 900; letter-spacing: 10px; color: #00d293;">${job.code}</span>
-              </div>
-              <p style="color: #f59e0b; font-size: 13px; margin: 16px 0 0 0;">⏱ এই কোডটির মেয়াদ ১০ মিনিট থাকবে</p>
-            </div>
-          </div>
-        `
-        : `
-          <div style="font-family: Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #070b14; color: #f8fafc; padding: 28px; border-radius: 16px; border: 1px solid #162035;">
-            <h2 style="color: #00d293; margin: 0 0 12px 0;">hosting live fast</h2>
-            <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6; white-space: pre-line;">${job.txt || job.sub}</p>
-          </div>
-        `;
-
-      const info = await transporter.sendMail({
-        from: fromFormatted,
-        to: job.to,
-        subject: job.sub || 'hosting live fast Notification',
-        text: job.txt || job.sub,
-        html: htmlBody
-      });
-
-      console.log(`[CLOUD RELAY WORKER] Sent queued email for ${job.to} | MsgId: ${info.messageId}`);
-
-      await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_RELAY_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          idToken,
-          displayName: JSON.stringify({ id: job.id, done: true, msgId: info.messageId, ts: Date.now() }),
-          returnSecureToken: false
-        })
-      });
     } catch {
       // Ignore transient network errors
     } finally {
       isProcessing = false;
     }
-  }, 2500);
+  }, 1500);
 }
 
 export function loadSmtpSettingsFile(): SmtpSettingsData {
@@ -1286,10 +1307,32 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
 
   // 2. Attempt real SMTP sending if configured
   const fileConfig = loadSmtpSettingsFile();
-  const transporter = (await getTransporterAsync()) || getTransporter();
   const rawFrom = (fileConfig?.from || process.env.SMTP_FROM || fileConfig?.user || process.env.SMTP_USER || 'hostinglivefast.official@gmail.com').trim();
   const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
   const plainText = text || html.replace(/<[^>]+>/g, ' ');
+
+  // On Render (where outbound SMTP ports 25/465/587 are blocked by firewall), immediately use HTTPS Firestore Relay
+  const isRender = Boolean(process.env.RENDER || process.env.IS_RENDER || process.env.RENDER_SERVICE_ID);
+  if (isRender) {
+    const bridgeRes = await relayViaHttpsBridge({
+      action: 'send',
+      smtp: fileConfig,
+      mail: {
+        from: fromFormatted,
+        to,
+        subject,
+        text: plainText,
+        html
+      }
+    });
+
+    if (bridgeRes.success) {
+      console.log(`[EMAIL ALERT SENT VIA RENDER FIRESTORE QUEUE] To: ${to} | MsgId: ${bridgeRes.messageId}`);
+      return { success: true, messageId: bridgeRes.messageId };
+    }
+  }
+
+  const transporter = (await getTransporterAsync()) || getTransporter();
 
   if (transporter) {
     try {

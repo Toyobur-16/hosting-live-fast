@@ -2663,22 +2663,10 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     }
 
     if (!user) {
-      try {
-        const existsInFb = await checkEmailExistsInFirebaseAuth(cleanEmail);
-        if (existsInFb) {
-          user = buildVerifiedUserRecord(cleanEmail);
-          accounts.push(user);
-          saveAccounts(accounts);
-        }
-      } catch {}
-    }
-
-    // If still not found, build account stub so the user can easily reset password and log in
-    if (!user) {
-      const pending = getPendingRegistration(cleanEmail);
-      user = buildVerifiedUserRecord(cleanEmail, pending?.name || cleanEmail.split('@')[0], pending?.password || '');
-      accounts.push(user);
-      saveAccounts(accounts);
+      return res.status(404).json({
+        success: false,
+        error: 'এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে প্রথমে রেজিস্ট্রেশন করুন।'
+      });
     }
 
     const result = await createAndSendPasswordResetCode(cleanEmail, user.name);
