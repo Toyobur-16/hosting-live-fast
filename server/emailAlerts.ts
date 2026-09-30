@@ -49,11 +49,11 @@ export interface SmtpSettingsData {
 
 export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
   host: 'smtp.gmail.com',
-  port: 465,
-  user: 'hostinglivefast.official@gmail.com',
-  pass: 'ykulrbgpoduzbawk',
-  from: '"hosting live fast" <hostinglivefast.official@gmail.com>',
-  secure: true
+  port: 587,
+  user: 'badsharahmanbd@gmail.com',
+  pass: 'tbjiiarmfltepsyh',
+  from: '"hosting live fast" <badsharahmanbd@gmail.com>',
+  secure: false
 };
 
 const CLOUD_SMTP_BRIDGE_URLS = [

@@ -35,7 +35,7 @@ export const HostingGuide: React.FC<HostingGuideProps> = ({ lang, botId, botName
           <div className="max-w-xl">
             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider flex items-center gap-1.5 w-fit">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              {lang === 'bn' ? '২৪/৭ ক্লাউড অটো-রিকভারি' : '24/7 Unlimited Live Protection'}
+              {lang === 'bn' ? '২৪/৭ অটো-রিকভারি' : '24/7 Unlimited Live Protection'}
             </span>
             <h2 className="text-lg sm:text-xl font-bold text-[#1e293b] mt-2.5">
               {botName ? `${botName} - ` : ''}
@@ -45,8 +45,8 @@ export const HostingGuide: React.FC<HostingGuideProps> = ({ lang, botId, botName
             </h2>
             <p className="text-xs sm:text-sm text-[#64748b] mt-1.5 leading-relaxed">
               {lang === 'bn'
-                ? 'BotHost ক্লাউড সিস্টেমে আপনার বট ফাইল সুরক্ষিত থাকে এবং প্রসেস ক্র্যাশ হলে অটো-রিস্টার্ট হয়। সাইটকে স্লিপ হওয়া থেকে রক্ষা করতে Keep-Alive URL ব্যবহার করুন।'
-                : 'BotHost cloud runner keeps processes running detached in the background. If a script exits, our watchdog revives it immediately.'}
+                ? 'হোস্টিং সিস্টেমে আপনার বট ফাইল সুরক্ষিত থাকে এবং প্রসেস ক্র্যাশ হলে অটো-রিস্টার্ট হয়। সাইটকে স্লিপ হওয়া থেকে রক্ষা করতে Keep-Alive URL ব্যবহার করুন।'
+                : 'Bot runner keeps processes running detached in the background. If a script exits, our watchdog revives it immediately.'}
             </p>
           </div>
           <button

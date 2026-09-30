@@ -200,12 +200,12 @@ export function SidebarDrawer({
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-black text-slate-900 dark:text-white truncate">
-                    {siteSettings?.siteName || 'hosting live fast'}
+                    {siteSettings?.siteName || 'hosting-live-fast'}
                   </span>
                   <span className="text-[9px] font-bold text-amber-500 dark:text-amber-400 truncate">
                     {lang === 'bn'
-                      ? (siteSettings?.taglineBn || '২৪/৭ ক্লাউড বট ও টপ আপ')
-                      : (siteSettings?.taglineEn || '24/7 Cloud Bot & Top Up')}
+                      ? (siteSettings?.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ')
+                      : (siteSettings?.taglineEn || '24/7 Fast Bot & Top Up')}
                   </span>
                 </div>
               </div>

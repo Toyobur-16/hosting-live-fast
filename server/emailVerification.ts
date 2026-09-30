@@ -631,22 +631,23 @@ export async function createAndSendPasswordResetCode(
 
   // 2. Also trigger Google Firebase Auth Password Reset via HTTPS Port 443 in background as secondary fallback
   if (FIREBASE_AUTH_API_KEY) {
-    fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requestType: 'PASSWORD_RESET',
-        email: cleanEmail
-      })
-    })
-      .then((res) => {
-        if (res.ok) {
-          console.log(`[FIREBASE AUTH PASSWORD RESET SENT] Unlimited HTTPS 443 reset email sent to ${cleanEmail}`);
-        }
-      })
-      .catch((err) => {
-        console.warn('Firebase Auth password reset warning:', err?.message || err);
+    try {
+      await getFirebaseUserSession(cleanEmail, undefined, userName);
+      const fbResetRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestType: 'PASSWORD_RESET',
+          email: cleanEmail
+        })
       });
+      if (fbResetRes.ok) {
+        emailDelivered = true;
+        console.log(`[FIREBASE AUTH PASSWORD RESET SENT] Unlimited HTTPS 443 reset email sent to ${cleanEmail}`);
+      }
+    } catch (err: any) {
+      console.warn('Firebase Auth password reset warning:', err?.message || err);
+    }
   }
 
   return {

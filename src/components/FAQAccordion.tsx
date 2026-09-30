@@ -103,10 +103,10 @@ export const FAQ_DATA: FAQItem[] = [
     category: 'technical',
     questionBn: 'আমার ফোন বা পিসি বন্ধ থাকলে কি বট চালু থাকবে?',
     questionEn: 'Will my bot stay online if my phone or PC is turned off?',
-    answerBn: 'হ্যাঁ, ১০০% চালু থাকবে! আপনার বটটি আমাদের ক্লাউড ডেটাসেন্টারের ব্যাকগ্রাউন্ড আইসোলেটেড লিনাক্স কন্টেইনারে ২৪/৭ অবিরাম চলতে থাকে। আপনার মোবাইল বন্ধ থাকা বা ইন্টারনেট সংযোগ না থাকার সাথে বটের লাইভ থাকার কোনো সম্পর্ক নেই।',
-    answerEn: 'Yes, 100%! Your bot runs on our background cloud Linux containers 24 hours a day, 7 days a week. Turning off your computer, phone, or local internet has zero impact on your cloud bot.',
-    highlightsBn: ['১০০% ক্লাউড এক্সিকিউশন', 'লোকাল ইন্টারনেট বা ডিভাইসের উপর নির্ভরশীল নয়', '৯৯.৯% আপটাইম নিশ্চয়তা'],
-    highlightsEn: ['100% cloud execution', 'Independent of local device/internet', '99.9% uptime SLA']
+    answerBn: 'হ্যাঁ, ১০০% চালু থাকবে! আপনার বটটি আমাদের ডেটাসেন্টারের ব্যাকগ্রাউন্ড আইসোলেটেড লিনাক্স কন্টেইনারে ২৪/৭ অবিরাম চলতে থাকে। আপনার মোবাইল বন্ধ থাকা বা ইন্টারনেট সংযোগ না থাকার সাথে বটের লাইভ থাকার কোনো সম্পর্ক নেই।',
+    answerEn: 'Yes, 100%! Your bot runs on our background Linux containers 24 hours a day, 7 days a week. Turning off your computer, phone, or local internet has zero impact on your bot.',
+    highlightsBn: ['১০০% ব্যাকগ্রাউন্ড এক্সিকিউশন', 'লোকাল ইন্টারনেট বা ডিভাইসের উপর নির্ভরশীল নয়', '৯৯.৯% আপটাইম নিশ্চয়তা'],
+    highlightsEn: ['100% background execution', 'Independent of local device/internet', '99.9% uptime SLA']
   },
   {
     id: 'bot-crash-restart',
@@ -153,10 +153,10 @@ export const FAQ_DATA: FAQItem[] = [
     category: 'social_tasks',
     questionBn: 'সোশ্যাল টাস্ক থেকে উপার্জিত ব্যালেন্স দিয়ে কী কী করা যায়?',
     questionEn: 'What can I do with the balance earned from social tasks?',
-    answerBn: 'সোশ্যাল টাস্ক থেকে অর্জিত রিয়েল ব্যালেন্স দিয়ে আপনি প্ল্যাটফর্মের যেকোনো প্রিমিয়াম টেলিগ্রাম বট হোস্টিং প্ল্যান ও ওয়েবসাইট হোস্টিং কিনতে পারবেন। এর ফলে নিজের পকেট থেকে কোনো টাকা খরচ ছাড়াই সম্পূর্ণ বিনামূল্যে ২৪/৭ ক্লাউড বট হোস্টিং চালানো সম্ভব।',
-    answerEn: 'With the real balance earned from social tasks, you can purchase premium Telegram bot hosting and website hosting plans. This allows you to run 24/7 cloud bots completely free without spending personal money.',
-    highlightsBn: ['বিনামূল্যে হোস্টিং প্ল্যান ক্রয়', '২৪/৭ ক্লাউড বট রানিং সুবিধা', 'পকেট থেকে টাকা ছাড়াই প্রিমিয়াম ফিচার'],
-    highlightsEn: ['Free hosting plan purchase', '24/7 cloud bot hosting', 'Premium features without personal spending']
+    answerBn: 'সোশ্যাল টাস্ক থেকে অর্জিত রিয়েল ব্যালেন্স দিয়ে আপনি প্ল্যাটফর্মের যেকোনো প্রিমিয়াম টেলিগ্রাম বট হোস্টিং প্ল্যান ও ওয়েবসাইট হোস্টিং কিনতে পারবেন। এর ফলে নিজের পকেট থেকে কোনো টাকা খরচ ছাড়াই সম্পূর্ণ বিনামূল্যে ২৪/৭ বট হোস্টিং চালানো সম্ভব।',
+    answerEn: 'With the real balance earned from social tasks, you can purchase premium Telegram bot hosting and website hosting plans. This allows you to run 24/7 bots completely free without spending personal money.',
+    highlightsBn: ['বিনামূল্যে হোস্টিং প্ল্যান ক্রয়', '২৪/৭ বট রানিং সুবিধা', 'পকেট থেকে টাকা ছাড়াই প্রিমিয়াম ফিচার'],
+    highlightsEn: ['Free hosting plan purchase', '24/7 bot hosting', 'Premium features without personal spending']
   },
   {
     id: 'task-review-time',

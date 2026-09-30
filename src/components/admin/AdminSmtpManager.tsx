@@ -33,13 +33,13 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
   const [formData, setFormData] = useState({
     host: 'smtp.gmail.com',
     port: 587,
-    user: 'hostinglivefast.official@gmail.com',
-    pass: 'ykulrbgpoduzbawk',
-    from: '"hosting live fast" <hostinglivefast.official@gmail.com>',
+    user: 'badsharahmanbd@gmail.com',
+    pass: 'tbjiiarmfltepsyh',
+    from: '"hosting live fast" <badsharahmanbd@gmail.com>',
     secure: false
   });
 
-  const [testEmail, setTestEmail] = useState('hostinglivefast.official@gmail.com');
+  const [testEmail, setTestEmail] = useState('badsharahmanbd@gmail.com');
 
   const [saveResult, setSaveResult] = useState<{
     success: boolean;
@@ -81,15 +81,15 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
           setFormData({
             host: settData.settings.host || 'smtp.gmail.com',
             port: settData.settings.port || 587,
-            user: settData.settings.user || 'hostinglivefast.official@gmail.com',
-            pass: settData.settings.pass || 'ykulrbgpoduzbawk',
-            from: settData.settings.from || '"hosting live fast" <hostinglivefast.official@gmail.com>',
+            user: settData.settings.user || 'badsharahmanbd@gmail.com',
+            pass: settData.settings.pass || 'tbjiiarmfltepsyh',
+            from: settData.settings.from || '"hosting live fast" <badsharahmanbd@gmail.com>',
             secure: settData.settings.secure !== undefined ? settData.settings.secure : false
           });
           if (settData.settings.user && !testEmail) {
             setTestEmail(settData.settings.user);
           } else if (!testEmail) {
-            setTestEmail('hostinglivefast.official@gmail.com');
+            setTestEmail('badsharahmanbd@gmail.com');
           }
         }
       }

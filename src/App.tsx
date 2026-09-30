@@ -37,10 +37,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({
-    siteName: 'hosting live fast',
+    siteName: 'hosting-live-fast',
     logoUrl: '/site-logo.png',
-    taglineBn: '২৪/৭ ক্লাউড বট ও টপ আপ সার্ভিস',
-    taglineEn: '24/7 Cloud Bot & Top Up Service'
+    taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
+    taglineEn: '24/7 Fast Bot & Top Up Service'
   });
 
   const fetchSiteSettings = () => {
@@ -51,7 +51,7 @@ export default function App() {
           setSiteSettings(data.settings);
           // Dynamically update page title and favicon
           if (data.settings.siteName) {
-            document.title = data.settings.siteName;
+            document.title = `${data.settings.siteName} | 24/7 Bot & Store Service`;
           }
           if (data.settings.logoUrl) {
             const iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;

@@ -307,7 +307,7 @@ export const NewBotModal: React.FC<NewBotModalProps> = ({ onClose, onCreated, la
               <h3 className="text-base font-bold text-[#1e293b] dark:text-white flex items-center gap-2">
                 <span>{lang === 'bn' ? 'নতুন টেলিগ্রাম বট হোস্ট করুন' : 'Deploy New Telegram Bot'}</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  {lang === 'bn' ? '২৪/৭ ক্লাউড' : '24/7 Cloud'}
+                  {lang === 'bn' ? '২৪/৭ লাইভ' : '24/7 Live'}
                 </span>
               </h3>
               <p className="text-xs text-[#64748b] dark:text-[#94a3b8]">

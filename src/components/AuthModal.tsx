@@ -264,32 +264,16 @@ export const AuthModal = ({
         setGoogleLoading(false);
         return;
       }
-      if (errCode === 'auth/unauthorized-domain' && !preferFallback) {
-        try {
-          sessionStorage.setItem('use_fallback_firebase_auth', '1');
-          const fallbackResult = await signInWithPopup(secondaryAuthInstance, googleProvider);
-          const fbUser = fallbackResult.user;
-          if (fbUser && fbUser.email) {
-            let idToken: string | undefined;
-            try {
-              idToken = await fbUser.getIdToken();
-            } catch {}
-            await handleAuthenticateWithGoogleEmail(
-              fbUser.email,
-              fbUser.displayName || undefined,
-              fbUser.photoURL || undefined,
-              fbUser.uid,
-              idToken
-            );
-            return;
-          }
-        } catch (fallbackErr: any) {
-          const fbCode = fallbackErr?.code || '';
-          if (fbCode === 'auth/popup-closed-by-user' || fbCode === 'auth/cancelled-popup-request') {
-            setGoogleLoading(false);
-            return;
-          }
-        }
+      if (errCode === 'auth/unauthorized-domain') {
+        const currentHost = window.location.hostname;
+        setError(
+          lang === 'bn'
+            ? `⚠️ আপনার ডোমেন (${currentHost}) Firebase Auth-এ অনুমোদিত নয়। নিচের বক্সে আপনার জিমেইল লিখে সরাসরি প্রবেশ করুন অথবা Firebase Console-এ ডোমেনটি যোগ করুন।`
+            : `⚠️ Domain (${currentHost}) is not authorized in Firebase Auth. Enter your Google email below or add this domain in Firebase Console.`
+        );
+        setShowGoogleInput(true);
+        setGoogleLoading(false);
+        return;
       }
     }
 
@@ -1249,6 +1233,17 @@ export const AuthModal = ({
                         {googleLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span>{lang === 'bn' ? 'প্রবেশ করুন' : 'Sign In'}</span>}
                       </button>
                     </form>
+                    <div className="pt-1 text-[11px] text-slate-400 flex items-center justify-between gap-1">
+                      <span>পপআপ চালু করতে:</span>
+                      <a
+                        href="https://console.firebase.google.com/project/hosting-live-fast-11b13/authentication/settings"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300 underline font-medium"
+                      >
+                        Firebase Authorized Domains এ ডোমেন যোগ করুন ↗
+                      </a>
+                    </div>
                   </div>
                 ) : (
                   <button

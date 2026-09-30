@@ -136,7 +136,7 @@ export function StoreHomePage({
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">
-                {siteSettings?.siteName || 'hosting live fast'}
+                {siteSettings?.siteName || 'hosting-live-fast'}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-slate-950 text-[10px] sm:text-xs font-black uppercase shadow-xs">
                 Official
@@ -144,8 +144,8 @@ export function StoreHomePage({
             </div>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
               {lang === 'bn'
-                ? (siteSettings?.taglineBn || '২৪/৭ ক্লাউড টেলিগ্রাম বট ও টপ আপ সেবা')
-                : (siteSettings?.taglineEn || '24/7 Cloud Bot Hosting & Fast Top Up Service')}
+                ? (siteSettings?.taglineBn || '২৪/৭ টেলিগ্রাম বট ও টপ আপ সেবা')
+                : (siteSettings?.taglineEn || '24/7 Bot Hosting & Fast Top Up Service')}
             </p>
           </div>
         </div>
@@ -537,7 +537,7 @@ export function StoreHomePage({
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               <h5 className="text-xs font-bold text-slate-900 dark:text-white">
-                {lang === 'bn' ? '২৪/৭ বিরতিহীন ক্লাউড সার্ভার' : '24/7 Uninterrupted Uptime'}
+                {lang === 'bn' ? '২৪/৭ বিরতিহীন সার্ভার' : '24/7 Uninterrupted Uptime'}
               </h5>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400">

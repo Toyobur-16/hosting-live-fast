@@ -107,12 +107,12 @@ export function AppStoreHeader({
             </div>
             <div className="flex flex-col min-w-0 overflow-hidden">
               <span className="text-xs xs:text-sm sm:text-base lg:text-lg font-black text-slate-900 dark:text-white tracking-tight truncate">
-                {siteSettings?.siteName || 'hosting live fast'}
+                {siteSettings?.siteName || 'hosting-live-fast'}
               </span>
               <span className="hidden sm:block text-[9px] sm:text-[10px] font-bold text-amber-500 dark:text-amber-400 tracking-wider uppercase truncate">
                 {lang === 'bn'
-                  ? (siteSettings?.taglineBn || '২৪/৭ ক্লাউড বট ও টপ আপ')
-                  : (siteSettings?.taglineEn || '24/7 Cloud Bot & Top Up')}
+                  ? (siteSettings?.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ')
+                  : (siteSettings?.taglineEn || '24/7 Fast Bot & Top Up')}
               </span>
             </div>
           </button>

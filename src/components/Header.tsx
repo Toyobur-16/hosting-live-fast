@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-[#1e293b] dark:text-white flex items-center gap-1.5">
-                {siteSettings?.siteName || 'hosting live fast'}
+                {siteSettings?.siteName || 'hosting-live-fast'}
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold">
                   TOP UP
                 </span>
@@ -91,8 +91,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <p className="text-xs text-[#64748b] dark:text-[#94a3b8]">
               {lang === 'bn'
-                ? (siteSettings?.taglineBn || '২৪/৭ ক্লাউড বট ও টপ আপ সার্ভিস')
-                : (siteSettings?.taglineEn || '24/7 Cloud Bot & Top Up Service')}
+                ? (siteSettings?.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস')
+                : (siteSettings?.taglineEn || '24/7 Fast Bot & Top Up Service')}
             </p>
           </div>
         </div>

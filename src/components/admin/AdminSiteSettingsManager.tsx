@@ -6,10 +6,10 @@ import { db, doc, setDoc, onSnapshot } from '../../lib/firebase';
 
 export function AdminSiteSettingsManager() {
   const [settings, setSettings] = useState<SiteSettings>({
-    siteName: 'hosting live fast',
+    siteName: 'hosting-live-fast',
     logoUrl: '/site-logo.png',
-    taglineBn: '২৪/৭ ক্লাউড বট ও টপ আপ সার্ভিস',
-    taglineEn: '24/7 Cloud Bot & Top Up Service'
+    taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
+    taglineEn: '24/7 Fast Bot & Top Up Service'
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -285,11 +285,11 @@ export function AdminSiteSettingsManager() {
           </div>
           <div className="flex flex-col text-center sm:text-left min-w-0">
             <div className="flex items-center justify-center sm:justify-start gap-2">
-              <span className="text-xl font-black text-white">{settings.siteName || 'hosting live fast'}</span>
+              <span className="text-xl font-black text-white">{settings.siteName || 'hosting-live-fast'}</span>
               <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase">Official</span>
             </div>
-            <span className="text-xs text-amber-400 font-bold mt-0.5">{settings.taglineBn || '২৪/৭ ক্লাউড বট ও টপ আপ সার্ভিস'}</span>
-            <span className="text-[11px] text-slate-400 mt-0.5">{settings.taglineEn || '24/7 Cloud Bot & Top Up Service'}</span>
+            <span className="text-xs text-amber-400 font-bold mt-0.5">{settings.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস'}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5">{settings.taglineEn || '24/7 Fast Bot & Top Up Service'}</span>
           </div>
         </div>
       </div>
@@ -420,7 +420,7 @@ export function AdminSiteSettingsManager() {
               type="text"
               value={settings.taglineBn || ''}
               onChange={(e) => setSettings({ ...settings, taglineBn: e.target.value })}
-              placeholder="২৪/৭ ক্লাউড বট ও টপ আপ সার্ভিস"
+              placeholder="২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস"
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500"
             />
           </div>
@@ -432,7 +432,7 @@ export function AdminSiteSettingsManager() {
               type="text"
               value={settings.taglineEn || ''}
               onChange={(e) => setSettings({ ...settings, taglineEn: e.target.value })}
-              placeholder="24/7 Cloud Bot & Top Up Service"
+              placeholder="24/7 Fast Bot & Top Up Service"
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500"
             />
           </div>

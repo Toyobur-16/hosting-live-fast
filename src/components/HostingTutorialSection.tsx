@@ -93,7 +93,7 @@ export function HostingTutorialSection({
       step: 4,
       titleBn: 'বট বা ওয়েবসাইট লাইভ চালান',
       titleEn: 'Run Bot or Website 24/7',
-      descBn: 'কোড আপলোড করে ২৪/৭ সুপারফাস্ট ক্লাউড সার্ভারে সচল রাখুন।',
+      descBn: 'কোড আপলোড করে ২৪/৭ সুপারফাস্ট সার্ভারে সচল রাখুন।',
       descEn: 'Upload files and keep your projects running 24/7 non-stop.',
       icon: Globe,
       color: 'text-purple-400',
@@ -124,7 +124,7 @@ export function HostingTutorialSection({
 
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
               {lang === 'bn'
-                ? 'নিচের সহজ ৪টি ধাপে আপনি যেকোনো সময় ক্লাউড হোস্টিং নিতে পারেন। সম্পূর্ণ প্রক্রিয়াটি বুঝতে ভিডিও টিউটোরিয়াল দেখুন।'
+                ? 'নিচের সহজ ৪টি ধাপে আপনি যেকোনো সময় হোস্টিং নিতে পারেন। সম্পূর্ণ প্রক্রিয়াটি বুঝতে ভিডিও টিউটোরিয়াল দেখুন।'
                 : 'Follow the 4 simple steps below to purchase hosting anytime, or watch our complete video tutorial.'}
             </p>
           </div>
