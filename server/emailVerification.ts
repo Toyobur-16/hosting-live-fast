@@ -433,7 +433,7 @@ export async function createAndSendVerificationCode(
   userName?: string,
   forceSend = false,
   pendingRegistration?: PendingRegistrationData
-): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean; instantCode?: string }> {
+): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean }> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
     return { success: false, error: 'সঠিক ইমেইল ঠিকানা প্রদান করুন (Invalid email format)' };
@@ -470,18 +470,15 @@ export async function createAndSendVerificationCode(
   };
   saveVerifications(verifications);
 
-  // 1. Send the 6-digit OTP HTML email via pooled SMTP or HTTPS Bridge
+  // 1. Send the 6-digit OTP HTML email directly to the user's email address
   let emailDelivered = false;
   try {
-    const res = await Promise.race([
-      sendVerificationEmail(cleanEmail, code, effectiveName),
-      new Promise<any>((resolve) => setTimeout(() => resolve(null), 2000))
-    ]);
+    const res = await sendVerificationEmail(cleanEmail, code, effectiveName);
     if (res && res.success && !res.simulated) {
       emailDelivered = true;
     }
   } catch (err: any) {
-    console.warn(`[VERIFICATION EMAIL WARNING] Direct send notice for ${cleanEmail}:`, err?.message || err);
+    console.warn(`[VERIFICATION EMAIL WARNING] Send notice for ${cleanEmail}:`, err?.message || err);
   }
 
   // 2. Also trigger Firebase verification email in background as secondary fallback
@@ -500,13 +497,9 @@ export async function createAndSendVerificationCode(
     }
   }).catch(() => {});
 
-  const isRender = Boolean(process.env.RENDER || process.env.IS_RENDER || process.env.RENDER_SERVICE_ID);
-  const shouldProvideInstantCode = !emailDelivered || isRender;
-
   return {
     success: true,
-    emailSent: emailDelivered,
-    instantCode: shouldProvideInstantCode ? code : undefined
+    emailSent: emailDelivered
   };
 }
 
@@ -592,7 +585,7 @@ function savePasswordResets(records: Record<string, VerificationRecord>): void {
 export async function createAndSendPasswordResetCode(
   email: string,
   userName?: string
-): Promise<{ success: boolean; error?: string; remainingSeconds?: number; instantCode?: string; emailSent?: boolean }> {
+): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean }> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
     return { success: false, error: 'সঠিক ইমেইল ঠিকানা প্রদান করুন (Invalid email format)' };
@@ -625,18 +618,15 @@ export async function createAndSendPasswordResetCode(
   };
   savePasswordResets(resets);
 
-  // 1. Send the 6-digit OTP code HTML email via pooled SMTP or HTTPS Bridge
+  // 1. Send the 6-digit OTP code HTML email directly to user's registered email
   let emailDelivered = false;
   try {
-    const res = await Promise.race([
-      sendPasswordResetEmail(cleanEmail, code, userName),
-      new Promise<any>((resolve) => setTimeout(() => resolve(null), 2000))
-    ]);
+    const res = await sendPasswordResetEmail(cleanEmail, code, userName);
     if (res && res.success && !res.simulated) {
       emailDelivered = true;
     }
   } catch (err: any) {
-    console.warn(`[PASSWORD RESET EMAIL WARNING] Direct send notice for ${cleanEmail}:`, err?.message || err);
+    console.warn(`[PASSWORD RESET EMAIL WARNING] Send notice for ${cleanEmail}:`, err?.message || err);
   }
 
   // 2. Also trigger Google Firebase Auth Password Reset via HTTPS Port 443 in background as secondary fallback
@@ -659,13 +649,9 @@ export async function createAndSendPasswordResetCode(
       });
   }
 
-  const isRender = Boolean(process.env.RENDER || process.env.IS_RENDER || process.env.RENDER_SERVICE_ID);
-  const shouldProvideInstantCode = !emailDelivered || isRender;
-
   return {
     success: true,
-    emailSent: emailDelivered,
-    instantCode: shouldProvideInstantCode ? code : undefined
+    emailSent: emailDelivered
   };
 }
 

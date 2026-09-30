@@ -435,35 +435,29 @@ export const AuthModal = ({
 
     const isReset = mode === 'reset' && resetStep === 'verify_and_set';
     const endpoint = isReset ? '/api/auth/resend-reset-code' : '/api/auth/resend-verification-code';
+    const cleanEmail = email.trim().toLowerCase();
 
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim().toLowerCase() })
+        body: JSON.stringify({ email: cleanEmail })
       });
       const data = await safeJsonParse(res);
       if (!res.ok || (data && !data.success)) {
         throw new Error(data?.error || (lang === 'bn' ? 'কোড পুনরায় পাঠানো সম্ভব হয়নি' : 'Failed to resend code'));
       }
 
-      setResendCooldown(15);
+      setResendCooldown(25);
       setExpirySeconds(600);
-      if (data?.instantCode && data.instantCode.length === 6) {
-        setDigits(data.instantCode.split(''));
-        setSuccessMessage(
-          lang === 'bn'
-            ? `⚡ ভেরিফিকেশন কোড: ${data.instantCode} (স্বয়ংক্রিয়ভাবে প্রবেশ করানো হয়েছে)`
-            : `⚡ Verification Code: ${data.instantCode} (Pre-filled)`
-        );
-      } else {
-        setDigits(['', '', '', '', '', '']);
-        setSuccessMessage(
-          lang === 'bn'
-            ? (isReset ? 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।' : 'নতুন ৬ সংখ্যার কোড ও ভেরিফিকেশন মেইল আপনার ইমেইলে পাঠানো হয়েছে।')
-            : 'A new 6-digit code has been sent to your email.'
-        );
-      }
+      setDigits(['', '', '', '', '', '']);
+      setSuccessMessage(
+        lang === 'bn'
+          ? (isReset
+              ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে। ইনবক্স অথবা Spam চেক করুন।`
+              : `আপনার ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। ইনবক্স অথবা Spam চেক করুন।`)
+          : 'A new 6-digit code has been sent to your email.'
+      );
       digitInputRefs.current[0]?.focus();
     } catch (err: any) {
       const msg = err?.message || '';
@@ -548,23 +542,13 @@ export const AuthModal = ({
           localStorage.removeItem('bot_auth_user');
           setMode('verify');
           setExpirySeconds(600);
-          setResendCooldown(30);
-
-          if (data?.instantCode && data.instantCode.length === 6) {
-            setDigits(data.instantCode.split(''));
-            setSuccessMessage(
-              lang === 'bn'
-                ? `⚡ ভেরিফিকেশন কোড: ${data.instantCode} (নিচে সরাসরি বসিয়ে দেওয়া হয়েছে। একাউন্ট সক্রিয় করতে নিচের বাটনে চাপ দিন)`
-                : `⚡ Verification Code: ${data.instantCode} (Pre-filled below. Click verify to activate your account)`
-            );
-          } else {
-            setDigits(['', '', '', '', '', '']);
-            setSuccessMessage(
-              lang === 'bn'
-                ? 'আপনার ইমেইলে ভেরিফিকেশন লিংক ও কোড পাঠানো হয়েছে! ইমেইলে গিয়ে লিংকে ক্লিক করলেই অটোমেটিক একাউন্ট চালু হবে (অথবা ৬ সংখ্যার কোড দিন)।'
-                : 'Verification link & code sent to your email! Click the link in your email or enter the 6-digit code.'
-            );
-          }
+          setResendCooldown(25);
+          setDigits(['', '', '', '', '', '']);
+          setSuccessMessage(
+            lang === 'bn'
+              ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে! অনুগ্রহ করে আপনার জিমেইল ইনবক্স অথবা Spam ফোল্ডার চেক করে ৬ সংখ্যার কোডটি দিন।`
+              : `A 6-digit verification code has been sent to ${cleanEmail}. Check your inbox or spam folder and enter the code below.`
+          );
           setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
           localStorage.setItem('bot_auth_token', data.token);
@@ -589,23 +573,13 @@ export const AuthModal = ({
           localStorage.removeItem('bot_auth_user');
           setMode('verify');
           setExpirySeconds(600);
-          setResendCooldown(30);
-
-          if (data?.instantCode && data.instantCode.length === 6) {
-            setDigits(data.instantCode.split(''));
-            setSuccessMessage(
-              lang === 'bn'
-                ? `⚡ ভেরিফিকেশন কোড: ${data.instantCode} (নিচে সরাসরি বসিয়ে দেওয়া হয়েছে)`
-                : `⚡ Verification Code: ${data.instantCode} (Pre-filled below)`
-            );
-          } else {
-            setDigits(['', '', '', '', '', '']);
-            setSuccessMessage(
-              lang === 'bn'
-                ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করুন।'
-                : 'We have sent a 6-digit verification code to your email.'
-            );
-          }
+          setResendCooldown(25);
+          setDigits(['', '', '', '', '', '']);
+          setSuccessMessage(
+            lang === 'bn'
+              ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। জিমেইল চেক করে কোডটি দিন।`
+              : `A 6-digit verification code has been sent to ${cleanEmail}.`
+          );
           setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
           localStorage.setItem('bot_auth_token', data.token);
@@ -645,28 +619,20 @@ export const AuthModal = ({
       });
       const data = await safeJsonParse(res);
       if (!res.ok || (data && !data.success)) {
-        throw new Error(data?.error || (lang === 'bn' ? 'রিসেট কোড পাঠানো সম্ভব হয়নি। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।' : 'Failed to send reset code'));
+        throw new Error(data?.error || (lang === 'bn' ? 'রিসেট কোড পাঠানো সম্ভব হয়নি। অনুগ্রহ করে সঠিক নিবন্ধিত ইমেইল দিন।' : 'Failed to send reset code'));
       }
 
       setResetStep('verify_and_set');
       setExpirySeconds(600);
-      setResendCooldown(30);
-
-      if (data?.instantCode && data.instantCode.length === 6) {
-        setDigits(data.instantCode.split(''));
-        setSuccessMessage(
-          lang === 'bn'
-            ? `⚡ পাসওয়ার্ড রিসেট কোড: ${data.instantCode} (নিচে স্বয়ংক্রিয়ভাবে প্রবেশ করানো হয়েছে। নতুন পাসওয়ার্ড লিখুন)`
-            : `⚡ Reset Code: ${data.instantCode} (Pre-filled below. Please enter your new password)`
-        );
-      } else {
-        setDigits(['', '', '', '', '', '']);
-        setSuccessMessage(
-          lang === 'bn'
-            ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।`
-            : `A 6-digit password reset code has been sent to ${cleanEmail}.`
-        );
-      }
+      setResendCooldown(25);
+      setDigits(['', '', '', '', '', '']);
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setSuccessMessage(
+        lang === 'bn'
+          ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে! জিমেইল ইনবক্স বা Spam চেক করে কোডটি বসিয়ে নতুন পাসওয়ার্ড দিন।`
+          : `A 6-digit password reset code has been sent to ${cleanEmail}. Enter the code and your new password below.`
+      );
       setTimeout(() => {
         digitInputRefs.current[0]?.focus();
       }, 150);
@@ -765,8 +731,8 @@ export const AuthModal = ({
               </h2>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                 {lang === 'bn'
-                  ? 'আপনার জিমেইলে ভেরিফিকেশন মেইল পাঠানো হয়েছে (Inbox অথবা Spam ফোল্ডার চেক করুন)। লিংকে ক্লিক করলেই অটোমেটিক ভেরিফাই হবে অথবা ৬ সংখ্যার কোড দিন।'
-                  : 'We sent a verification email to your inbox (check Inbox or Spam). Click the link to auto-verify or enter the 6-digit code.'}
+                  ? 'আপনার জিমেইল ইনবক্স অথবা Spam ফোল্ডার চেক করুন। সেখানে পাঠানো ৬ সংখ্যার সিকিউর কোডটি নিচের ঘরে বসিয়ে অ্যাকাউন্ট সক্রিয় করুন।'
+                  : 'Check your email inbox or spam folder. Enter the 6-digit verification code below to activate your account.'}
               </p>
 
               {/* Target Email Box */}
@@ -840,22 +806,20 @@ export const AuthModal = ({
               </button>
             </div>
 
-            {/* Verify Button (works for both 6-digit OTP and 1-click Email Link verification check) */}
+            {/* Verify Button */}
             <button
               type="button"
-              disabled={verifying}
+              disabled={verifying || digits.join('').length !== 6}
               onClick={handleVerifyEmail}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-400 hover:opacity-95 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mb-3"
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-400 hover:opacity-95 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mb-3"
             >
               {verifying ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
                   <span>{lang === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Verifying...'}</span>
                 </>
-              ) : digits.join('').length === 6 ? (
-                <span>{lang === 'bn' ? 'কোড ভেরিফাই ও অ্যাকাউন্ট সক্রিয় করুন' : 'Verify Code & Activate Account'}</span>
               ) : (
-                <span>{lang === 'bn' ? 'ইমেইল ভেরিফাই লিংকে ক্লিক করেছি — অ্যাক্টিভ করুন' : 'I Clicked the Email Link — Activate Account'}</span>
+                <span>{lang === 'bn' ? 'কোড ভেরিফাই ও অ্যাকাউন্ট সক্রিয় করুন' : 'Verify Code & Activate Account'}</span>
               )}
             </button>
 
@@ -880,8 +844,8 @@ export const AuthModal = ({
               </h2>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                 {lang === 'bn'
-                  ? 'আপনার ইমেইলে পাঠানো ৬ সংখ্যার কোড এবং নতুন পাসওয়ার্ড দিন।'
-                  : 'Enter the 6-digit verification code sent to your email and your new password.'}
+                  ? 'আপনার জিমেইল ইনবক্স বা Spam ফোল্ডার চেক করুন। সেখানে পাঠানো ৬ সংখ্যার কোড এবং নতুন পাসওয়ার্ড দিয়ে লগইন করুন।'
+                  : 'Check your email inbox or spam folder. Enter the 6-digit code and your new password to sign in.'}
               </p>
 
               {/* Target Email Box */}

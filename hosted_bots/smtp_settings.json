@@ -1,8 +1,9 @@
 {
   "host": "smtp.gmail.com",
-  "port": 587,
+  "port": 465,
   "user": "hostinglivefast.official@gmail.com",
   "pass": "ykulrbgpoduzbawk",
   "from": "\"hosting live fast\" <hostinglivefast.official@gmail.com>",
-  "secure": false
+  "secure": true,
+  "updatedAt": 1790757540450
 }

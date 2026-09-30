@@ -49,11 +49,11 @@ export interface SmtpSettingsData {
 
 export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
   host: 'smtp.gmail.com',
-  port: 587,
+  port: 465,
   user: 'hostinglivefast.official@gmail.com',
   pass: 'ykulrbgpoduzbawk',
   from: '"hosting live fast" <hostinglivefast.official@gmail.com>',
-  secure: false
+  secure: true
 };
 
 const CLOUD_SMTP_BRIDGE_URLS = [
@@ -827,19 +827,20 @@ export async function getTransporterAsync(forceFresh = false): Promise<Transport
 
   try {
     if (isGmail) {
+      const gmailPort = (port === 587 && secure === false) ? 587 : 465;
+      const gmailSecure = gmailPort === 465;
       cachedTransporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        pool: true,
-        maxConnections: 5,
-        maxMessages: 200,
-        connectionTimeout: 4000,
-        greetingTimeout: 4000,
-        socketTimeout: 10000,
+        port: gmailPort,
+        secure: gmailSecure,
+        pool: false,
+        family: 4,
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 15000,
         auth: { user, pass: (pass || '').replace(/\s+/g, '') },
-        tls: { rejectUnauthorized: false }
-      });
+        tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' }
+      } as any);
       lastTransporterConfigKey = currentKey;
       return cachedTransporter;
     }
@@ -867,7 +868,7 @@ export function getTransporter(): Transporter | null {
   const fileConfig = loadSmtpSettingsFile();
   const host = (fileConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
   const rawPort = fileConfig?.port !== undefined ? fileConfig.port : process.env.SMTP_PORT;
-  const port = parseInt(String(rawPort || '587').trim(), 10);
+  const port = parseInt(String(rawPort || '465').trim(), 10);
   const user = (fileConfig?.user || process.env.SMTP_USER || '').trim();
   const rawPass = (fileConfig?.pass || process.env.SMTP_PASS || '').trim();
   const pass = rawPass.replace(/\s+/g, '');
@@ -890,19 +891,20 @@ export function getTransporter(): Transporter | null {
 
   try {
     if (isGmail) {
+      const gmailPort = (port === 587 && secure === false) ? 587 : 465;
+      const gmailSecure = gmailPort === 465;
       cachedTransporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        pool: true,
-        maxConnections: 5,
-        maxMessages: 200,
-        connectionTimeout: 4000,
-        greetingTimeout: 4000,
-        socketTimeout: 10000,
+        port: gmailPort,
+        secure: gmailSecure,
+        pool: false,
+        family: 4,
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 15000,
         auth: { user, pass: (pass || '').replace(/\s+/g, '') },
-        tls: { rejectUnauthorized: false }
-      });
+        tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' }
+      } as any);
       lastTransporterConfigKey = currentKey;
       return cachedTransporter;
     }
@@ -1357,30 +1359,7 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
       return { success: true, messageId: info.messageId };
     } catch (err: any) {
       const errorDetail = explainSmtpError(err);
-      console.warn(`[EMAIL ALERT DIRECT SMTP NOTE] Could not send directly to ${to}: ${errorDetail}. Trying fallback...`);
-
-      // Automatic fallback to Port 587 if the saved configuration used Port 465
-      if (fileConfig && fileConfig.user && fileConfig.pass && fileConfig.port !== 587) {
-        try {
-          const fallbackTransport = nodemailer.createTransport(buildTransportOptions({
-            hostOrIp: fileConfig.host || 'smtp.gmail.com',
-            originalHost: fileConfig.host || 'smtp.gmail.com',
-            port: 587,
-            secure: false,
-            user: fileConfig.user,
-            pass: fileConfig.pass
-          }));
-          const fallbackInfo = await fallbackTransport.sendMail({
-            from: fromFormatted,
-            to,
-            subject,
-            text: plainText,
-            html
-          });
-          saveSmtpSettingsFile({ port: 587, secure: false });
-          return { success: true, messageId: fallbackInfo.messageId };
-        } catch {}
-      }
+      console.warn(`[EMAIL ALERT DIRECT SMTP NOTE] Could not send directly to ${to}: ${errorDetail}. Trying HTTPS bridge...`);
 
       // Automatic HTTPS Port 443 Cloud Relay Bridge for hosts blocking SMTP ports (e.g. Render Free Tier)
       const bridgeRes = await relayViaHttpsBridge({
