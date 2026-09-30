@@ -1,1 +1,36 @@
-[]
+[
+  {
+    "reviewedBy": "Toyobur Rahman",
+    "userEmail": "toyoburrahman9090@gmail.com",
+    "proofNote": "Toyobur 16",
+    "status": "approved",
+    "taskTitle": "অফিসিয়াল ইউটিউব চ্যানেলে সাবস্ক্রাইব করুন",
+    "reviewedAt": "2026-09-29T20:17:00.912Z",
+    "submittedAt": "2026-09-29T20:16:41.714Z",
+    "taskId": "task_yt_sub",
+    "rewardUsd": 0.05,
+    "screenshotUrl": "/api/task-proofs/task_sub_1790713001713_ayqse.png",
+    "userId": "user_1790454329125_a498",
+    "completedAt": "2026-09-29T20:17:00.912Z",
+    "userName": "Toyobur Rahman",
+    "platform": "youtube",
+    "id": "task_sub_1790713001713_ayqse"
+  },
+  {
+    "submittedAt": "2026-09-29T14:00:50.772Z",
+    "rewardUsd": 0.05,
+    "platform": "telegram",
+    "screenshotUrl": "/api/task-proofs/task_sub_1790690450772_v9ies.png",
+    "id": "task_sub_1790690450772_v9ies",
+    "completedAt": "2026-09-29T15:43:03.603Z",
+    "status": "approved",
+    "userName": "Toyobur Rahman",
+    "taskId": "task_tg_channel",
+    "reviewedBy": "Toyobur Rahman",
+    "userEmail": "toyoburrahman9090@gmail.com",
+    "userId": "user_1790454329125_a498",
+    "proofNote": "",
+    "reviewedAt": "2026-09-29T15:43:03.603Z",
+    "taskTitle": "অফিসিয়াল টেলিগ্রাম চ্যানেলে জয়েন করুন"
+  }
+]

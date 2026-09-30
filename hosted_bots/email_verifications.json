@@ -28,5 +28,22 @@
       "password": "testpass123"
     },
     "firebasePassword": "testpass123"
+  },
+  "testunique12399@gmail.com": {
+    "email": "testunique12399@gmail.com",
+    "codeHash": "aa7e1eeaf7cd788c53cb679fbd72e6e0f47fc0da995ce3da77b9734ee7ab8df9",
+    "validCodeHashes": [
+      "aa7e1eeaf7cd788c53cb679fbd72e6e0f47fc0da995ce3da77b9734ee7ab8df9"
+    ],
+    "expiresAt": 1790758591990,
+    "attempts": 0,
+    "lastSentAt": 1790756791990,
+    "createdAt": 1790756791990,
+    "pendingRegistration": {
+      "name": "Tester",
+      "email": "testunique12399@gmail.com",
+      "password": "mypassword123"
+    },
+    "firebasePassword": "mypassword123"
   }
 }

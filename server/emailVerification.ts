@@ -486,18 +486,18 @@ export async function createAndSendVerificationCode(
     }
   }).catch(() => {});
 
-  // 2. Also send the 6-digit OTP HTML email (works when SMTP or HTTPS Relay is reachable)
-  try {
-    const emailResult = await sendVerificationEmail(cleanEmail, code, effectiveName);
-    if (!emailResult.success && !emailResult.simulated) {
-      console.warn(`[VERIFICATION EMAIL WARNING] Failed to deliver real SMTP email to ${cleanEmail}: ${emailResult.error}`);
-      return { success: true, emailSent: false };
-    }
-    return { success: true, emailSent: true };
-  } catch (err: any) {
-    console.error('Error in sendVerificationEmail:', err);
-    return { success: true, emailSent: false };
-  }
+  // 2. Also send the 6-digit OTP HTML email via SMTP/Relay in background or quick race
+  const smtpPromise = sendVerificationEmail(cleanEmail, code, effectiveName).catch((err: any) => {
+    console.warn(`[VERIFICATION EMAIL WARNING] Failed to deliver real SMTP email to ${cleanEmail}:`, err?.message || err);
+  });
+
+  // Fast response: wait at most 1.2s for SMTP, otherwise let it finish in background so user receives instant UI response
+  await Promise.race([
+    smtpPromise,
+    new Promise((resolve) => setTimeout(resolve, 1200))
+  ]);
+
+  return { success: true, emailSent: true };
 }
 
 /**

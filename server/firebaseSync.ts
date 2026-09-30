@@ -913,6 +913,53 @@ export class FirebaseSync {
     return null;
   }
 
+  static async syncSmtpSettingsToCloud(settings: any): Promise<boolean> {
+    if (!settings) return false;
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return false;
+
+      const fields: Record<string, any> = {};
+      for (const [key, val] of Object.entries(settings)) {
+        if (val !== undefined) {
+          fields[key] = toFirestoreValue(val);
+        }
+      }
+      fields['updatedAt'] = toFirestoreValue(Date.now());
+
+      const url = `${BASE_URL}/config/smtp_settings`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ fields })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async loadSmtpSettingsFromCloud(): Promise<any | null> {
+    try {
+      const idToken = await getAdminIdToken();
+      if (!idToken) return null;
+
+      const url = `${BASE_URL}/config/smtp_settings`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (data && data.fields) {
+        return fromFirestoreFields(data.fields);
+      }
+    } catch {}
+    return null;
+  }
+
   // ==========================================
   // CUSTOM DEPOSIT METHODS SYNC
   // ==========================================

@@ -58,6 +58,8 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
 
 const CLOUD_SMTP_BRIDGE_URLS = [
   process.env.SMTP_BRIDGE_URL,
+  'https://ais-pre-yrhbxl4ld56shfzeazpafe-35885551412.asia-east1.run.app/api/smtp-cloud-bridge',
+  'https://ais-dev-yrhbxl4ld56shfzeazpafe-35885551412.asia-east1.run.app/api/smtp-cloud-bridge',
   'https://ais-pre-oyxapnknxxidkcvabyrcx2-291103210196.asia-southeast1.run.app/api/smtp-cloud-bridge',
   'https://ais-dev-oyxapnknxxidkcvabyrcx2-291103210196.asia-southeast1.run.app/api/smtp-cloud-bridge'
 ].filter(Boolean) as string[];

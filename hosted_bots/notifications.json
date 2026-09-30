@@ -1,5 +1,25 @@
 [
   {
+    "id": "notif_1790757433028_5hrl",
+    "userId": "test_user_1",
+    "userEmail": "hostinglivefast.official@gmail.com",
+    "type": "plan_expiring",
+    "title": "🚨 জরুরি সতর্কবার্তা: আপনার hosting-Live Fast হোস্টিং প্ল্যানের মেয়াদ শেষ হচ্ছে!",
+    "message": "সতর্কবার্তা: আপনার hosting-Live Fast প্ল্যানের মেয়াদ 1 দিনের মধ্যে (৩০ সেপ্টেম্বর ২০২৬) শেষ হবে। অবিলম্বে রিনিউ করুন।",
+    "createdAt": "2026-09-30T08:37:13.028Z",
+    "read": false
+  },
+  {
+    "id": "notif_1790757423610_9wds",
+    "userId": "test_user_1",
+    "userEmail": "hostinglivefast.official@gmail.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($5 USD)",
+    "message": "প্রিয় Tester,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: hostinglivefast.official@gmail.com\n- পেমেন্ট মেথড: Binance Pay\n- পরিমাণ: $5 USD\n- Transaction ID: TESTTRX12345\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $10.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-09-30T08:37:03.611Z",
+    "read": false
+  },
+  {
     "id": "notif_1790717254894_3enm",
     "userId": "user_1790504693014_zdxr",
     "userEmail": "mdtayburrahman78@gmail.com",

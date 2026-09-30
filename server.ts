@@ -2106,115 +2106,173 @@ function buildVerifiedUserRecord(cleanEmail: string, name?: string, password?: s
 
 // 1. Auth routes with strict 6-digit Email Verification & Cloud Persistence across site updates
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email) {
-    return res.status(400).json({ error: 'নাম এবং ইমেইল প্রদান করা আবশ্যক' });
-  }
-  const cleanEmail = email.trim().toLowerCase();
-  const accounts = getAccounts();
-  let existingIdx = accounts.findIndex((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
-
-  // If not found in local accounts.json (e.g. after a site update), check Firebase Cloud Vault & Firebase Auth
-  if (existingIdx === -1) {
-    const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
-    if (cloudUser && cloudUser.email) {
-      accounts.push(cloudUser);
-      saveAccounts(accounts);
-      existingIdx = accounts.length - 1;
-    } else {
-      const fbRecovered = await recoverUserFromFirebaseAuth(cleanEmail, password);
-      if (fbRecovered.found && fbRecovered.emailVerified) {
-        const restored = buildVerifiedUserRecord(cleanEmail, fbRecovered.name || name.trim(), fbRecovered.passwordMatched ? password : '');
-        accounts.push(restored);
-        saveAccounts(accounts);
-        existingIdx = accounts.length - 1;
-      }
-    }
-  }
-
-  if (existingIdx !== -1) {
-    const existing = accounts[existingIdx];
-    // If the existing account is already verified, inform the user that this Gmail is already registered!
-    if (existing.emailVerified && existing.isVerified) {
-      return res.status(409).json({
-        success: false,
-        alreadyRegistered: true,
-        email: cleanEmail,
-        error: 'এই জিমেইল দিয়ে ইতিমধ্যে রেজিস্ট্রেশন করা আছে! অনুগ্রহ করে আপনার পাসওয়ার্ড দিয়ে লগইন করুন।'
-      });
-    }
-    // Clean up any previously saved unverified account & its sessions so it cannot auto-login
-    const unverifiedId = existing.id;
-    accounts.splice(existingIdx, 1);
-    saveAccounts(accounts);
-    const sessions = getSessions();
-    let sessionModified = false;
-    for (const [tk, uid] of Object.entries(sessions)) {
-      if (uid === unverifiedId) {
-        delete sessions[tk];
-        sessionModified = true;
-      }
-    }
-    if (sessionModified) saveSessions(sessions);
-  }
-
-  // Store pending registration inside verification record and dispatch 6-digit OTP email.
   try {
-    await createAndSendVerificationCode(cleanEmail, name.trim(), true, {
-      name: name.trim(),
-      email: cleanEmail,
-      password: password || ''
-    });
-  } catch (err) {
-    console.error('Failed to send initial verification code:', err);
-  }
+    const { name, email, password } = req.body || {};
+    if (!name || !email) {
+      return res.status(400).json({ success: false, error: 'নাম এবং ইমেইল প্রদান করা আবশ্যক' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return res.status(400).json({ success: false, error: 'সঠিক ইমেইল এড্রেস লিখুন' });
+    }
 
-  res.json({
-    success: true,
-    requiresVerification: true,
-    email: cleanEmail,
-    message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করলে আপনার রেজিস্ট্রেশন সম্পন্ন হবে।'
-  });
+    const accounts = getAccounts();
+    let existingIdx = accounts.findIndex((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
+    // Fast check in Firebase Cloud if not found in local memory (max 1.2s timeout so it never hangs)
+    if (existingIdx === -1) {
+      try {
+        const cloudUser = await Promise.race([
+          FirebaseSync.loadSingleAccountByEmail(cleanEmail),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200))
+        ]);
+        if (cloudUser && cloudUser.email) {
+          accounts.push(cloudUser);
+          saveAccounts(accounts);
+          existingIdx = accounts.length - 1;
+        }
+      } catch {}
+    }
+
+    if (existingIdx !== -1) {
+      const existing = accounts[existingIdx];
+      // If the existing account is already verified:
+      if (existing.emailVerified && existing.isVerified) {
+        // 1. If existing account has no password set (e.g. from Google login or initial import), set it and log them in!
+        if (!existing.password || existing.password.trim() === '') {
+          existing.password = password || '';
+          if (name && name.trim()) existing.name = name.trim();
+          saveAccounts(accounts);
+          const enriched = enrichUserWithPlanAndRole(existing);
+          const token = generateAuthToken(enriched);
+          const sessions = getSessions();
+          sessions[token] = existing.id;
+          saveSessions(sessions);
+          try {
+            FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+            if (password) syncUserPasswordToFirebaseAuth(cleanEmail, password, enriched.name).catch(() => {});
+          } catch {}
+          return res.json({
+            success: true,
+            message: '🎉 আপনার অ্যাকাউন্ট সফলভাবে সংরক্ষিত হয়েছে এবং আপনি লগইন হয়েছেন!',
+            token,
+            user: enriched
+          });
+        }
+
+        // 2. If entered password matches existing password, log them in directly!
+        if (existing.password && password && existing.password === password) {
+          const enriched = enrichUserWithPlanAndRole(existing);
+          const token = generateAuthToken(enriched);
+          const sessions = getSessions();
+          sessions[token] = existing.id;
+          saveSessions(sessions);
+          return res.json({
+            success: true,
+            message: '🎉 আপনি ইতিমধ্যে নিবন্ধিত! সফলভাবে লগইন সম্পন্ন হয়েছে।',
+            token,
+            user: enriched
+          });
+        }
+
+        // 3. Inform that this email is already registered and transition to login
+        return res.json({
+          success: false,
+          alreadyRegistered: true,
+          email: cleanEmail,
+          error: 'এই জিমেইল দিয়ে ইতিমধ্যে রেজিস্ট্রেশন করা আছে! নিচে আপনার পাসওয়ার্ড দিয়ে সরাসরি লগইন করুন।'
+        });
+      }
+
+      // Clean up any previously saved unverified account & its sessions so it cannot auto-login
+      const unverifiedId = existing.id;
+      accounts.splice(existingIdx, 1);
+      saveAccounts(accounts);
+      const sessions = getSessions();
+      let sessionModified = false;
+      for (const [tk, uid] of Object.entries(sessions)) {
+        if (uid === unverifiedId) {
+          delete sessions[tk];
+          sessionModified = true;
+        }
+      }
+      if (sessionModified) saveSessions(sessions);
+    }
+
+    // Store pending registration inside verification record and dispatch 6-digit OTP email.
+    try {
+      await createAndSendVerificationCode(cleanEmail, name.trim(), true, {
+        name: name.trim(),
+        email: cleanEmail,
+        password: password || ''
+      });
+    } catch (err) {
+      console.error('Failed to send initial verification code:', err);
+    }
+
+    return res.json({
+      success: true,
+      requiresVerification: true,
+      email: cleanEmail,
+      message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করলে আপনার রেজিস্ট্রেশন সম্পন্ন হবে।'
+    });
+  } catch (err: any) {
+    console.error('register route error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'রেজিস্ট্রেশনে সাময়িক ত্রুটি হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
+    });
+  }
 });
 
 // Send or resend 6-digit verification code
 app.post('/api/auth/send-verification-code', async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'ইমেইল এড্রেস আবশ্যক' });
-  }
-  const cleanEmail = email.trim().toLowerCase();
-  const accounts = getAccounts();
-  const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস আবশ্যক' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const accounts = getAccounts();
+    const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
 
-  const result = await createAndSendVerificationCode(cleanEmail, user?.name);
-  if (!result.success) {
-    return res.status(429).json(result);
+    const result = await createAndSendVerificationCode(cleanEmail, user?.name);
+    if (!result.success) {
+      return res.status(429).json(result);
+    }
+    return res.json({
+      success: true,
+      message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
+    });
+  } catch (err: any) {
+    console.error('send-verification-code error:', err);
+    return res.status(500).json({ success: false, error: 'কোড পাঠাতে সমস্যা হয়েছে।' });
   }
-  res.json({
-    success: true,
-    message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
-  });
 });
 
 // Resend 6-digit verification code
 app.post('/api/auth/resend-verification-code', async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'ইমেইল এড্রেস আবশ্যক' });
-  }
-  const cleanEmail = email.trim().toLowerCase();
-  const accounts = getAccounts();
-  const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস আবশ্যক' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const accounts = getAccounts();
+    const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
 
-  const result = await createAndSendVerificationCode(cleanEmail, user?.name);
-  if (!result.success) {
-    return res.status(429).json(result);
+    const result = await createAndSendVerificationCode(cleanEmail, user?.name);
+    if (!result.success) {
+      return res.status(429).json(result);
+    }
+    return res.json({
+      success: true,
+      message: 'নতুন ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।'
+    });
+  } catch (err: any) {
+    console.error('resend-verification-code error:', err);
+    return res.status(500).json({ success: false, error: 'কোড পাঠাতে সমস্যা হয়েছে।' });
   }
-  res.json({
-    success: true,
-    message: 'নতুন ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।'
-  });
 });
 
 // Verify 6-digit code, finalize registration, and activate account
@@ -4967,6 +5025,11 @@ app.post('/api/admin/smtp-settings', async (req, res) => {
   if (!saved) {
     return res.status(500).json({ error: 'SMTP সেটিংস সংরক্ষণ করতে ব্যর্থ হয়েছে।' });
   }
+
+  // Persist updated SMTP settings to Firebase Cloud so it survives any server redeploy
+  try {
+    FirebaseSync.syncSmtpSettingsToCloud(loadSmtpSettingsFile()).catch(() => {});
+  } catch {}
 
   const verifyResult = await verifySmtpConnection();
 
@@ -8373,6 +8436,17 @@ async function initSiteConfigSync() {
       if (added) {
         saveRegistry(Array.from(map.values()));
         console.log(`✅ Restored ${remoteBots.length} hosted bots and workspaces from Firebase Firestore!`);
+      }
+    }
+
+    const remoteSmtp = await FirebaseSync.loadSmtpSettingsFromCloud();
+    if (remoteSmtp && remoteSmtp.user && remoteSmtp.pass) {
+      saveSmtpSettingsFile(remoteSmtp);
+      console.log('✅ Restored SMTP settings from Firebase Firestore!');
+    } else {
+      const localSmtp = loadSmtpSettingsFile();
+      if (localSmtp && localSmtp.pass) {
+        FirebaseSync.syncSmtpSettingsToCloud(localSmtp).catch(() => {});
       }
     }
 
