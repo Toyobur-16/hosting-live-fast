@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   User,
   Crown,
@@ -8,21 +8,17 @@ import {
   ShieldCheck,
   LogOut,
   Sparkles,
-  Database,
-  Globe,
-  Share2,
   Edit3,
   Check,
   X,
-  RefreshCw,
-  FileText,
-  CreditCard,
-  Phone,
+  Camera,
+  Upload,
   Mail,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { AuthUser } from '../types';
-import { db, doc, setDoc, collection, query, where, getDocs } from '../lib/firebase';
+import { db, doc, setDoc } from '../lib/firebase';
 
 interface ProfilePageProps {
   user: AuthUser | null;
@@ -35,6 +31,46 @@ interface ProfilePageProps {
   onOpenAdminModal: () => void;
   onUserUpdate?: (user: AuthUser) => void;
   lang?: 'bn' | 'en';
+}
+
+function formatPlanName(plan: string | undefined, lang: 'bn' | 'en'): string {
+  if (!plan || plan.toLowerCase() === 'free') {
+    return lang === 'bn' ? 'ফ্রি প্ল্যান' : 'Free Plan';
+  }
+  const p = plan.toUpperCase();
+  if (p === '1_YEAR' || p === 'YEARLY') {
+    return lang === 'bn' ? '১ বছরের প্ল্যান' : '1 Year Plan';
+  }
+  if (p === '6_MONTHS') {
+    return lang === 'bn' ? '৬ মাসের প্ল্যান' : '6 Months Plan';
+  }
+  if (p === '3_MONTHS') {
+    return lang === 'bn' ? '৩ মাসের প্ল্যান' : '3 Months Plan';
+  }
+  if (p === '1_MONTH' || p === 'MONTHLY') {
+    return lang === 'bn' ? '১ মাসের প্ল্যান' : '1 Month Plan';
+  }
+  if (p === 'STUDENT') {
+    return lang === 'bn' ? 'স্টুডেন্ট প্ল্যান' : 'Student Plan';
+  }
+  if (p === 'STANDARD') {
+    return lang === 'bn' ? 'স্ট্যান্ডার্ড প্ল্যান' : 'Standard Plan';
+  }
+  if (p === 'PRO') {
+    return lang === 'bn' ? 'প্রো প্ল্যান' : 'Pro Plan';
+  }
+  return plan;
+}
+
+function formatExpiryDate(timestamp: number | undefined, lang: 'bn' | 'en'): string {
+  if (!timestamp) {
+    return lang === 'bn' ? 'লাইফটাইম ফ্রি / নো সাবস্ক্রিপশন' : 'Lifetime Free / No Subscription';
+  }
+  const d = new Date(timestamp);
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 export function ProfilePage({
@@ -52,115 +88,93 @@ export function ProfilePage({
   // Edit Profile States
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
-  const [editPhone, setEditPhone] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Firestore Document Counts
-  const [docStats, setDocStats] = useState({
-    botsCount: 0,
-    websitesCount: 0,
-    tasksCount: 0,
-    depositsCount: 0,
-    transactionsCount: 0,
-    isSynced: false,
-    lastSyncedAt: ''
-  });
-  const [syncingDocs, setSyncingDocs] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
       setEditName(user.name || '');
-      setEditPhone(user.phoneNumber || '');
       setEditAvatar(user.avatar || '');
-      fetchUserFirestoreDocuments();
+      setAvatarPreview(user.avatar || null);
     }
-  }, [user?.id, user?.email]);
+  }, [user?.id, user?.email, user?.name, user?.avatar]);
 
-  const fetchUserFirestoreDocuments = async () => {
-    if (!user) return;
-    try {
-      setSyncingDocs(true);
-      let botsCount = 0;
-      let websitesCount = 0;
-      let tasksCount = 0;
-      let depositsCount = 0;
-      let transactionsCount = 0;
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      // 1. Fetch user's bots from Firestore
-      try {
-        const botsSnap = await getDocs(query(collection(db, 'bots'), where('ownerId', '==', user.id)));
-        botsCount = botsSnap.size;
-        if (botsCount === 0 && user.email) {
-          const botsEmailSnap = await getDocs(query(collection(db, 'bots'), where('ownerEmail', '==', user.email.toLowerCase())));
-          botsCount = botsEmailSnap.size;
-        }
-      } catch {}
-
-      // 2. Fetch user's websites from Firestore
-      try {
-        const siteSnap = await getDocs(query(collection(db, 'websites'), where('userId', '==', user.id)));
-        websitesCount = siteSnap.size;
-      } catch {}
-
-      // 3. Fetch user's completed social tasks from Firestore
-      try {
-        const taskSnap = await getDocs(query(collection(db, 'task_completions'), where('userId', '==', user.id)));
-        tasksCount = taskSnap.size;
-      } catch {}
-
-      // 4. Fetch user's deposits & plan requests from Firestore
-      try {
-        const reqSnap = await getDocs(query(collection(db, 'plan_requests'), where('userId', '==', user.id)));
-        depositsCount = reqSnap.size;
-      } catch {}
-
-      // 5. Fetch user's wallet transactions ledger
-      try {
-        const txSnap = await getDocs(query(collection(db, 'wallet_transactions'), where('userId', '==', user.id)));
-        transactionsCount = txSnap.size;
-      } catch {}
-
-      setDocStats({
-        botsCount,
-        websitesCount,
-        tasksCount,
-        depositsCount,
-        transactionsCount,
-        isSynced: true,
-        lastSyncedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (file.size > 8 * 1024 * 1024) {
+      setNotification({
+        type: 'error',
+        text: lang === 'bn' ? 'ছবির সাইজ ৮ মেগাবাইটের কম হতে হবে।' : 'Image size must be less than 8MB.'
       });
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        setAvatarPreview(base64Data);
+
+        // Upload to server store thumbnails to get a clean permanent URL
+        try {
+          const res = await fetch('/api/store/upload-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              base64: base64Data,
+              fileName: `avatar_${user?.id || 'usr'}_${Date.now()}.png`,
+              fileType: 'avatar'
+            })
+          });
+
+          const data = await res.json();
+          if (data.success && data.url) {
+            setEditAvatar(data.url);
+          } else {
+            setEditAvatar(base64Data);
+          }
+        } catch {
+          setEditAvatar(base64Data);
+        } finally {
+          setUploadingImage(false);
+        }
+      };
+      reader.readAsDataURL(file);
     } catch {
-      // Fallback
-    } finally {
-      setSyncingDocs(false);
+      setUploadingImage(false);
     }
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!user) return;
     const finalName = editName.trim() || user.name || 'User';
-    const finalPhone = editPhone.trim();
+    const finalAvatar = editAvatar.trim() || avatarPreview || user.avatar || '';
 
     try {
       setSaving(true);
       const updatedUser: AuthUser = {
         ...user,
         name: finalName,
-        phoneNumber: finalPhone,
-        avatar: editAvatar.trim() || user.avatar || ''
+        avatar: finalAvatar
       };
 
-      // 1. Direct write to Firebase Firestore /accounts/{user.id}
+      // 1. Direct write to Firestore /accounts/{user.id} without showing internal logs
       try {
         await setDoc(doc(db, 'accounts', user.id), {
           ...updatedUser,
           updatedAt: new Date().toISOString()
         }, { merge: true });
       } catch (err) {
-        console.warn('Direct Firestore account write error:', err);
+        console.warn('Account sync write:', err);
       }
 
       // 2. Update server backend
@@ -173,8 +187,7 @@ export function ProfilePage({
         },
         body: JSON.stringify({
           name: finalName,
-          phone: finalPhone,
-          avatar: editAvatar.trim()
+          avatar: finalAvatar
         })
       });
 
@@ -193,13 +206,13 @@ export function ProfilePage({
       setIsEditing(false);
       setNotification({
         type: 'success',
-        text: '✓ প্রোফাইল তথ্য সফলভাবে আপডেট হয়েছে এবং ফায়ারবেজে সেভ হয়েছে!'
+        text: lang === 'bn' ? '✓ প্রোফাইল সফলভাবে আপডেট হয়েছে!' : '✓ Profile updated successfully!'
       });
       setTimeout(() => setNotification(null), 3500);
     } catch (err: any) {
       setNotification({
         type: 'error',
-        text: err?.message || 'প্রোফাইল সংরক্ষণ করতে সমস্যা হয়েছে।'
+        text: err?.message || (lang === 'bn' ? 'প্রোফাইল সংরক্ষণ করতে সমস্যা হয়েছে।' : 'Failed to update profile.')
       });
     } finally {
       setSaving(false);
@@ -212,15 +225,19 @@ export function ProfilePage({
         <div className="w-16 h-16 rounded-full bg-[#162238] flex items-center justify-center mx-auto text-[#00d293]">
           <User className="w-8 h-8" />
         </div>
-        <h3 className="text-lg font-black text-white">প্রোফাইল দেখতে লগইন করুন</h3>
+        <h3 className="text-lg font-black text-white">
+          {lang === 'bn' ? 'প্রোফাইল দেখতে লগইন করুন' : 'Login to View Profile'}
+        </h3>
         <p className="text-xs text-slate-400">
-          আপনার ওয়ালেট ব্যালেন্স, প্লান ও বট দেখতে অ্যাকাউন্টে লগইন করুন বা নতুন রেজিস্টার করুন।
+          {lang === 'bn'
+            ? 'আপনার ওয়ালেট ব্যালেন্স, প্ল্যান ও বট দেখতে অ্যাকাউন্টে লগইন করুন বা নতুন রেজিস্টার করুন।'
+            : 'Login to your account or register to manage wallet balance, plans, and hosted bots.'}
         </p>
         <button
           onClick={onOpenAuthModal}
           className="px-6 py-3 rounded-xl bg-[#00d293] hover:bg-[#00be84] text-slate-950 font-black text-xs cursor-pointer shadow-lg shadow-[#00d293]/20"
         >
-          Login / Register
+          {lang === 'bn' ? 'লগইন / রেজিস্টার' : 'Login / Register'}
         </button>
       </div>
     );
@@ -230,6 +247,15 @@ export function ProfilePage({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-24 animate-in fade-in duration-200">
+      {/* Hidden File Input for Direct Avatar Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImageFileChange}
+        accept="image/*"
+        className="hidden"
+      />
+
       {/* Toast Notification */}
       {notification && (
         <div
@@ -255,12 +281,32 @@ export function ProfilePage({
 
       {/* Profile Header Card */}
       <div className="p-6 rounded-3xl bg-gradient-to-br from-[#0f1b2b] to-[#070e18] border border-[#1e2e42] shadow-xl flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left relative">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#1e293b] to-[#0f172a] border-3 border-[#00d293] flex items-center justify-center text-white font-black text-2xl shadow-lg shrink-0 overflow-hidden">
-          {user.avatar ? (
-            <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
-          ) : (
-            (user.name || user.email || 'U').charAt(0).toUpperCase()
-          )}
+        {/* Direct Avatar Area with Instant Camera Click */}
+        <div className="relative group shrink-0">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#1e293b] to-[#0f172a] border-3 border-[#00d293] flex items-center justify-center text-white font-black text-2xl shadow-lg overflow-hidden">
+            {uploadingImage ? (
+              <Loader2 className="w-6 h-6 text-[#00d293] animate-spin" />
+            ) : avatarPreview || user.avatar ? (
+              <img
+                src={avatarPreview || user.avatar}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              (user.name || user.email || 'U').charAt(0).toUpperCase()
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditing(true);
+              fileInputRef.current?.click();
+            }}
+            title={lang === 'bn' ? 'ছবি পরিবর্তন করুন' : 'Change Profile Picture'}
+            className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#00d293] hover:bg-[#00be84] text-slate-950 flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-110 border-2 border-[#0f1b2b]"
+          >
+            <Camera className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         <div className="space-y-1.5 flex-1 min-w-0">
@@ -276,20 +322,9 @@ export function ProfilePage({
             <Mail className="w-3.5 h-3.5 text-slate-500" />
             <span className="truncate">{user.email}</span>
           </p>
-          {user.phoneNumber && (
-            <p className="text-xs text-emerald-400 font-mono font-bold flex items-center justify-center sm:justify-start gap-1.5">
-              <Phone className="w-3.5 h-3.5 text-emerald-500" />
-              <span>{user.phoneNumber}</span>
-              {user.phoneVerified && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-sans font-semibold">
-                  ভেরিফাইড
-                </span>
-              )}
-            </p>
-          )}
           <p className="text-[11px] text-[#00d293] font-semibold flex items-center justify-center sm:justify-start gap-1">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Verified Account (Firebase Synced)</span>
+            <span>{lang === 'bn' ? 'ভেরিফাইড অ্যাকাউন্ট' : 'Verified Account'}</span>
           </p>
         </div>
 
@@ -300,7 +335,7 @@ export function ProfilePage({
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer shadow-md transition-all border border-slate-700 flex items-center gap-1.5"
           >
             <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{isEditing ? 'বাতিল' : 'প্রোফাইল এডিট'}</span>
+            <span>{isEditing ? (lang === 'bn' ? 'বাতিল' : 'Cancel') : (lang === 'bn' ? 'প্রোফাইল এডিট' : 'Edit Profile')}</span>
           </button>
 
           {isAdmin && (
@@ -314,198 +349,124 @@ export function ProfilePage({
         </div>
       </div>
 
-      {/* Edit Profile Form (Toggled via "প্রোফাইল এডিট") */}
+      {/* Edit Profile Form (Name & Direct Pic ONLY - Clean & Minimal) */}
       {isEditing && (
         <div className="p-5 sm:p-6 rounded-3xl bg-[#0d1424] border border-cyan-500/40 shadow-xl space-y-4 animate-in fade-in">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <Edit3 className="w-4 h-4 text-cyan-400" />
-              <h3 className="text-sm font-black text-white">প্রোফাইল তথ্য আপডেট করুন</h3>
+              <h3 className="text-sm font-black text-white">
+                {lang === 'bn' ? 'প্রোফাইল তথ্য পরিবর্তন' : 'Update Profile Info'}
+              </h3>
             </div>
-            <span className="text-[11px] text-cyan-400 font-mono">Firestore: /accounts/{user.id}</span>
           </div>
 
-          <form onSubmit={handleSaveProfile} className="space-y-3.5">
+          <form onSubmit={handleSaveProfile} className="space-y-4">
+            {/* Direct Profile Picture Upload Area */}
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                আপনার পুরো নাম *
+              <label className="block text-xs font-bold text-slate-300 mb-2">
+                {lang === 'bn' ? 'প্রোফাইল ছবি (সরাসরি আপলোড)' : 'Profile Picture (Direct Upload)'}
+              </label>
+              <div className="flex items-center gap-4 p-3.5 rounded-2xl bg-[#070b14] border border-slate-800">
+                <div className="w-16 h-16 rounded-full bg-slate-850 border-2 border-cyan-500/40 flex items-center justify-center overflow-hidden shrink-0">
+                  {uploadingImage ? (
+                    <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                  ) : avatarPreview || editAvatar ? (
+                    <img
+                      src={avatarPreview || editAvatar}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-6 h-6 text-slate-500" />
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                    className="px-4 py-2 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{lang === 'bn' ? 'ছবি নির্বাচন করুন' : 'Choose Photo'}</span>
+                  </button>
+                  <p className="text-[11px] text-slate-400">
+                    {lang === 'bn'
+                      ? 'মোবাইল গ্যালারি বা কম্পিউটার থেকে সরাসরি ছবি বেছে নিন (PNG, JPG)'
+                      : 'Select an image directly from your gallery or files (PNG, JPG)'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Name Input */}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                {lang === 'bn' ? 'আপনার নাম *' : 'Your Name *'}
               </label>
               <input
                 type="text"
                 required
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                placeholder="যেমন: Md Taybur Rahman"
-                className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                placeholder={lang === 'bn' ? 'যেমন: Md Taybur Rahman' : 'e.g. John Doe'}
+                className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 transition-colors"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  মোবাইল নম্বর (বিকাশ / নগদ / সাপোর্ট)
-                </label>
-                <input
-                  type="tel"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="017XXXXXXXX বা +8801..."
-                  className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  প্রোফাইল ছবির লিংক (Avatar URL)
-                </label>
-                <input
-                  type="url"
-                  value={editAvatar}
-                  onChange={(e) => setEditAvatar(e.target.value)}
-                  placeholder="https://... (ঐচ্ছিক)"
-                  className="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-            </div>
-
+            {/* Action Buttons */}
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                onClick={() => {
+                  setIsEditing(false);
+                  setAvatarPreview(user.avatar || null);
+                  setEditAvatar(user.avatar || '');
+                }}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-colors"
               >
-                বাতিল
+                {lang === 'bn' ? 'বাতিল' : 'Cancel'}
               </button>
               <button
                 type="submit"
-                disabled={saving}
-                className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-lg shadow-cyan-600/30 disabled:opacity-50"
+                disabled={saving || uploadingImage}
+                className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-lg shadow-cyan-600/30 disabled:opacity-50 transition-all"
               >
-                <Check className="w-4 h-4" />
-                <span>{saving ? 'ফায়ারবেজে সেভ হচ্ছে...' : 'সেভ ও সিঙ্ক করুন'}</span>
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{lang === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>{lang === 'bn' ? 'সেভ করুন' : 'Save Changes'}</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* MY FIREBASE DOCUMENTS SECTION */}
-      <div className="p-6 rounded-3xl bg-[#0d1424] border border-[#1e293b] space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Database className="w-5 h-5 text-emerald-400" />
-            <div>
-              <h3 className="text-base font-black text-white">আমার ফায়ারবেজ ডকুমেন্টস (Firebase Documents)</h3>
-              <p className="text-[11px] text-slate-400">আপনার সমস্ত ডাটা ও ফাইল ফায়ারবেজ ক্লাউডে নিরাপদভাবে সংরক্ষিত</p>
-            </div>
-          </div>
-          {docStats.lastSyncedAt && (
-            <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
-              শেষ সিঙ্ক: {docStats.lastSyncedAt}
-            </span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
-          {/* User Account Document */}
-          <div className="p-3.5 rounded-2xl bg-[#070b14] border border-emerald-500/30 space-y-1">
-            <div className="flex items-center justify-between">
-              <User className="w-4 h-4 text-emerald-400" />
-              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300">
-                ACTIVE
-              </span>
-            </div>
-            <h4 className="text-xs font-black text-slate-200">ইউজার প্রোফাইল</h4>
-            <p className="text-[10px] text-slate-400 font-mono truncate">/accounts/{user.id.substring(0, 10)}...</p>
-            <span className="text-[10px] text-emerald-400 font-bold block pt-0.5">✓ ক্লাউডে সুরক্ষিত</span>
-          </div>
-
-          {/* Hosted Bots Documents */}
-          <div
-            onClick={onNavigateToBots}
-            className="p-3.5 rounded-2xl bg-[#070b14] border border-[#1e293b] hover:border-purple-500/40 space-y-1 cursor-pointer transition-all"
-          >
-            <div className="flex items-center justify-between">
-              <Bot className="w-4 h-4 text-purple-400" />
-              <span className="text-base font-black text-purple-400 font-mono">
-                {docStats.botsCount}
-              </span>
-            </div>
-            <h4 className="text-xs font-black text-slate-200">হোস্টেড বট</h4>
-            <p className="text-[10px] text-slate-400 font-mono">/bots/collection</p>
-            <span className="text-[10px] text-purple-300 font-medium block pt-0.5">বটসমূহ দেখুন →</span>
-          </div>
-
-          {/* Websites Documents */}
-          <div className="p-3.5 rounded-2xl bg-[#070b14] border border-[#1e293b] space-y-1">
-            <div className="flex items-center justify-between">
-              <Globe className="w-4 h-4 text-sky-400" />
-              <span className="text-base font-black text-sky-400 font-mono">
-                {docStats.websitesCount}
-              </span>
-            </div>
-            <h4 className="text-xs font-black text-slate-200">ওয়েবসাইটস</h4>
-            <p className="text-[10px] text-slate-400 font-mono">/websites/collection</p>
-            <span className="text-[10px] text-sky-300 font-medium block pt-0.5">হোস্টেড সাইট</span>
-          </div>
-
-          {/* Completed Social Tasks */}
-          <div className="p-3.5 rounded-2xl bg-[#070b14] border border-[#1e293b] space-y-1">
-            <div className="flex items-center justify-between">
-              <Share2 className="w-4 h-4 text-pink-400" />
-              <span className="text-base font-black text-pink-400 font-mono">
-                {docStats.tasksCount}
-              </span>
-            </div>
-            <h4 className="text-xs font-black text-slate-200">সোশ্যাল টাস্ক</h4>
-            <p className="text-[10px] text-slate-400 font-mono">/task_completions</p>
-            <span className="text-[10px] text-pink-300 font-medium block pt-0.5">জমাকৃত প্রমাণাদি</span>
-          </div>
-
-          {/* Deposits & Orders */}
-          <div
-            onClick={onNavigateToWallet}
-            className="p-3.5 rounded-2xl bg-[#070b14] border border-[#1e293b] hover:border-emerald-500/40 space-y-1 cursor-pointer transition-all"
-          >
-            <div className="flex items-center justify-between">
-              <CreditCard className="w-4 h-4 text-emerald-400" />
-              <span className="text-base font-black text-emerald-400 font-mono">
-                {docStats.depositsCount}
-              </span>
-            </div>
-            <h4 className="text-xs font-black text-slate-200">ডিপোজিট অর্ডার</h4>
-            <p className="text-[10px] text-slate-400 font-mono">/plan_requests</p>
-            <span className="text-[10px] text-emerald-300 font-medium block pt-0.5">অর্ডার হিস্ট্রি →</span>
-          </div>
-
-          {/* Wallet Ledger Transactions */}
-          <div
-            onClick={onNavigateToWallet}
-            className="p-3.5 rounded-2xl bg-[#070b14] border border-[#1e293b] hover:border-amber-500/40 space-y-1 cursor-pointer transition-all"
-          >
-            <div className="flex items-center justify-between">
-              <FileText className="w-4 h-4 text-amber-400" />
-              <span className="text-base font-black text-amber-400 font-mono">
-                {docStats.transactionsCount}
-              </span>
-            </div>
-            <h4 className="text-xs font-black text-slate-200">ওয়ালেট লেজার</h4>
-            <p className="text-[10px] text-slate-400 font-mono">/wallet_transactions</p>
-            <span className="text-[10px] text-amber-300 font-medium block pt-0.5">লেনদেন খতিয়ান →</span>
-          </div>
-        </div>
-      </div>
-
       {/* Wallet Balance Card */}
       <div className="p-6 rounded-3xl bg-[#0d1424] border border-[#1e293b] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
             <Wallet className="w-4 h-4 text-[#00d293]" />
-            <span>মোট ওয়ালেট ব্যালেন্স (USDT)</span>
+            <span>
+              {lang === 'bn' ? 'মোট ওয়ালেট ব্যালেন্স (USDT)' : 'Total Wallet Balance (USDT)'}
+            </span>
           </span>
           <div className="flex items-baseline gap-2.5 mt-1">
-            <span className="text-2xl sm:text-3xl font-black text-white">${Number(user.balanceUsd || 0).toFixed(2)}</span>
-            <span className="text-xs font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-[#00d293] uppercase">USDT</span>
+            <span className="text-2xl sm:text-3xl font-black text-white">
+              ${Number(user.balanceUsd || 0).toFixed(2)}
+            </span>
+            <span className="text-xs font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-[#00d293] uppercase">
+              USDT
+            </span>
           </div>
         </div>
 
@@ -513,7 +474,7 @@ export function ProfilePage({
           onClick={onNavigateToWallet}
           className="px-5 py-2.5 rounded-xl bg-[#00d293] hover:bg-[#00be84] text-slate-950 font-black text-xs cursor-pointer shadow-md transition-all hover:scale-102 self-start sm:self-center"
         >
-          + USDT ডিপোজিট করুন
+          {lang === 'bn' ? '+ USDT ডিপোজিট করুন' : '+ Deposit USDT'}
         </button>
       </div>
 
@@ -522,7 +483,9 @@ export function ProfilePage({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Crown className="w-5 h-5 text-amber-400" />
-            <h3 className="text-base font-black text-white">হোস্টিং সাবস্ক্রিপশন</h3>
+            <h3 className="text-base font-black text-white">
+              {lang === 'bn' ? 'হোস্টিং সাবস্ক্রিপশন' : 'Hosting Subscription'}
+            </h3>
           </div>
           <span
             className={`text-xs px-3 py-1 rounded-full font-black ${
@@ -531,30 +494,40 @@ export function ProfilePage({
                 : 'bg-slate-800 text-slate-400'
             }`}
           >
-            {user.plan && user.plan !== 'free' ? (isExpired ? 'EXPIRED' : 'ACTIVE') : 'FREE TIER'}
+            {user.plan && user.plan !== 'free'
+              ? isExpired
+                ? (lang === 'bn' ? 'মেয়াদ উত্তীর্ণ' : 'EXPIRED')
+                : (lang === 'bn' ? 'সক্রিয়' : 'ACTIVE')
+              : (lang === 'bn' ? 'ফ্রি টিয়ার' : 'FREE TIER')}
           </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-[#070b14] border border-[#1e293b]">
           <div>
-            <span className="text-[11px] text-slate-400">বর্তমান প্যাকেজ:</span>
-            <span className="text-sm font-black text-white block uppercase mt-0.5">
-              {user.plan || 'Free'}
+            <span className="text-[11px] text-slate-400">
+              {lang === 'bn' ? 'বর্তমান প্যাকেজ:' : 'Current Package:'}
+            </span>
+            <span className="text-sm font-black text-white block mt-0.5">
+              {formatPlanName(user.plan, lang)}
             </span>
           </div>
           <div>
-            <span className="text-[11px] text-slate-400">বট হোস্টিং লিমিট:</span>
+            <span className="text-[11px] text-slate-400">
+              {lang === 'bn' ? 'বট হোস্টিং লিমিট:' : 'Bot Hosting Limit:'}
+            </span>
             <span className="text-sm font-black text-[#00d293] block mt-0.5">
-              {user.maxBots || 0} টি বট চালাতে পারবেন
+              {lang === 'bn'
+                ? `${user.maxBots || 0} টি বট চালাতে পারবেন`
+                : `Can run up to ${user.maxBots || 0} bots`}
             </span>
           </div>
           <div className="sm:col-span-2 pt-2 border-t border-[#1e293b]/60 flex items-center justify-between text-xs">
             <span className="text-slate-400 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5" />
-              <span>মেয়াদ উত্তীর্ণের তারিখ:</span>
+              <span>{lang === 'bn' ? 'মেয়াদ উত্তীর্ণের তারিখ:' : 'Expiry Date:'}</span>
             </span>
             <span className="font-bold text-slate-200">
-              {user.planExpiresAt ? new Date(user.planExpiresAt).toLocaleDateString() : 'লাইফটাইম ফ্রি / নো সাবস্ক্রিপশন'}
+              {formatExpiryDate(user.planExpiresAt, lang)}
             </span>
           </div>
         </div>
@@ -565,13 +538,14 @@ export function ProfilePage({
             className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer shadow-md transition-all flex items-center justify-center gap-1.5"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>নতুন প্ল্যান আপগ্রেড করুন</span>
+            <span>{lang === 'bn' ? 'নতুন প্ল্যান আপগ্রেড করুন' : 'Upgrade Plan'}</span>
           </button>
           <button
             onClick={onNavigateToBots}
-            className="flex-1 py-2.5 rounded-xl bg-[#111827] hover:bg-[#1f293d] border border-[#1e293b] text-slate-200 font-bold text-xs cursor-pointer transition-all"
+            className="flex-1 py-2.5 rounded-xl bg-[#111827] hover:bg-[#1f293d] border border-[#1e293b] text-slate-200 font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-1.5"
           >
-            আমার বট সমূহ দেখুন
+            <Bot className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{lang === 'bn' ? 'আমার বট সমূহ দেখুন' : 'View My Bots'}</span>
           </button>
         </div>
       </div>
@@ -582,7 +556,7 @@ export function ProfilePage({
         className="w-full py-3 rounded-2xl bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
       >
         <LogOut className="w-4 h-4" />
-        <span>অ্যাকাউন্ট থেকে লগআউট করুন</span>
+        <span>{lang === 'bn' ? 'অ্যাকাউন্ট থেকে লগআউট করুন' : 'Logout from Account'}</span>
       </button>
     </div>
   );

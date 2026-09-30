@@ -2622,7 +2622,7 @@ app.post('/api/user/profile', (req, res) => {
   if (!user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const { name, phoneNumber } = req.body;
+  const { name, phoneNumber, phone, avatar } = req.body;
   const accounts = getAccounts();
   const idx = accounts.findIndex((a) => a.id === user.id);
   if (idx === -1) {
@@ -2632,8 +2632,12 @@ app.post('/api/user/profile', (req, res) => {
   if (typeof name === 'string' && name.trim()) {
     accounts[idx].name = name.trim();
   }
-  if (typeof phoneNumber === 'string') {
-    accounts[idx].phoneNumber = phoneNumber.trim();
+  const phoneVal = phoneNumber || phone;
+  if (typeof phoneVal === 'string') {
+    accounts[idx].phoneNumber = phoneVal.trim();
+  }
+  if (typeof avatar === 'string') {
+    accounts[idx].avatar = avatar.trim();
   }
 
   saveAccounts(accounts);
@@ -2642,7 +2646,7 @@ app.post('/api/user/profile', (req, res) => {
 
   res.json({
     success: true,
-    message: 'প্রোফাইল সফলভাবে আপডেট করা হয়েছে এবং ফায়ারবেজ ক্লাউডে সংরক্ষিত হয়েছে!',
+    message: 'প্রোফাইল সফলভাবে আপডেট করা হয়েছে!',
     user: updatedUser
   });
 });
