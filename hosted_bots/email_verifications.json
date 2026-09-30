@@ -45,5 +45,17 @@
       "password": "mypassword123"
     },
     "firebasePassword": "mypassword123"
+  },
+  "hostinglivefast.official@gmail.com": {
+    "email": "hostinglivefast.official@gmail.com",
+    "codeHash": "068ec54f55a2fb8c0fb630652c1ae7430b759ee62339c19214b20b3519e32c90",
+    "validCodeHashes": [
+      "068ec54f55a2fb8c0fb630652c1ae7430b759ee62339c19214b20b3519e32c90",
+      "e231e3082a8654a7c80ef2b1df1a0b3a349e87ed996ce5378fd4bf01076f290d"
+    ],
+    "expiresAt": 1790760483571,
+    "attempts": 0,
+    "lastSentAt": 1790758683571,
+    "createdAt": 1790758551204
   }
 }

@@ -760,6 +760,9 @@ export function buildTransportOptions(options: {
     port,
     secure: secure !== undefined ? secure : (port === 465),
     requireTLS: port === 587,
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 200,
     family: 4, // Enforce IPv4 socket
     auth: { user, pass: (pass || '').replace(/\s+/g, '') },
     // Critical: When connecting directly to an IP, provide servername for TLS handshake and certificate check
@@ -769,9 +772,9 @@ export function buildTransportOptions(options: {
       minVersion: 'TLSv1.2'
     },
     servername: originalHost,
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000
+    connectionTimeout: 4000,
+    greetingTimeout: 4000,
+    socketTimeout: 10000
   } as any;
 }
 
@@ -804,8 +807,17 @@ export async function getTransporterAsync(forceFresh = false): Promise<Transport
   try {
     if (isGmail) {
       cachedTransporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user, pass: (pass || '').replace(/\s+/g, '') }
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 200,
+        connectionTimeout: 4000,
+        greetingTimeout: 4000,
+        socketTimeout: 10000,
+        auth: { user, pass: (pass || '').replace(/\s+/g, '') },
+        tls: { rejectUnauthorized: false }
       });
       lastTransporterConfigKey = currentKey;
       return cachedTransporter;
@@ -858,8 +870,17 @@ export function getTransporter(): Transporter | null {
   try {
     if (isGmail) {
       cachedTransporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user, pass: (pass || '').replace(/\s+/g, '') }
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 200,
+        connectionTimeout: 4000,
+        greetingTimeout: 4000,
+        socketTimeout: 10000,
+        auth: { user, pass: (pass || '').replace(/\s+/g, '') },
+        tls: { rejectUnauthorized: false }
       });
       lastTransporterConfigKey = currentKey;
       return cachedTransporter;
@@ -1820,7 +1841,7 @@ export async function sendVerificationEmail(
   userName?: string
 ): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
   const cleanName = userName?.trim() || to.split('@')[0] || 'User';
-  const subject = `🔐 ${code} — hosting live fast ইমেইল ভেরিফিকেশন কোড`;
+  const subject = `hosting live fast: আপনার ভেরিফিকেশন কোড ${code}`;
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #070b14; color: #f8fafc; padding: 32px; border-radius: 16px; border: 1px solid #162035; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
@@ -1889,7 +1910,7 @@ export async function sendPasswordResetEmail(
   userName?: string
 ): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
   const cleanName = userName?.trim() || to.split('@')[0] || 'User';
-  const subject = `🔑 আপনার পাসওয়ার্ড রিসেট রিকোয়েস্ট — hosting live fast`;
+  const subject = `hosting live fast: আপনার পাসওয়ার্ড রিসেট কোড ${resetCodeOrLink}`;
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #070b14; color: #f8fafc; padding: 32px; border-radius: 16px; border: 1px solid #162035;">

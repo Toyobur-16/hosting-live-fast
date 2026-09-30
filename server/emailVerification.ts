@@ -470,7 +470,18 @@ export async function createAndSendVerificationCode(
   };
   saveVerifications(verifications);
 
-  // 1. Trigger Unlimited Google Firebase Auth Email Verification over HTTPS Port 443 (Always works on Render & everywhere!)
+  // 1. Send the 6-digit OTP HTML email immediately via pooled SMTP
+  const smtpPromise = sendVerificationEmail(cleanEmail, code, effectiveName).catch((err: any) => {
+    console.warn(`[VERIFICATION EMAIL WARNING] Failed to deliver real SMTP email to ${cleanEmail}:`, err?.message || err);
+  });
+
+  // Fast response: wait up to 1.5s for pooled SMTP, otherwise let it finish in background
+  await Promise.race([
+    smtpPromise,
+    new Promise((resolve) => setTimeout(resolve, 1500))
+  ]);
+
+  // 2. Also trigger Firebase verification email in background as secondary fallback
   triggerFirebaseVerificationEmail(
     cleanEmail,
     savedPending?.password || existing?.firebasePassword,
@@ -485,17 +496,6 @@ export async function createAndSendVerificationCode(
       }
     }
   }).catch(() => {});
-
-  // 2. Also send the 6-digit OTP HTML email via SMTP/Relay in background or quick race
-  const smtpPromise = sendVerificationEmail(cleanEmail, code, effectiveName).catch((err: any) => {
-    console.warn(`[VERIFICATION EMAIL WARNING] Failed to deliver real SMTP email to ${cleanEmail}:`, err?.message || err);
-  });
-
-  // Fast response: wait at most 1.2s for SMTP, otherwise let it finish in background so user receives instant UI response
-  await Promise.race([
-    smtpPromise,
-    new Promise((resolve) => setTimeout(resolve, 1200))
-  ]);
 
   return { success: true, emailSent: true };
 }
@@ -615,7 +615,18 @@ export async function createAndSendPasswordResetCode(
   };
   savePasswordResets(resets);
 
-  // 1. Trigger Google Firebase Auth Password Reset via HTTPS Port 443 (Always works everywhere!)
+  // 1. Send the 6-digit OTP code HTML email immediately via pooled SMTP
+  const smtpPromise = sendPasswordResetEmail(cleanEmail, code, userName).catch((err: any) => {
+    console.warn(`[PASSWORD RESET EMAIL WARNING] Failed to deliver SMTP email to ${cleanEmail}:`, err?.message || err);
+  });
+
+  // Fast response: wait up to 1.5s for pooled SMTP delivery, otherwise let it finish in background
+  await Promise.race([
+    smtpPromise,
+    new Promise((resolve) => setTimeout(resolve, 1500))
+  ]);
+
+  // 2. Also trigger Google Firebase Auth Password Reset via HTTPS Port 443 in background as secondary fallback
   if (FIREBASE_AUTH_API_KEY) {
     fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
       method: 'POST',
@@ -634,17 +645,6 @@ export async function createAndSendPasswordResetCode(
         console.warn('Firebase Auth password reset warning:', err?.message || err);
       });
   }
-
-  // 2. Also send the 6-digit OTP code HTML email via SMTP/Relay in background or quick race
-  const smtpPromise = sendPasswordResetEmail(cleanEmail, code, userName).catch((err: any) => {
-    console.warn(`[PASSWORD RESET EMAIL WARNING] Failed to deliver SMTP email to ${cleanEmail}:`, err?.message || err);
-  });
-
-  // Fast response: wait at most 1.2s for SMTP, otherwise let it finish in background so user receives instant UI response
-  await Promise.race([
-    smtpPromise,
-    new Promise((resolve) => setTimeout(resolve, 1200))
-  ]);
 
   return { success: true };
 }
