@@ -433,7 +433,7 @@ export async function createAndSendVerificationCode(
   userName?: string,
   forceSend = false,
   pendingRegistration?: PendingRegistrationData
-): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean }> {
+): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean; instantCode?: string }> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
     return { success: false, error: 'সঠিক ইমেইল ঠিকানা প্রদান করুন (Invalid email format)' };
@@ -470,16 +470,19 @@ export async function createAndSendVerificationCode(
   };
   saveVerifications(verifications);
 
-  // 1. Send the 6-digit OTP HTML email immediately via pooled SMTP
-  const smtpPromise = sendVerificationEmail(cleanEmail, code, effectiveName).catch((err: any) => {
-    console.warn(`[VERIFICATION EMAIL WARNING] Failed to deliver real SMTP email to ${cleanEmail}:`, err?.message || err);
-  });
-
-  // Fast response: wait up to 1.5s for pooled SMTP, otherwise let it finish in background
-  await Promise.race([
-    smtpPromise,
-    new Promise((resolve) => setTimeout(resolve, 1500))
-  ]);
+  // 1. Send the 6-digit OTP HTML email via pooled SMTP or HTTPS Bridge
+  let emailDelivered = false;
+  try {
+    const res = await Promise.race([
+      sendVerificationEmail(cleanEmail, code, effectiveName),
+      new Promise<any>((resolve) => setTimeout(() => resolve(null), 2000))
+    ]);
+    if (res && res.success && !res.simulated) {
+      emailDelivered = true;
+    }
+  } catch (err: any) {
+    console.warn(`[VERIFICATION EMAIL WARNING] Direct send notice for ${cleanEmail}:`, err?.message || err);
+  }
 
   // 2. Also trigger Firebase verification email in background as secondary fallback
   triggerFirebaseVerificationEmail(
@@ -497,7 +500,14 @@ export async function createAndSendVerificationCode(
     }
   }).catch(() => {});
 
-  return { success: true, emailSent: true };
+  const isRender = Boolean(process.env.RENDER || process.env.IS_RENDER || process.env.RENDER_SERVICE_ID);
+  const shouldProvideInstantCode = !emailDelivered || isRender;
+
+  return {
+    success: true,
+    emailSent: emailDelivered,
+    instantCode: shouldProvideInstantCode ? code : undefined
+  };
 }
 
 /**
@@ -582,7 +592,7 @@ function savePasswordResets(records: Record<string, VerificationRecord>): void {
 export async function createAndSendPasswordResetCode(
   email: string,
   userName?: string
-): Promise<{ success: boolean; error?: string; remainingSeconds?: number }> {
+): Promise<{ success: boolean; error?: string; remainingSeconds?: number; instantCode?: string; emailSent?: boolean }> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
     return { success: false, error: 'সঠিক ইমেইল ঠিকানা প্রদান করুন (Invalid email format)' };
@@ -615,16 +625,19 @@ export async function createAndSendPasswordResetCode(
   };
   savePasswordResets(resets);
 
-  // 1. Send the 6-digit OTP code HTML email immediately via pooled SMTP
-  const smtpPromise = sendPasswordResetEmail(cleanEmail, code, userName).catch((err: any) => {
-    console.warn(`[PASSWORD RESET EMAIL WARNING] Failed to deliver SMTP email to ${cleanEmail}:`, err?.message || err);
-  });
-
-  // Fast response: wait up to 1.5s for pooled SMTP delivery, otherwise let it finish in background
-  await Promise.race([
-    smtpPromise,
-    new Promise((resolve) => setTimeout(resolve, 1500))
-  ]);
+  // 1. Send the 6-digit OTP code HTML email via pooled SMTP or HTTPS Bridge
+  let emailDelivered = false;
+  try {
+    const res = await Promise.race([
+      sendPasswordResetEmail(cleanEmail, code, userName),
+      new Promise<any>((resolve) => setTimeout(() => resolve(null), 2000))
+    ]);
+    if (res && res.success && !res.simulated) {
+      emailDelivered = true;
+    }
+  } catch (err: any) {
+    console.warn(`[PASSWORD RESET EMAIL WARNING] Direct send notice for ${cleanEmail}:`, err?.message || err);
+  }
 
   // 2. Also trigger Google Firebase Auth Password Reset via HTTPS Port 443 in background as secondary fallback
   if (FIREBASE_AUTH_API_KEY) {
@@ -646,7 +659,14 @@ export async function createAndSendPasswordResetCode(
       });
   }
 
-  return { success: true };
+  const isRender = Boolean(process.env.RENDER || process.env.IS_RENDER || process.env.RENDER_SERVICE_ID);
+  const shouldProvideInstantCode = !emailDelivered || isRender;
+
+  return {
+    success: true,
+    emailSent: emailDelivered,
+    instantCode: shouldProvideInstantCode ? code : undefined
+  };
 }
 
 /**

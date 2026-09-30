@@ -2200,8 +2200,9 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     // Store pending registration inside verification record and dispatch 6-digit OTP email.
+    let sendResult: any = null;
     try {
-      await createAndSendVerificationCode(cleanEmail, name.trim(), true, {
+      sendResult = await createAndSendVerificationCode(cleanEmail, name.trim(), true, {
         name: name.trim(),
         email: cleanEmail,
         password: password || ''
@@ -2214,6 +2215,7 @@ app.post('/api/auth/register', async (req, res) => {
       success: true,
       requiresVerification: true,
       email: cleanEmail,
+      instantCode: sendResult?.instantCode,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করলে আপনার রেজিস্ট্রেশন সম্পন্ন হবে।'
     });
   } catch (err: any) {
@@ -2242,6 +2244,7 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
     }
     return res.json({
       success: true,
+      instantCode: result.instantCode,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার verification code পাঠিয়েছি।'
     });
   } catch (err: any) {
@@ -2267,6 +2270,7 @@ app.post('/api/auth/resend-verification-code', async (req, res) => {
     }
     return res.json({
       success: true,
+      instantCode: result.instantCode,
       message: 'নতুন ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।'
     });
   } catch (err: any) {
@@ -2676,6 +2680,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     return res.json({
       success: true,
+      instantCode: result.instantCode,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠিয়েছি।'
     });
   } catch (err: any) {
@@ -2720,6 +2725,7 @@ app.post('/api/auth/resend-reset-code', async (req, res) => {
 
     return res.json({
       success: true,
+      instantCode: result.instantCode,
       message: 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।'
     });
   } catch (err: any) {

@@ -17,7 +17,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-26T23:16:07.898Z",
-    "updatedAt": 1790756666225
+    "updatedAt": 1790761462234
   },
   {
     "id": "user_1790454329125_a498",
@@ -29,7 +29,7 @@
     "emailVerified": true,
     "isVerified": true,
     "balanceBdt": 0,
-    "balanceUsd": 578.62,
+    "balanceUsd": 678.62,
     "maxWebsites": 999,
     "maxStorageMb": 100,
     "hasClaimedFreeTrial": true,
@@ -39,7 +39,7 @@
     "googleId": "cbfl45Dm70TVmiRs3unHWKGzhGC2",
     "avatar": "https://lh3.googleusercontent.com/a/ACg8ocJmlgeaVaGlLo4R0dg_Mw-TRToLgYk9q5MXlJWyYSIviGXopA=s96-c",
     "password": "",
-    "updatedAt": 1790756666729
+    "updatedAt": 1790761462792
   },
   {
     "id": "user_1790504693014_zdxr",
@@ -62,7 +62,7 @@
     "hasClaimedFreeTrial": true,
     "hasClaimedFreePlan": true,
     "freeTrialClaimedAt": "2026-09-29T13:11:51.522Z",
-    "updatedAt": 1790756666871
+    "updatedAt": 1790761463193
   },
   {
     "id": "user_1790505060123_bmdw",
@@ -82,7 +82,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-27T10:31:00.123Z",
-    "updatedAt": 1790756667469
+    "updatedAt": 1790761463741
   },
   {
     "id": "user_1790722647223_0tla",
@@ -101,7 +101,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-29T22:57:27.223Z",
-    "updatedAt": 1790756668455
+    "updatedAt": 1790761464313
   },
   {
     "id": "user_1790719658531_shjk",
@@ -120,7 +120,26 @@
     "avatar": "https://lh3.googleusercontent.com/a/ACg8ocK69vVNjNnDUnTcXHo7ShEigU5dRCByy6G_z9XaH_gfXnOdlw=s96-c",
     "googleId": "DMSrybHBWkPnEsxqhNaxBrn6Mdp1",
     "createdAt": "2026-09-29T22:07:38.531Z",
-    "updatedAt": 1790756668601,
+    "updatedAt": 1790761464869,
     "password": ""
+  },
+  {
+    "id": "user_1790759848940_v9cr",
+    "name": "Rahman",
+    "email": "mdtayburrahman8989@gmail.com",
+    "password": "12345678",
+    "role": "user",
+    "plan": "free",
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "isVerified": true,
+    "emailVerified": true,
+    "avatar": "",
+    "googleId": "",
+    "createdAt": "2026-09-30T09:17:28.940Z",
+    "updatedAt": 1790761465257
   }
 ]

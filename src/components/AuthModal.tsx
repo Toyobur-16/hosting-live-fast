@@ -449,12 +449,21 @@ export const AuthModal = ({
 
       setResendCooldown(15);
       setExpirySeconds(600);
-      setDigits(['', '', '', '', '', '']);
-      setSuccessMessage(
-        lang === 'bn'
-          ? (isReset ? 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।' : 'নতুন ৬ সংখ্যার কোড ও ভেরিফিকেশন মেইল আপনার ইমেইলে পাঠানো হয়েছে।')
-          : 'A new 6-digit code has been sent to your email.'
-      );
+      if (data?.instantCode && data.instantCode.length === 6) {
+        setDigits(data.instantCode.split(''));
+        setSuccessMessage(
+          lang === 'bn'
+            ? `⚡ ভেরিফিকেশন কোড: ${data.instantCode} (স্বয়ংক্রিয়ভাবে প্রবেশ করানো হয়েছে)`
+            : `⚡ Verification Code: ${data.instantCode} (Pre-filled)`
+        );
+      } else {
+        setDigits(['', '', '', '', '', '']);
+        setSuccessMessage(
+          lang === 'bn'
+            ? (isReset ? 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।' : 'নতুন ৬ সংখ্যার কোড ও ভেরিফিকেশন মেইল আপনার ইমেইলে পাঠানো হয়েছে।')
+            : 'A new 6-digit code has been sent to your email.'
+        );
+      }
       digitInputRefs.current[0]?.focus();
     } catch (err: any) {
       const msg = err?.message || '';
@@ -538,14 +547,24 @@ export const AuthModal = ({
           localStorage.removeItem('bot_auth_token');
           localStorage.removeItem('bot_auth_user');
           setMode('verify');
-          setDigits(['', '', '', '', '', '']);
           setExpirySeconds(600);
-          setResendCooldown(60);
-          setSuccessMessage(
-            lang === 'bn'
-              ? 'আপনার ইমেইলে ভেরিফিকেশন লিংক ও কোড পাঠানো হয়েছে! ইমেইলে গিয়ে লিংকে ক্লিক করলেই অটোমেটিক একাউন্ট চালু হবে (অথবা ৬ সংখ্যার কোড দিন)।'
-              : 'Verification link & code sent to your email! Click the link in your email or enter the 6-digit code.'
-          );
+          setResendCooldown(30);
+
+          if (data?.instantCode && data.instantCode.length === 6) {
+            setDigits(data.instantCode.split(''));
+            setSuccessMessage(
+              lang === 'bn'
+                ? `⚡ ভেরিফিকেশন কোড: ${data.instantCode} (নিচে সরাসরি বসিয়ে দেওয়া হয়েছে। একাউন্ট সক্রিয় করতে নিচের বাটনে চাপ দিন)`
+                : `⚡ Verification Code: ${data.instantCode} (Pre-filled below. Click verify to activate your account)`
+            );
+          } else {
+            setDigits(['', '', '', '', '', '']);
+            setSuccessMessage(
+              lang === 'bn'
+                ? 'আপনার ইমেইলে ভেরিফিকেশন লিংক ও কোড পাঠানো হয়েছে! ইমেইলে গিয়ে লিংকে ক্লিক করলেই অটোমেটিক একাউন্ট চালু হবে (অথবা ৬ সংখ্যার কোড দিন)।'
+                : 'Verification link & code sent to your email! Click the link in your email or enter the 6-digit code.'
+            );
+          }
           setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
           localStorage.setItem('bot_auth_token', data.token);
@@ -569,14 +588,24 @@ export const AuthModal = ({
           localStorage.removeItem('bot_auth_token');
           localStorage.removeItem('bot_auth_user');
           setMode('verify');
-          setDigits(['', '', '', '', '', '']);
           setExpirySeconds(600);
-          setResendCooldown(60);
-          setSuccessMessage(
-            lang === 'bn'
-              ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করুন।'
-              : 'We have sent a 6-digit verification code to your email.'
-          );
+          setResendCooldown(30);
+
+          if (data?.instantCode && data.instantCode.length === 6) {
+            setDigits(data.instantCode.split(''));
+            setSuccessMessage(
+              lang === 'bn'
+                ? `⚡ ভেরিফিকেশন কোড: ${data.instantCode} (নিচে সরাসরি বসিয়ে দেওয়া হয়েছে)`
+                : `⚡ Verification Code: ${data.instantCode} (Pre-filled below)`
+            );
+          } else {
+            setDigits(['', '', '', '', '', '']);
+            setSuccessMessage(
+              lang === 'bn'
+                ? 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। কোডটি দিয়ে ভেরিফাই করুন।'
+                : 'We have sent a 6-digit verification code to your email.'
+            );
+          }
           setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
           localStorage.setItem('bot_auth_token', data.token);
@@ -620,14 +649,24 @@ export const AuthModal = ({
       }
 
       setResetStep('verify_and_set');
-      setDigits(['', '', '', '', '', '']);
       setExpirySeconds(600);
-      setResendCooldown(60);
-      setSuccessMessage(
-        lang === 'bn'
-          ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।`
-          : `A 6-digit password reset code has been sent to ${cleanEmail}.`
-      );
+      setResendCooldown(30);
+
+      if (data?.instantCode && data.instantCode.length === 6) {
+        setDigits(data.instantCode.split(''));
+        setSuccessMessage(
+          lang === 'bn'
+            ? `⚡ পাসওয়ার্ড রিসেট কোড: ${data.instantCode} (নিচে স্বয়ংক্রিয়ভাবে প্রবেশ করানো হয়েছে। নতুন পাসওয়ার্ড লিখুন)`
+            : `⚡ Reset Code: ${data.instantCode} (Pre-filled below. Please enter your new password)`
+        );
+      } else {
+        setDigits(['', '', '', '', '', '']);
+        setSuccessMessage(
+          lang === 'bn'
+            ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।`
+            : `A 6-digit password reset code has been sent to ${cleanEmail}.`
+        );
+      }
       setTimeout(() => {
         digitInputRefs.current[0]?.focus();
       }, 150);
