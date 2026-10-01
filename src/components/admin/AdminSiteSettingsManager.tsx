@@ -14,6 +14,7 @@ export function AdminSiteSettingsManager() {
         return {
           siteName: parsed.siteName || 'hosting-live-fast',
           logoUrl: normalizeLogoUrl(parsed.logoUrl || '/site-logo.png'),
+          apkIconUrl: parsed.apkIconUrl ? normalizeLogoUrl(parsed.apkIconUrl) : undefined,
           taglineBn: parsed.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
           taglineEn: parsed.taglineEn || '24/7 Fast Bot & Top Up Service',
           hostingVideoUrl: parsed.hostingVideoUrl || '',
@@ -24,6 +25,7 @@ export function AdminSiteSettingsManager() {
     return {
       siteName: 'hosting-live-fast',
       logoUrl: '/site-logo.png',
+      apkIconUrl: '/pwa-192x192.png',
       taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
       taglineEn: '24/7 Fast Bot & Top Up Service'
     };
@@ -38,7 +40,7 @@ export function AdminSiteSettingsManager() {
   const [apkInfo, setApkInfo] = useState<{ hasApk: boolean; fileName?: string; downloadUrl?: string; sizeBytes?: number } | null>(null);
   const [uploadingApk, setUploadingApk] = useState(false);
   const [uploadingApkIcon, setUploadingApkIcon] = useState(false);
-  const [apkIconUrl, setApkIconUrl] = useState<string>(() => settings.logoUrl || '/pwa-192x192.png');
+  const [apkIconUrl, setApkIconUrl] = useState<string>(() => settings.apkIconUrl || '/pwa-192x192.png');
 
   useEffect(() => {
     fetchSettings();
@@ -50,18 +52,24 @@ export function AdminSiteSettingsManager() {
         const cloudSettings = snap.data() as SiteSettings;
         if (cloudSettings) {
           const cleanLogo = cloudSettings.logoUrl ? normalizeLogoUrl(cloudSettings.logoUrl) : undefined;
+          const cleanApk = cloudSettings.apkIconUrl ? normalizeLogoUrl(cloudSettings.apkIconUrl) : undefined;
           setSettings((prev) => ({
             ...prev,
             ...cloudSettings,
             logoUrl:
               (prev.logoUrl?.startsWith('data:image/') && (!cleanLogo || cleanLogo === '/site-logo.png'))
                 ? prev.logoUrl
-                : (cleanLogo || prev.logoUrl || '/site-logo.png')
+                : (cleanLogo || prev.logoUrl || '/site-logo.png'),
+            apkIconUrl: cleanApk || prev.apkIconUrl
           }));
+          if (cleanApk) {
+            setApkIconUrl(cleanApk);
+          }
         }
       }
     }, () => {});
 
+    // Live Firebase Firestore listener for site logo ONLY (Header / Brand)
     const unsubLogo = onSnapshot(doc(db, 'site_images', 'site_logo'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -72,17 +80,22 @@ export function AdminSiteSettingsManager() {
             ...prev,
             logoUrl: clean
           }));
-          setApkIconUrl(clean);
         }
       }
     }, () => {});
 
+    // Live Firebase Firestore listener for APK icon ONLY (Android APK & PWA)
     const unsubApkIcon = onSnapshot(doc(db, 'site_images', 'apk_icon'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         const raw = data?.dataUrl || data?.base64 || data?.url;
         if (raw) {
-          setApkIconUrl(normalizeLogoUrl(raw, data?.contentType));
+          const clean = normalizeLogoUrl(raw, data?.contentType);
+          setApkIconUrl(clean);
+          setSettings((prev) => ({
+            ...prev,
+            apkIconUrl: clean
+          }));
         }
       }
     }, () => {});
@@ -105,6 +118,7 @@ export function AdminSiteSettingsManager() {
         const data = await res.json();
         if (data.settings) {
           const cleanLogo = normalizeLogoUrl(data.settings.logoUrl);
+          const cleanApk = data.settings.apkIconUrl ? normalizeLogoUrl(data.settings.apkIconUrl) : undefined;
           setSettings((prev) => ({
             ...prev,
             ...data.settings,
@@ -112,8 +126,12 @@ export function AdminSiteSettingsManager() {
               (prev.logoUrl?.startsWith('data:image/') || prev.logoUrl?.startsWith('http')) &&
               (!cleanLogo || cleanLogo === '/site-logo.png' || cleanLogo.startsWith('/api/store/thumbnails/'))
                 ? prev.logoUrl
-                : cleanLogo
+                : cleanLogo,
+            apkIconUrl: cleanApk || prev.apkIconUrl
           }));
+          if (cleanApk) {
+            setApkIconUrl(cleanApk);
+          }
         }
       }
     } catch {
@@ -184,20 +202,19 @@ export function AdminSiteSettingsManager() {
     } catch {}
   };
 
-  const uploadAndApplyBrandingImage = async (file: File) => {
+  // Updates ONLY the Site Logo for Header, Sidebar, and Website
+  const uploadAndApplySiteLogo = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setNotification({ type: 'error', text: 'শুধুমাত্র ইমেজ ফাইল (PNG, JPG, WebP, SVG) নির্বাচন করুন।' });
       return;
     }
 
     try {
-      setUploadingApkIcon(true);
       setUploadingLogo(true);
       setNotification(null);
 
-      // Optimize image for high-res crisp app icon and logo (600x600)
+      // Optimize image for high-res crisp header & site logo (600x600)
       const optimizedDataUrl = await optimizeLogoImage(file, 600, 600);
-      setApkIconUrl(optimizedDataUrl);
       setSettings((prev) => ({ ...prev, logoUrl: optimizedDataUrl }));
 
       const token = localStorage.getItem('bot_auth_token');
@@ -223,76 +240,136 @@ export function AdminSiteSettingsManager() {
         })
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        const freshLogoUrl = optimizedDataUrl;
-        const updatedSettings: SiteSettings = {
-          ...settings,
-          logoUrl: freshLogoUrl
-        };
-        setSettings(updatedSettings);
+      const updatedSettings: SiteSettings = {
+        ...settings,
+        logoUrl: optimizedDataUrl
+      };
+      setSettings(updatedSettings);
 
-        try {
-          localStorage.setItem('hlf_site_settings', JSON.stringify(updatedSettings));
-        } catch {}
-        window.dispatchEvent(new CustomEvent('site-settings-updated', { detail: updatedSettings }));
+      try {
+        localStorage.setItem('hlf_site_settings', JSON.stringify(updatedSettings));
+      } catch {}
+      window.dispatchEvent(new CustomEvent('site-settings-updated', { detail: updatedSettings }));
 
-        // Also update site_images/site_logo and site_images/apk_icon in Firestore
-        const now = Date.now();
-        const imageDoc = {
-          id: 'site_logo',
-          fileName: file.name || 'site-logo.png',
-          contentType: file.type || 'image/png',
-          url: freshLogoUrl,
-          dataUrl: optimizedDataUrl,
-          base64: optimizedDataUrl,
-          updatedAt: now
-        };
-        try {
-          await setDoc(doc(db, 'site_images', 'site_logo'), imageDoc, { merge: true });
-          await setDoc(doc(db, 'site_images', 'apk_icon'), { ...imageDoc, id: 'apk_icon' }, { merge: true });
-          await setDoc(doc(db, 'site_images', 'website_logo'), { ...imageDoc, id: 'website_logo' }, { merge: true });
-          await setDoc(doc(db, 'site_settings', 'general'), updatedSettings, { merge: true });
-          await setDoc(doc(db, 'config', 'site_settings'), updatedSettings, { merge: true });
-        } catch (e) {
-          console.warn('Firestore write warning:', e);
-        }
-
-        setNotification({
-          type: 'success',
-          text: '✓ সাইট লোগো, অ্যাপ আইকন (Chrome/PWA) এবং APK পিকচার সফলভাবে পরিবর্তন হয়েছে!'
-        });
-        fetchApkInfo();
-      } else {
-        // Fallback to direct upload-file & site-settings
-        await persistSettingsEverywhere({ ...settings, logoUrl: optimizedDataUrl }, { name: file.name, type: file.type || 'image/png' });
-        setNotification({
-          type: 'success',
-          text: '✓ ছবি সফলভাবে সংরক্ষিত ও আপডেট হয়েছে!'
-        });
-        fetchApkInfo();
+      // Update Firestore: site_images/site_logo & site_settings/general
+      const now = Date.now();
+      const imageDoc = {
+        id: 'site_logo',
+        fileName: file.name || 'site-logo.png',
+        contentType: file.type || 'image/png',
+        url: optimizedDataUrl,
+        dataUrl: optimizedDataUrl,
+        base64: optimizedDataUrl,
+        updatedAt: now
+      };
+      try {
+        await setDoc(doc(db, 'site_images', 'site_logo'), imageDoc, { merge: true });
+        await setDoc(doc(db, 'site_images', 'website_logo'), { ...imageDoc, id: 'website_logo' }, { merge: true });
+        await setDoc(doc(db, 'site_settings', 'general'), updatedSettings, { merge: true });
+        await setDoc(doc(db, 'config', 'site_settings'), updatedSettings, { merge: true });
+      } catch (e) {
+        console.warn('Firestore write warning:', e);
       }
+
+      setNotification({
+        type: 'success',
+        text: '✓ সাইট লোগো সফলভাবে পরিবর্তন ও আপডেট হয়েছে (হেডার ও সাইডবারে সংরক্ষিত)!'
+      });
     } catch (err: any) {
-      setNotification({ type: 'error', text: err.message || 'ছবি পরিবর্তন করতে সমস্যা হয়েছে' });
+      setNotification({ type: 'error', text: err.message || 'সাইট লোগো পরিবর্তন করতে সমস্যা হয়েছে' });
     } finally {
-      setUploadingApkIcon(false);
       setUploadingLogo(false);
-      if (apkIconInputRef.current) apkIconInputRef.current.value = '';
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // Updates ONLY the Android APK picture & install icons
+  const uploadAndApplyApkIcon = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setNotification({ type: 'error', text: 'শুধুমাত্র ইমেজ ফাইল (PNG, JPG, WebP) নির্বাচন করুন।' });
+      return;
+    }
+
+    try {
+      setUploadingApkIcon(true);
+      setNotification(null);
+
+      // Optimize image for high-res crisp APK app icon (512x512)
+      const optimizedDataUrl = await optimizeLogoImage(file, 512, 512);
+      setApkIconUrl(optimizedDataUrl);
+      setSettings((prev) => ({ ...prev, apkIconUrl: optimizedDataUrl }));
+
+      const token = localStorage.getItem('bot_auth_token');
+      let userEmail = '';
+      try {
+        const u = JSON.parse(localStorage.getItem('bot_auth_user') || '{}');
+        userEmail = u.email || '';
+      } catch {}
+
+      await fetch('/api/admin/app-download/icon', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(userEmail ? { 'x-admin-email': userEmail } : {})
+        },
+        body: JSON.stringify({
+          iconBase64: optimizedDataUrl,
+          adminEmail: userEmail
+        })
+      });
+
+      // Update Firestore: site_images/apk_icon & site_settings/general
+      const now = Date.now();
+      const imageDoc = {
+        id: 'apk_icon',
+        fileName: file.name || 'apk-icon.png',
+        contentType: file.type || 'image/png',
+        url: optimizedDataUrl,
+        dataUrl: optimizedDataUrl,
+        base64: optimizedDataUrl,
+        updatedAt: now
+      };
+      try {
+        await setDoc(doc(db, 'site_images', 'apk_icon'), imageDoc, { merge: true });
+        await setDoc(doc(db, 'site_settings', 'general'), { apkIconUrl: optimizedDataUrl, updatedAt: now }, { merge: true });
+        await setDoc(doc(db, 'config', 'site_settings'), { apkIconUrl: optimizedDataUrl, updatedAt: now }, { merge: true });
+      } catch (e) {
+        console.warn('Firestore write warning:', e);
+      }
+
+      setNotification({
+        type: 'success',
+        text: '✓ APK পিকচার সফলভাবে পরিবর্তন হয়েছে ও ৫.০ MB APK প্যাকেজে সংযুক্ত হয়েছে!'
+      });
+      fetchApkInfo();
+    } catch (err: any) {
+      setNotification({ type: 'error', text: err.message || 'APK পিকচার পরিবর্তন করতে সমস্যা হয়েছে' });
+    } finally {
+      setUploadingApkIcon(false);
+      if (apkIconInputRef.current) apkIconInputRef.current.value = '';
+    }
+  };
+
+  const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadAndApplySiteLogo(file);
   };
 
   const handleApkIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    await uploadAndApplyBrandingImage(file);
+    await uploadAndApplyApkIcon(file);
   };
 
   const persistSettingsEverywhere = async (updatedSettings: SiteSettings, fileMeta?: { name: string; type: string }) => {
     const cleanLogo = normalizeLogoUrl(updatedSettings.logoUrl || '/site-logo.png');
+    const cleanApk = updatedSettings.apkIconUrl ? normalizeLogoUrl(updatedSettings.apkIconUrl) : undefined;
     const finalSettings: SiteSettings = {
       ...updatedSettings,
-      logoUrl: cleanLogo
+      logoUrl: cleanLogo,
+      ...(cleanApk ? { apkIconUrl: cleanApk } : {})
     };
 
     // 1. Save immediately to localStorage & broadcast live to App header
@@ -332,9 +409,22 @@ export function AdminSiteSettingsManager() {
       };
       try {
         await setDoc(doc(db, 'site_images', 'site_logo'), imageDoc, { merge: true });
-      } catch {}
-      try {
         await setDoc(doc(db, 'site_images', 'website_logo'), { ...imageDoc, id: 'website_logo' }, { merge: true });
+      } catch {}
+    }
+
+    if (cleanApk) {
+      const apkDoc = {
+        id: 'apk_icon',
+        fileName: 'apk-icon.png',
+        contentType: 'image/png',
+        url: cleanApk,
+        dataUrl: cleanApk,
+        base64: cleanApk,
+        updatedAt: now
+      };
+      try {
+        await setDoc(doc(db, 'site_images', 'apk_icon'), apkDoc, { merge: true });
       } catch {}
     }
 
@@ -375,12 +465,6 @@ export function AdminSiteSettingsManager() {
         body: JSON.stringify(finalSettings)
       });
     } catch {}
-  };
-
-  const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await uploadAndApplyBrandingImage(file);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -765,7 +849,7 @@ export function AdminSiteSettingsManager() {
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 rounded-2xl p-1 bg-gradient-to-tr from-[#00d293] to-sky-500 shadow-md flex items-center justify-center shrink-0">
                   <img
-                    src={apkIconUrl || settings.logoUrl || '/pwa-192x192.png'}
+                    src={apkIconUrl || '/pwa-192x192.png'}
                     alt="APK Icon"
                     className="w-full h-full object-cover rounded-xl bg-slate-900"
                     onError={(e) => {

@@ -113,7 +113,13 @@ import {
   APK_DOWNLOAD_DIR,
   DEFAULT_APK_FILENAME,
   updateApkIcon,
+  updateApkIconOnly,
+  updateSiteLogoImages,
   updateAllBrandingImages,
+  getActiveSiteLogoBuffer,
+  setActiveSiteLogoBuffer,
+  getActiveApkIconBuffer,
+  setActiveApkIconBuffer,
   getActiveBrandingBuffer,
   setActiveBrandingBuffer
 } from './server/apkManager';
@@ -219,32 +225,22 @@ app.get(['/manifest.webmanifest', '/manifest.json'], (req, res) => {
   return res.json(manifest);
 });
 
-// Dynamic Branding Image Delivery for Site Logo, PWA Icons, Apple Touch Icon, and Favicons
-// Prevents stale browser/PWA caches, serves the latest admin-uploaded branding immediately with Firestore sync
-const BRANDING_ROUTES = [
+// 1. Dedicated Site Logo Delivery (Header, Sidebar, Brand banner)
+// Guaranteed separation: Will NEVER serve or be replaced by the APK icon!
+const SITE_LOGO_ROUTES = [
   '/site-logo.png',
   '/site-logo.jpg',
   '/public/site-logo.png',
   '/public/site-logo.jpg',
-  '/pwa-192x192.png',
-  '/pwa-512x512.png',
-  '/pwa-maskable-512x512.png',
-  '/apple-touch-icon.png',
-  '/favicon.png',
-  '/favicon.ico',
-  '/favicon-32x32.png',
-  '/favicon-16x16.png',
-  '/logo.png',
-  '/logo-icon.png',
   '/hosting-live-fast-logo.png'
 ];
 
-app.get(BRANDING_ROUTES, async (req, res, next) => {
+app.get(SITE_LOGO_ROUTES, async (req, res, next) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 
-  const { buffer: memoryBuffer, contentType } = getActiveBrandingBuffer();
+  const { buffer: memoryBuffer, contentType } = getActiveSiteLogoBuffer();
   if (memoryBuffer && memoryBuffer.length > 0) {
     res.setHeader('Content-Type', contentType || 'image/png');
     return res.send(memoryBuffer);
@@ -255,13 +251,59 @@ app.get(BRANDING_ROUTES, async (req, res, next) => {
     const cloudImg = await FirebaseSync.loadSiteImageFromCloud('site_logo');
     if (cloudImg && cloudImg.base64) {
       const buf = Buffer.from(cloudImg.base64, 'base64');
-      updateAllBrandingImages(buf, cloudImg.contentType || 'image/png');
+      setActiveSiteLogoBuffer(buf, cloudImg.contentType || 'image/png');
       res.setHeader('Content-Type', cloudImg.contentType || 'image/png');
       return res.send(buf);
     }
   } catch {}
 
   // Fallback to disk file if present
+  const baseName = path.basename(req.path);
+  const diskPath = path.join(process.cwd(), 'public', baseName);
+  if (fs.existsSync(diskPath)) {
+    return res.sendFile(diskPath);
+  }
+
+  next();
+});
+
+// 2. Dedicated Android APK & PWA Icon Delivery (Independent from Site Logo)
+// Used by InstallAppModal, PWA install prompts, Chrome manifest, and the 5.0 MB APK package
+const APK_ICON_ROUTES = [
+  '/pwa-192x192.png',
+  '/pwa-512x512.png',
+  '/pwa-maskable-512x512.png',
+  '/apple-touch-icon.png',
+  '/apk-icon.png',
+  '/favicon.png',
+  '/favicon.ico',
+  '/favicon-32x32.png',
+  '/favicon-16x16.png',
+  '/logo.png',
+  '/logo-icon.png'
+];
+
+app.get(APK_ICON_ROUTES, async (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  const { buffer: memoryBuffer, contentType } = getActiveApkIconBuffer();
+  if (memoryBuffer && memoryBuffer.length > 0) {
+    res.setHeader('Content-Type', contentType || 'image/png');
+    return res.send(memoryBuffer);
+  }
+
+  try {
+    const cloudImg = await FirebaseSync.loadSiteImageFromCloud('apk_icon');
+    if (cloudImg && cloudImg.base64) {
+      const buf = Buffer.from(cloudImg.base64, 'base64');
+      setActiveApkIconBuffer(buf, cloudImg.contentType || 'image/png');
+      res.setHeader('Content-Type', cloudImg.contentType || 'image/png');
+      return res.send(buf);
+    }
+  } catch {}
+
   const baseName = path.basename(req.path);
   const diskPath = path.join(process.cwd(), 'public', baseName);
   if (fs.existsSync(diskPath)) {
@@ -5650,7 +5692,16 @@ app.delete('/api/admin/app-download/:fileName', (req, res) => {
   }
 });
 
-// Dedicated Single-Click Endpoint: Admin Update Site Logo, PWA Icons & APK Picture
+// GET site settings endpoint for client and admin
+app.get(['/api/site-settings', '/api/admin/site-settings'], (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  const settings = getSiteSettings();
+  res.json({ success: true, settings });
+});
+
+// Dedicated Single-Click Endpoint: Admin Update Site Logo (ONLY updates Site Logo, does NOT displace APK Icon)
 app.post('/api/admin/site-branding/image', (req, res) => {
   let admin = getAuthUser(req);
   if (!admin) {
@@ -5671,7 +5722,7 @@ app.post('/api/admin/site-branding/image', (req, res) => {
   try {
     const raw = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
     const buf = Buffer.from(raw, 'base64');
-    const result = updateAllBrandingImages(buf);
+    const result = updateSiteLogoImages(buf);
 
     const version = Date.now();
     const effectiveDataUrl = imageBase64.startsWith('data:') ? imageBase64 : `data:image/png;base64,${raw}`;
@@ -5686,26 +5737,25 @@ app.post('/api/admin/site-branding/image', (req, res) => {
     };
     saveSiteSettings(updated);
 
-    // Save to Firebase Cloud so it persists forever
+    // Save site_logo to Firebase Cloud so it persists forever
     FirebaseSync.saveSiteImageToCloud('site_logo', 'site-logo.png', 'image/png', effectiveDataUrl).catch(() => {});
-    FirebaseSync.saveSiteImageToCloud('apk_icon', 'apk-icon.png', 'image/png', effectiveDataUrl).catch(() => {});
     FirebaseSync.saveSiteImageToCloud('website_logo', 'website-logo.png', 'image/png', effectiveDataUrl).catch(() => {});
     FirebaseSync.syncSiteSettingsToCloud(updated).catch(() => {});
 
-    console.log(`✅ Admin updated branding picture: All icons (maskable, PWA), site logos and 5.0 MB APK rebuilt!`);
+    console.log(`✅ Admin updated SITE LOGO: Site header/drawer logo preserved without affecting APK!`);
     return res.json({
       success: true,
-      message: '✓ সাইট লোগো, অ্যাপ আইকন ও APK পিকচার সফলভাবে পরিবর্তন হয়েছে!',
+      message: '✓ সাইটের লোগো সফলভাবে পরিবর্তন হয়েছে!',
       logoUrl: effectiveDataUrl,
       settings: updated,
       ...result
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Error updating branding images' });
+    return res.status(500).json({ error: err.message || 'Error updating site logo image' });
   }
 });
 
-// Admin Update APK Icon / Picture & Regenerate 5.0 MB APK
+// Admin Update APK Icon / Picture & Regenerate 5.0 MB APK (ONLY updates APK, does NOT touch Site Logo)
 app.post('/api/admin/app-download/icon', (req, res) => {
   let admin = getAuthUser(req);
   if (!admin) {
@@ -5724,27 +5774,27 @@ app.post('/api/admin/app-download/icon', (req, res) => {
   try {
     const raw = iconBase64.includes(',') ? iconBase64.split(',')[1] : iconBase64;
     const buf = Buffer.from(raw, 'base64');
-    const result = updateAllBrandingImages(buf);
+    const result = updateApkIconOnly(buf);
 
     const version = Date.now();
+    const effectiveDataUrl = iconBase64.startsWith('data:') ? iconBase64 : `data:image/png;base64,${raw}`;
     const current = getSiteSettings();
     const updated = {
       ...current,
-      logoUrl: `/site-logo.png?v=${version}`,
+      apkIconUrl: effectiveDataUrl,
       updatedAt: version
     };
     saveSiteSettings(updated);
 
-    // Save to Firebase Cloud so it persists forever
-    FirebaseSync.saveSiteImageToCloud('apk_icon', 'apk-icon.png', 'image/png', iconBase64).catch(() => {});
-    FirebaseSync.saveSiteImageToCloud('site_logo', 'site-logo.png', 'image/png', iconBase64).catch(() => {});
-    FirebaseSync.saveSiteImageToCloud('website_logo', 'website-logo.png', 'image/png', iconBase64).catch(() => {});
+    // Save apk_icon to Firebase Cloud so it persists forever
+    FirebaseSync.saveSiteImageToCloud('apk_icon', 'apk-icon.png', 'image/png', effectiveDataUrl).catch(() => {});
     FirebaseSync.syncSiteSettingsToCloud(updated).catch(() => {});
 
+    console.log(`✅ Admin updated APK ICON: 5.0 MB APK re-packaged with new icon without touching Site Logo!`);
     return res.json({
       success: true,
-      message: 'APK icon successfully updated and 5.0 MB APK re-packaged!',
-      logoUrl: `/site-logo.png?v=${version}`,
+      message: '✓ APK পিকচার সফলভাবে পরিবর্তন হয়েছে ও APK প্যাকেজে যুক্ত হয়েছে!',
+      apkIconUrl: effectiveDataUrl,
       settings: updated,
       ...result
     });
@@ -5765,8 +5815,9 @@ app.post('/api/admin/site-settings', (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const { siteName, logoUrl, taglineBn, taglineEn, hostingVideoUrl, websiteVideoUrl } = req.body;
+  const { siteName, logoUrl, apkIconUrl, taglineBn, taglineEn, hostingVideoUrl, websiteVideoUrl } = req.body;
   let finalLogoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : undefined;
+  let finalApkIconUrl = typeof apkIconUrl === 'string' ? apkIconUrl.trim() : undefined;
 
   // If user pasted a Kommodo share link like https://kommodo.ai/i/ID, convert to direct image URL
   if (finalLogoUrl && finalLogoUrl.includes('kommodo.ai/i/')) {
@@ -5781,19 +5832,20 @@ app.post('/api/admin/site-settings', (req, res) => {
     ...current,
     ...(typeof siteName === 'string' ? { siteName: siteName.trim() } : {}),
     ...(finalLogoUrl !== undefined ? { logoUrl: finalLogoUrl } : {}),
+    ...(finalApkIconUrl !== undefined ? { apkIconUrl: finalApkIconUrl } : {}),
     ...(typeof taglineBn === 'string' ? { taglineBn: taglineBn.trim() } : {}),
     ...(typeof taglineEn === 'string' ? { taglineEn: taglineEn.trim() } : {}),
     ...(typeof hostingVideoUrl === 'string' ? { hostingVideoUrl: hostingVideoUrl.trim() } : {}),
     ...(typeof websiteVideoUrl === 'string' ? { websiteVideoUrl: websiteVideoUrl.trim() } : {})
   };
 
+  // 1. Handle Site Logo update independently
   if (finalLogoUrl && finalLogoUrl.startsWith('data:image/')) {
     try {
       const rawBase64 = finalLogoUrl.includes(',') ? finalLogoUrl.split(',')[1] : finalLogoUrl;
       const buffer = Buffer.from(rawBase64, 'base64');
-      updateAllBrandingImages(buffer);
+      updateSiteLogoImages(buffer);
       FirebaseSync.saveSiteImageToCloud('site_logo', 'site-logo.png', 'image/png', finalLogoUrl).catch(() => {});
-      FirebaseSync.saveSiteImageToCloud('apk_icon', 'apk-icon.png', 'image/png', finalLogoUrl).catch(() => {});
       FirebaseSync.saveSiteImageToCloud('website_logo', 'website-logo.png', 'image/png', finalLogoUrl).catch(() => {});
     } catch {}
   } else if (finalLogoUrl && (finalLogoUrl.startsWith('http://') || finalLogoUrl.startsWith('https://'))) {
@@ -5802,10 +5854,9 @@ app.post('/api/admin/site-settings', (req, res) => {
         .then((r) => r.arrayBuffer())
         .then((ab) => {
           const buffer = Buffer.from(ab);
-          updateAllBrandingImages(buffer);
+          updateSiteLogoImages(buffer);
           const base64 = buffer.toString('base64');
           FirebaseSync.saveSiteImageToCloud('site_logo', 'site-logo.png', 'image/png', base64).catch(() => {});
-          FirebaseSync.saveSiteImageToCloud('apk_icon', 'apk-icon.png', 'image/png', base64).catch(() => {});
           FirebaseSync.saveSiteImageToCloud('website_logo', 'website-logo.png', 'image/png', base64).catch(() => {});
         })
         .catch(() => {});
@@ -5815,8 +5866,30 @@ app.post('/api/admin/site-settings', (req, res) => {
       const localP = path.join(process.cwd(), 'hosted_bots', 'store_thumbnails', path.basename(finalLogoUrl));
       if (fs.existsSync(localP)) {
         const buffer = fs.readFileSync(localP);
-        updateAllBrandingImages(buffer);
+        updateSiteLogoImages(buffer);
       }
+    } catch {}
+  }
+
+  // 2. Handle APK Icon update independently
+  if (finalApkIconUrl && finalApkIconUrl.startsWith('data:image/')) {
+    try {
+      const rawBase64 = finalApkIconUrl.includes(',') ? finalApkIconUrl.split(',')[1] : finalApkIconUrl;
+      const buffer = Buffer.from(rawBase64, 'base64');
+      updateApkIconOnly(buffer);
+      FirebaseSync.saveSiteImageToCloud('apk_icon', 'apk-icon.png', 'image/png', finalApkIconUrl).catch(() => {});
+    } catch {}
+  } else if (finalApkIconUrl && (finalApkIconUrl.startsWith('http://') || finalApkIconUrl.startsWith('https://'))) {
+    try {
+      fetch(finalApkIconUrl)
+        .then((r) => r.arrayBuffer())
+        .then((ab) => {
+          const buffer = Buffer.from(ab);
+          updateApkIconOnly(buffer);
+          const base64 = buffer.toString('base64');
+          FirebaseSync.saveSiteImageToCloud('apk_icon', 'apk-icon.png', 'image/png', base64).catch(() => {});
+        })
+        .catch(() => {});
     } catch {}
   }
 
@@ -8848,28 +8921,40 @@ async function initSiteConfigSync() {
         console.log('✅ Restored site_settings from Firebase Firestore:', merged.siteName);
       }
 
-      // 1. If remoteSettings has custom data:image logo, apply it to all branding
+      // 1. If remoteSettings has custom data:image logo, apply it to SITE LOGO ONLY
       if (remoteSettings.logoUrl && remoteSettings.logoUrl.startsWith('data:image/')) {
         try {
           const rawBase64 = remoteSettings.logoUrl.includes(',') ? remoteSettings.logoUrl.split(',')[1] : remoteSettings.logoUrl;
           const buf = Buffer.from(rawBase64, 'base64');
-          updateAllBrandingImages(buf);
-          console.log('✅ Restored custom data:image branding logo from Firestore!');
+          updateSiteLogoImages(buf);
+          console.log('✅ Restored custom data:image site logo from Firestore!');
         } catch (e) {
           console.warn('Error applying remoteSettings data:image logo:', e);
         }
       }
 
-      // 2. Check and restore site_images/site_logo from Firestore
+      // 2. Check and restore site_images/site_logo from Firestore (Site Header Logo)
       try {
         const cloudLogo = await FirebaseSync.loadSiteImageFromCloud('site_logo');
         if (cloudLogo && cloudLogo.base64) {
           const buf = Buffer.from(cloudLogo.base64, 'base64');
-          updateAllBrandingImages(buf, cloudLogo.contentType || 'image/png');
-          console.log('✅ Restored custom site logo and PWA icons from Firebase Firestore (site_images/site_logo)!');
+          updateSiteLogoImages(buf, cloudLogo.contentType || 'image/png');
+          console.log('✅ Restored custom site logo from Firebase Firestore (site_images/site_logo)!');
         }
       } catch (e) {
         console.warn('Could not restore cloud site logo on boot:', e);
+      }
+
+      // 3. Check and restore site_images/apk_icon from Firestore (APK and PWA Install Icon)
+      try {
+        const cloudApkIcon = await FirebaseSync.loadSiteImageFromCloud('apk_icon');
+        if (cloudApkIcon && cloudApkIcon.base64) {
+          const buf = Buffer.from(cloudApkIcon.base64, 'base64');
+          updateApkIconOnly(buf, cloudApkIcon.contentType || 'image/png');
+          console.log('✅ Restored custom APK icon from Firebase Firestore (site_images/apk_icon)!');
+        }
+      } catch (e) {
+        console.warn('Could not restore cloud APK icon on boot:', e);
       }
 
       if (remoteSettings.logoUrl && remoteSettings.logoUrl.startsWith('/api/store/thumbnails/')) {

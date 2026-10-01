@@ -205,38 +205,89 @@ export function ensureApkExists(): { hasApk: boolean; fileName: string; sizeByte
   };
 }
 
-let activeBrandingBuffer: Buffer | null = null;
-let activeBrandingContentType = 'image/png';
+let activeSiteLogoBuffer: Buffer | null = null;
+let activeSiteLogoContentType = 'image/png';
 
-export function getActiveBrandingBuffer(): { buffer: Buffer | null; contentType: string } {
-  return { buffer: activeBrandingBuffer, contentType: activeBrandingContentType };
+let activeApkIconBuffer: Buffer | null = null;
+let activeApkIconContentType = 'image/png';
+
+export function getActiveSiteLogoBuffer(): { buffer: Buffer | null; contentType: string } {
+  return { buffer: activeSiteLogoBuffer, contentType: activeSiteLogoContentType };
 }
 
-export function setActiveBrandingBuffer(buf: Buffer, contentType = 'image/png') {
-  activeBrandingBuffer = buf;
-  activeBrandingContentType = contentType;
+export function setActiveSiteLogoBuffer(buf: Buffer, contentType = 'image/png') {
+  activeSiteLogoBuffer = buf;
+  activeSiteLogoContentType = contentType;
+}
+
+export function getActiveApkIconBuffer(): { buffer: Buffer | null; contentType: string } {
+  return { buffer: activeApkIconBuffer, contentType: activeApkIconContentType };
+}
+
+export function setActiveApkIconBuffer(buf: Buffer, contentType = 'image/png') {
+  activeApkIconBuffer = buf;
+  activeApkIconContentType = contentType;
+}
+
+// Deprecated alias for backward compatibility
+export const getActiveBrandingBuffer = getActiveSiteLogoBuffer;
+export const setActiveBrandingBuffer = setActiveSiteLogoBuffer;
+
+/**
+ * Updates ONLY the website / header logo files (site-logo.png, etc.).
+ * Does NOT touch APK icons or the Android APK package.
+ */
+export function updateSiteLogoImages(logoBuffer: Buffer, contentType = 'image/png'): { success: boolean } {
+  setActiveSiteLogoBuffer(logoBuffer, contentType);
+  const publicDir = path.join(process.cwd(), 'public');
+  const filesToUpdate = [
+    'site-logo.png',
+    'site-logo.jpg',
+    'logo.png',
+    'hosting-live-fast-logo.png'
+  ];
+
+  for (const f of filesToUpdate) {
+    try {
+      fs.writeFileSync(path.join(publicDir, f), logoBuffer);
+    } catch (e) {
+      console.warn(`Failed writing public/${f}:`, e);
+    }
+  }
+
+  const distDir = path.join(process.cwd(), 'dist');
+  if (fs.existsSync(distDir)) {
+    for (const f of filesToUpdate) {
+      try {
+        const dest = path.join(distDir, f);
+        if (fs.existsSync(path.dirname(dest))) {
+          fs.writeFileSync(dest, logoBuffer);
+        }
+      } catch {}
+    }
+  }
+
+  console.log(`✅ Site logo updated (${logoBuffer.length} bytes) - Site branding preserved!`);
+  return { success: true };
 }
 
 /**
- * Updates all official branding images, PWA icons (including maskable), site logos, and regenerates the 5.0 MB APK.
+ * Updates ONLY the Android APK picture and PWA app install icons.
+ * Does NOT touch or displace the site logo!
  */
-export function updateAllBrandingImages(iconBuffer: Buffer, contentType = 'image/png'): { success: boolean; sizeBytes: number; fileName: string; downloadUrl: string } {
-  setActiveBrandingBuffer(iconBuffer, contentType);
+export function updateApkIconOnly(iconBuffer: Buffer, contentType = 'image/png'): { success: boolean; sizeBytes: number; fileName: string; downloadUrl: string } {
+  setActiveApkIconBuffer(iconBuffer, contentType);
   const publicDir = path.join(process.cwd(), 'public');
   const filesToUpdate = [
     'pwa-192x192.png',
     'pwa-512x512.png',
     'pwa-maskable-512x512.png', // CRITICAL: Used by Android Chrome for Install & Shortcut dialog
-    'site-logo.png',
-    'site-logo.jpg',
     'apple-touch-icon.png',
     'favicon.png',
     'favicon.ico',
     'favicon-32x32.png',
     'favicon-16x16.png',
-    'logo.png',
-    'logo-icon.png',
-    'hosting-live-fast-logo.png'
+    'logo-icon.png'
   ];
 
   for (const f of filesToUpdate) {
@@ -247,7 +298,6 @@ export function updateAllBrandingImages(iconBuffer: Buffer, contentType = 'image
     }
   }
 
-  // Also update dist directory if it exists so production build immediately serves new images
   const distDir = path.join(process.cwd(), 'dist');
   if (fs.existsSync(distDir)) {
     for (const f of filesToUpdate) {
@@ -260,16 +310,31 @@ export function updateAllBrandingImages(iconBuffer: Buffer, contentType = 'image
     }
   }
 
-  const newApkPath = generateDefaultApk(true);
-  const stats = fs.statSync(newApkPath);
-  console.log(`✅ All branding images, PWA icons (maskable), and 5.0 MB APK regenerated with new image (${stats.size} bytes)!`);
+  let sizeBytes = 5242880;
+  try {
+    const newApkPath = generateDefaultApk(true);
+    const stats = fs.statSync(newApkPath);
+    sizeBytes = stats.size;
+    console.log(`✅ Android APK package re-generated with new APK icon (${stats.size} bytes)!`);
+  } catch (err: any) {
+    console.warn('generateDefaultApk notice:', err.message);
+  }
+
   return {
     success: true,
     fileName: DEFAULT_APK_FILENAME,
-    sizeBytes: stats.size,
+    sizeBytes,
     downloadUrl: `/APK_DOWNLOAD/${DEFAULT_APK_FILENAME}`
   };
 }
 
-export const updateApkIcon = updateAllBrandingImages;
+/**
+ * Updates all official branding images (legacy compatibility).
+ */
+export function updateAllBrandingImages(iconBuffer: Buffer, contentType = 'image/png'): { success: boolean; sizeBytes: number; fileName: string; downloadUrl: string } {
+  updateSiteLogoImages(iconBuffer, contentType);
+  return updateApkIconOnly(iconBuffer, contentType);
+}
+
+export const updateApkIcon = updateApkIconOnly;
 

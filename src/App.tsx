@@ -83,7 +83,12 @@ export default function App() {
       .then((data) => {
         if (data.settings) {
           const cleanLogo = normalizeLogoUrl(data.settings.logoUrl);
-          const normalized = { ...data.settings, logoUrl: cleanLogo };
+          const cleanApk = data.settings.apkIconUrl ? normalizeLogoUrl(data.settings.apkIconUrl) : undefined;
+          const normalized = {
+            ...data.settings,
+            logoUrl: cleanLogo,
+            ...(cleanApk ? { apkIconUrl: cleanApk } : {})
+          };
           setSiteSettings((prev) => {
             // Do not overwrite a custom data:image or external logo with the default placeholder
             if (
@@ -106,7 +111,12 @@ export default function App() {
       const customEvent = e as CustomEvent<SiteSettings>;
       if (customEvent.detail) {
         const cleanLogo = normalizeLogoUrl(customEvent.detail.logoUrl);
-        const updated = { ...customEvent.detail, logoUrl: cleanLogo };
+        const cleanApk = customEvent.detail.apkIconUrl ? normalizeLogoUrl(customEvent.detail.apkIconUrl) : undefined;
+        const updated = {
+          ...customEvent.detail,
+          logoUrl: cleanLogo,
+          ...(cleanApk ? { apkIconUrl: cleanApk } : {})
+        };
         setSiteSettings(updated);
         applyBrowserBranding(updated.siteName, updated.logoUrl);
         try {
@@ -118,12 +128,13 @@ export default function App() {
     };
     window.addEventListener('site-settings-updated', handleSettingsUpdate);
 
-    // Live Firebase Firestore listener for site logo and settings
+    // Live Firebase Firestore listener for site settings & branding
     const unsub = onSnapshot(doc(db, 'site_settings', 'general'), (snap) => {
       if (snap.exists()) {
         const cloudSettings = snap.data() as SiteSettings;
         if (cloudSettings) {
           const cleanLogo = cloudSettings.logoUrl ? normalizeLogoUrl(cloudSettings.logoUrl) : undefined;
+          const cleanApk = cloudSettings.apkIconUrl ? normalizeLogoUrl(cloudSettings.apkIconUrl) : undefined;
           setSiteSettings((prev) => {
             const effectiveLogo =
               (prev.logoUrl?.startsWith('data:image/') && (!cleanLogo || cleanLogo === '/site-logo.png'))
@@ -133,7 +144,8 @@ export default function App() {
             const next = {
               ...prev,
               ...cloudSettings,
-              logoUrl: effectiveLogo
+              logoUrl: effectiveLogo,
+              apkIconUrl: cleanApk || prev.apkIconUrl
             };
             try {
               localStorage.setItem('hlf_site_settings', JSON.stringify(next));
@@ -145,7 +157,7 @@ export default function App() {
       }
     }, () => {});
 
-    // Live Firebase Firestore listener for uploaded site logo image
+    // Live Firebase Firestore listener for uploaded site logo image ONLY (Header / Drawer)
     const unsubLogo = onSnapshot(doc(db, 'site_images', 'site_logo'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -164,10 +176,29 @@ export default function App() {
       }
     }, () => {});
 
+    // Live Firebase Firestore listener for APK picture / icon ONLY
+    const unsubApkIcon = onSnapshot(doc(db, 'site_images', 'apk_icon'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const raw = data?.dataUrl || data?.base64 || data?.url;
+        if (raw) {
+          const cleanApk = normalizeLogoUrl(raw, data?.contentType);
+          setSiteSettings((prev) => {
+            const next = { ...prev, apkIconUrl: cleanApk };
+            try {
+              localStorage.setItem('hlf_site_settings', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+        }
+      }
+    }, () => {});
+
     return () => {
       window.removeEventListener('site-settings-updated', handleSettingsUpdate);
       unsub();
       unsubLogo();
+      unsubApkIcon();
     };
   }, []);
 
@@ -1102,6 +1133,7 @@ export default function App() {
         lang={lang}
         siteName={siteSettings.siteName}
         logoUrl={siteSettings.logoUrl}
+        apkIconUrl={siteSettings.apkIconUrl}
         onDownloaded={() => {
           recordApkDownload();
           setToastMessage(lang === 'bn' ? '✓ APK সফলভাবে ডাউনলোড হচ্ছে!' : '✓ APK download started!');

@@ -8,6 +8,7 @@ interface InstallAppModalProps {
   lang: 'bn' | 'en';
   siteName?: string;
   logoUrl?: string;
+  apkIconUrl?: string;
   onDownloaded?: () => void;
 }
 
@@ -16,7 +17,8 @@ export function InstallAppModal({
   onClose,
   lang,
   siteName = 'hosting live fast',
-  logoUrl = '/pwa-192x192.png',
+  logoUrl = '/site-logo.png',
+  apkIconUrl,
   onDownloaded
 }: InstallAppModalProps) {
   const { isInstallable, isInstalled, isIOS, install, apkDownloadUrl, isDownloaded, recordApkDownload } = usePWAInstall();
@@ -67,7 +69,7 @@ export function InstallAppModal({
         <div className="flex flex-col items-center text-center mb-6">
           <div className="relative w-20 h-20 rounded-2xl p-1 bg-gradient-to-tr from-[#00d293] to-sky-500 shadow-lg shadow-[#00d293]/20 mb-3 flex items-center justify-center">
             <img
-              src={logoUrl || '/pwa-192x192.png'}
+              src={apkIconUrl || '/pwa-192x192.png'}
               alt={siteName}
               className="w-full h-full object-cover rounded-xl bg-slate-900"
               onError={(e) => {
