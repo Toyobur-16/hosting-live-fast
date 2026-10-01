@@ -206,25 +206,50 @@ export function ensureApkExists(): { hasApk: boolean; fileName: string; sizeByte
 }
 
 /**
- * Updates the official APK icons and regenerates the 5.0 MB APK.
+ * Updates all official branding images, PWA icons (including maskable), site logos, and regenerates the 5.0 MB APK.
  */
-export function updateApkIcon(iconBuffer: Buffer): { success: boolean; sizeBytes: number; fileName: string; downloadUrl: string } {
-  const pwa192 = path.join(process.cwd(), 'public', 'pwa-192x192.png');
-  const pwa512 = path.join(process.cwd(), 'public', 'pwa-512x512.png');
-  const appleIcon = path.join(process.cwd(), 'public', 'apple-touch-icon.png');
-  const favIcon = path.join(process.cwd(), 'public', 'favicon.png');
+export function updateAllBrandingImages(iconBuffer: Buffer): { success: boolean; sizeBytes: number; fileName: string; downloadUrl: string } {
+  const publicDir = path.join(process.cwd(), 'public');
+  const filesToUpdate = [
+    'pwa-192x192.png',
+    'pwa-512x512.png',
+    'pwa-maskable-512x512.png', // CRITICAL: Used by Android Chrome for Install & Shortcut dialog
+    'site-logo.png',
+    'site-logo.jpg',
+    'apple-touch-icon.png',
+    'favicon.png',
+    'favicon.ico',
+    'favicon-32x32.png',
+    'favicon-16x16.png',
+    'logo.png',
+    'logo-icon.png',
+    'hosting-live-fast-logo.png'
+  ];
 
-  try {
-    fs.writeFileSync(pwa192, iconBuffer);
-    fs.writeFileSync(pwa512, iconBuffer);
-    try { fs.writeFileSync(appleIcon, iconBuffer); } catch {}
-    try { fs.writeFileSync(favIcon, iconBuffer); } catch {}
-  } catch (e) {
-    console.warn('Failed writing icon files:', e);
+  for (const f of filesToUpdate) {
+    try {
+      fs.writeFileSync(path.join(publicDir, f), iconBuffer);
+    } catch (e) {
+      console.warn(`Failed writing public/${f}:`, e);
+    }
+  }
+
+  // Also update dist directory if it exists so production build immediately serves new images
+  const distDir = path.join(process.cwd(), 'dist');
+  if (fs.existsSync(distDir)) {
+    for (const f of filesToUpdate) {
+      try {
+        const dest = path.join(distDir, f);
+        if (fs.existsSync(path.dirname(dest))) {
+          fs.writeFileSync(dest, iconBuffer);
+        }
+      } catch {}
+    }
   }
 
   const newApkPath = generateDefaultApk(true);
   const stats = fs.statSync(newApkPath);
+  console.log(`✅ All branding images, PWA icons (maskable), and 5.0 MB APK regenerated with new image (${stats.size} bytes)!`);
   return {
     success: true,
     fileName: DEFAULT_APK_FILENAME,
@@ -232,4 +257,6 @@ export function updateApkIcon(iconBuffer: Buffer): { success: boolean; sizeBytes
     downloadUrl: `/APK_DOWNLOAD/${DEFAULT_APK_FILENAME}`
   };
 }
+
+export const updateApkIcon = updateAllBrandingImages;
 

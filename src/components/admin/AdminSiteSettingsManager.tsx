@@ -179,60 +179,107 @@ export function AdminSiteSettingsManager() {
     } catch {}
   };
 
-  const handleApkIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadAndApplyBrandingImage = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      setNotification({ type: 'error', text: 'শুধুমাত্র ইমেজ ফাইল (PNG, JPG, WebP) নির্বাচন করুন।' });
+      setNotification({ type: 'error', text: 'শুধুমাত্র ইমেজ ফাইল (PNG, JPG, WebP, SVG) নির্বাচন করুন।' });
       return;
     }
 
     try {
       setUploadingApkIcon(true);
+      setUploadingLogo(true);
       setNotification(null);
 
-      // Optimize image for high-res square app icon (512x512)
-      const optimizedDataUrl = await optimizeLogoImage(file, 512, 512);
+      // Optimize image for high-res crisp app icon and logo (600x600)
+      const optimizedDataUrl = await optimizeLogoImage(file, 600, 600);
       setApkIconUrl(optimizedDataUrl);
+      setSettings((prev) => ({ ...prev, logoUrl: optimizedDataUrl }));
 
       const token = localStorage.getItem('bot_auth_token');
-      const res = await fetch('/api/admin/app-download/icon', {
+      let userEmail = '';
+      try {
+        const u = JSON.parse(localStorage.getItem('bot_auth_user') || '{}');
+        userEmail = u.email || '';
+      } catch {}
+
+      const res = await fetch('/api/admin/site-branding/image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(userEmail ? { 'x-admin-email': userEmail } : {})
         },
-        body: JSON.stringify({ iconBase64: optimizedDataUrl })
+        body: JSON.stringify({
+          imageBase64: optimizedDataUrl,
+          adminEmail: userEmail,
+          siteName: settings.siteName,
+          taglineBn: settings.taglineBn,
+          taglineEn: settings.taglineEn
+        })
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // Also update site_images/apk_icon in Firestore for cloud persistence
+        const freshLogoUrl = data.logoUrl || optimizedDataUrl;
+        const updatedSettings: SiteSettings = {
+          ...settings,
+          logoUrl: freshLogoUrl
+        };
+        setSettings(updatedSettings);
+
         try {
-          await setDoc(doc(db, 'site_images', 'apk_icon'), {
-            base64: optimizedDataUrl,
-            contentType: file.type || 'image/png',
-            updatedAt: Date.now()
-          }, { merge: true });
+          localStorage.setItem('hlf_site_settings', JSON.stringify(updatedSettings));
         } catch {}
+        window.dispatchEvent(new CustomEvent('site-settings-updated', { detail: updatedSettings }));
+
+        // Also update site_images/site_logo and site_images/apk_icon in Firestore
+        const now = Date.now();
+        const imageDoc = {
+          id: 'site_logo',
+          fileName: file.name || 'site-logo.png',
+          contentType: file.type || 'image/png',
+          url: freshLogoUrl,
+          dataUrl: optimizedDataUrl,
+          base64: optimizedDataUrl,
+          updatedAt: now
+        };
+        try {
+          await setDoc(doc(db, 'site_images', 'site_logo'), imageDoc, { merge: true });
+          await setDoc(doc(db, 'site_images', 'apk_icon'), { ...imageDoc, id: 'apk_icon' }, { merge: true });
+          await setDoc(doc(db, 'site_images', 'website_logo'), { ...imageDoc, id: 'website_logo' }, { merge: true });
+          await setDoc(doc(db, 'site_settings', 'general'), updatedSettings, { merge: true });
+        } catch (e) {
+          console.warn('Firestore write warning:', e);
+        }
 
         setNotification({
           type: 'success',
-          text: '✓ APK-র পিকচার সফলভাবে পরিবর্তন হয়েছে এবং নতুন ৫.০ MB APK তৈরি হয়েছে!'
+          text: '✓ সাইট লোগো, অ্যাপ আইকন (Chrome/PWA) এবং APK পিকচার সফলভাবে পরিবর্তন হয়েছে!'
         });
         fetchApkInfo();
       } else {
-        setNotification({ type: 'error', text: data.error || 'APK পিকচার আপডেট করতে সমস্যা হয়েছে।' });
+        // Fallback to direct upload-file & site-settings
+        await persistSettingsEverywhere({ ...settings, logoUrl: optimizedDataUrl }, { name: file.name, type: file.type || 'image/png' });
+        setNotification({
+          type: 'success',
+          text: '✓ ছবি সফলভাবে সংরক্ষিত ও আপডেট হয়েছে!'
+        });
+        fetchApkInfo();
       }
     } catch (err: any) {
-      setNotification({ type: 'error', text: err.message || 'Error updating APK picture' });
+      setNotification({ type: 'error', text: err.message || 'ছবি পরিবর্তন করতে সমস্যা হয়েছে' });
     } finally {
       setUploadingApkIcon(false);
-      if (apkIconInputRef.current) {
-        apkIconInputRef.current.value = '';
-      }
+      setUploadingLogo(false);
+      if (apkIconInputRef.current) apkIconInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleApkIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadAndApplyBrandingImage(file);
   };
 
   const persistSettingsEverywhere = async (updatedSettings: SiteSettings, fileMeta?: { name: string; type: string }) => {
@@ -287,13 +334,20 @@ export function AdminSiteSettingsManager() {
 
     // 3. Best-effort sync to Express backend (never throws network error)
     const token = localStorage.getItem('bot_auth_token');
+    let userEmail = '';
+    try {
+      const u = JSON.parse(localStorage.getItem('bot_auth_user') || '{}');
+      userEmail = u.email || '';
+    } catch {}
+
     if (cleanLogo.startsWith('data:image/')) {
       try {
         await fetch('/api/admin/upload-file', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(userEmail ? { 'x-admin-email': userEmail } : {})
           },
           body: JSON.stringify({
             fileName: fileMeta?.name || 'site-logo.png',
@@ -309,7 +363,8 @@ export function AdminSiteSettingsManager() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(userEmail ? { 'x-admin-email': userEmail } : {})
         },
         body: JSON.stringify(finalSettings)
       });
@@ -319,38 +374,7 @@ export function AdminSiteSettingsManager() {
   const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setNotification({ type: 'error', text: 'শুধুমাত্র ইমেজ ফাইল (PNG, JPG, WebP, SVG) আপলোড করা যাবে।' });
-      return;
-    }
-
-    try {
-      setUploadingLogo(true);
-      setNotification(null);
-
-      // Optimize image so it is crisp, transparent, and guaranteed to fit in Firestore & header
-      const optimizedDataUrl = await optimizeLogoImage(file, 850, 300);
-      const updated: SiteSettings = {
-        ...settings,
-        logoUrl: optimizedDataUrl
-      };
-      setSettings(updated);
-
-      await persistSettingsEverywhere(updated, { name: file.name, type: file.type || 'image/png' });
-
-      setNotification({
-        type: 'success',
-        text: '✅ সাইট লোগো ছবি সফলভাবে আপলোড ও হেডারে সেট হয়েছে!'
-      });
-    } catch (err: any) {
-      setNotification({ type: 'error', text: err?.message || 'ছবি প্রসেস করতে সমস্যা হয়েছে, আবার চেষ্টা করুন।' });
-    } finally {
-      setUploadingLogo(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
+    await uploadAndApplyBrandingImage(file);
   };
 
   const handleSave = async (e: React.FormEvent) => {

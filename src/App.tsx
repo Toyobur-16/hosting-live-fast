@@ -64,17 +64,16 @@ export default function App() {
 
   const applyBrowserBranding = (name?: string, rawLogo?: string) => {
     if (name) {
-      document.title = `${name} | 24/7 Bot & Store Service`;
+      document.title = `${name} | 24/7 Cloud Bot & Web Hosting`;
     }
     if (rawLogo) {
       const cleanLogo = normalizeLogoUrl(rawLogo);
-      if (
-        !cleanLogo.endsWith('site-logo.png') &&
-        !cleanLogo.endsWith('hosting-live-fast-logo.png')
-      ) {
-        const iconLink = document.querySelector("link[rel='shortcut icon']") as HTMLLinkElement;
-        if (iconLink) iconLink.href = cleanLogo;
-      }
+      const iconLinks = document.querySelectorAll<HTMLLinkElement>(
+        "link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']"
+      );
+      iconLinks.forEach((link) => {
+        link.href = cleanLogo;
+      });
     }
   };
 
