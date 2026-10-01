@@ -483,21 +483,23 @@ export async function createAndSendVerificationCode(
     console.warn(`[VERIFICATION EMAIL WARNING] Send notice for ${cleanEmail}:`, err?.message || err);
   }
 
-  // 2. Also trigger Firebase verification email in background as secondary fallback
-  triggerFirebaseVerificationEmail(
-    cleanEmail,
-    savedPending?.password || existing?.firebasePassword,
-    effectiveName,
-    Boolean(forceSend && pendingRegistration)
-  ).then((fbRes) => {
-    if (fbRes.sent && fbRes.usedPassword) {
-      const latest = loadVerifications();
-      if (latest[cleanEmail]) {
-        latest[cleanEmail].firebasePassword = fbRes.usedPassword;
-        saveVerifications(latest);
+  // 2. Only trigger Firebase verification email as fallback if direct OTP was not delivered
+  if (!emailDelivered) {
+    triggerFirebaseVerificationEmail(
+      cleanEmail,
+      savedPending?.password || existing?.firebasePassword,
+      effectiveName,
+      Boolean(forceSend && pendingRegistration)
+    ).then((fbRes) => {
+      if (fbRes.sent && fbRes.usedPassword) {
+        const latest = loadVerifications();
+        if (latest[cleanEmail]) {
+          latest[cleanEmail].firebasePassword = fbRes.usedPassword;
+          saveVerifications(latest);
+        }
       }
-    }
-  }).catch(() => {});
+    }).catch(() => {});
+  }
 
   return {
     success: true,
