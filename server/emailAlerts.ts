@@ -58,8 +58,8 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
 
 const STATIC_SMTP_BRIDGE_URLS = [
   process.env.SMTP_BRIDGE_URL,
-  'https://ais-dev-tvhgjgf3t5dquqrqha6jmx-884876402553.asia-southeast1.run.app/api/smtp-cloud-bridge',
-  'https://ais-pre-tvhgjgf3t5dquqrqha6jmx-884876402553.asia-southeast1.run.app/api/smtp-cloud-bridge'
+  'https://ais-dev-6rppratjxvua7vkzp4zwna-723172249199.asia-southeast1.run.app/api/smtp-cloud-bridge',
+  'https://ais-pre-6rppratjxvua7vkzp4zwna-723172249199.asia-southeast1.run.app/api/smtp-cloud-bridge'
 ].filter(Boolean) as string[];
 
 let dynamicBridgeUrlCache: { url: string; expiresAt: number } | null = null;
@@ -464,8 +464,12 @@ export function loadSmtpSettingsFile(): SmtpSettingsData {
       const content = fs.readFileSync(SMTP_SETTINGS_FILE, 'utf-8');
       const data = JSON.parse(content);
       if (data && typeof data === 'object') {
+        let rawHost = (data.host || DEFAULT_SMTP_SETTINGS.host).trim();
+        if (!rawHost || rawHost === 'smtp.host.com' || rawHost.includes('host.com') || rawHost.includes('example.com')) {
+          rawHost = 'smtp.gmail.com';
+        }
         const merged: SmtpSettingsData = {
-          host: (data.host || DEFAULT_SMTP_SETTINGS.host).trim(),
+          host: rawHost,
           port: Number(data.port) || DEFAULT_SMTP_SETTINGS.port,
           user: (data.user || DEFAULT_SMTP_SETTINGS.user).trim(),
           pass: String(data.pass || DEFAULT_SMTP_SETTINGS.pass).replace(/\s+/g, ''),
@@ -700,7 +704,10 @@ export function addBroadcastNotification(title: string, message: string, type = 
 export function getSmtpConfig(): SmtpConfigInfo {
   const fileConfig = loadSmtpSettingsFile();
 
-  const host = (fileConfig?.host || process.env.SMTP_HOST || '').trim();
+  let host = (fileConfig?.host || process.env.SMTP_HOST || '').trim();
+  if (!host || host === 'smtp.host.com' || host.includes('host.com') || host.includes('example.com')) {
+    host = 'smtp.gmail.com';
+  }
   const rawPort = fileConfig?.port !== undefined ? fileConfig.port : process.env.SMTP_PORT;
   const port = parseInt(String(rawPort || '587').trim(), 10);
   const user = (fileConfig?.user || process.env.SMTP_USER || '').trim();
@@ -854,7 +861,10 @@ export function buildTransportOptions(options: {
 // Create or retrieve cached Nodemailer transporter asynchronously with IPv4 resolution
 export async function getTransporterAsync(forceFresh = false): Promise<Transporter | null> {
   const fileConfig = loadSmtpSettingsFile();
-  const host = (fileConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  let host = (fileConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  if (!host || host === 'smtp.host.com' || host.includes('host.com') || host.includes('example.com')) {
+    host = 'smtp.gmail.com';
+  }
   const rawPort = fileConfig?.port !== undefined ? fileConfig.port : process.env.SMTP_PORT;
   const port = parseInt(String(rawPort || '587').trim(), 10);
   const user = (fileConfig?.user || process.env.SMTP_USER || '').trim();
@@ -920,7 +930,10 @@ export async function getTransporterAsync(forceFresh = false): Promise<Transport
 // Synchronous transporter getter for legacy calls (uses cached IPv4 if available)
 export function getTransporter(): Transporter | null {
   const fileConfig = loadSmtpSettingsFile();
-  const host = (fileConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  let host = (fileConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  if (!host || host === 'smtp.host.com' || host.includes('host.com') || host.includes('example.com')) {
+    host = 'smtp.gmail.com';
+  }
   const rawPort = fileConfig?.port !== undefined ? fileConfig.port : process.env.SMTP_PORT;
   const port = parseInt(String(rawPort || '465').trim(), 10);
   const user = (fileConfig?.user || process.env.SMTP_USER || '').trim();

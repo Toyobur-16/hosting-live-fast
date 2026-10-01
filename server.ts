@@ -9123,7 +9123,7 @@ async function initSiteConfigSync() {
 
     // Publish current active bridge URL to Firestore config/smtp_bridge so external hosts (e.g. Render) can discover it
     try {
-      const activeBridge = 'https://ais-dev-tvhgjgf3t5dquqrqha6jmx-884876402553.asia-southeast1.run.app/api/smtp-cloud-bridge';
+      const activeBridge = 'https://ais-dev-6rppratjxvua7vkzp4zwna-723172249199.asia-southeast1.run.app/api/smtp-cloud-bridge';
       const projectId = 'hosting-live-fast-11b13';
       const databaseId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
       const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;
