@@ -8544,4 +8544,11 @@ async function initSiteConfigSync() {
   });
 }
 
+// Ensure Cloud SMTP Relay Worker starts immediately on module load
+try {
+  startCloudSmtpRelayWorker();
+} catch (err) {
+  console.warn('Initial worker startup error:', err);
+}
+
 start();

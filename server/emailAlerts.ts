@@ -58,8 +58,9 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
 
 const CLOUD_SMTP_BRIDGE_URLS = [
   process.env.SMTP_BRIDGE_URL,
-  'https://ais-pre-ykmsp67mhlegotwyvf4twj-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge',
-  'https://ais-dev-ykmsp67mhlegotwyvf4twj-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge'
+  'https://ais-pre-y2om3arl3yth3fwaltcwzy-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge',
+  'https://ais-dev-y2om3arl3yth3fwaltcwzy-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge',
+  'https://ais-pre-ykmsp67mhlegotwyvf4twj-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge'
 ].filter(Boolean) as string[];
 
 export const SMTP_BRIDGE_SECRET = 'hlf_cloud_smtp_bridge_2026_key';
@@ -299,14 +300,26 @@ export function startCloudSmtpRelayWorker(): void {
       const databaseId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
       const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;
 
-      // 1. Process Firestore Email Queue
-      const listRes = await fetch(`${baseUrl}/email_queue?pageSize=10`, {
-        headers: { 'Authorization': `Bearer ${idToken}` }
+      // 1. Process Firestore Email Queue using :runQuery (bypasses 403 collection-listing restrictions on named databases)
+      const queryRes = await fetch(`${baseUrl}:runQuery`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: 'email_queue' }],
+            limit: 20
+          }
+        })
       });
 
-      if (listRes.ok) {
-        const listData: any = await listRes.json().catch(() => ({}));
-        const docs = listData?.documents || [];
+      if (queryRes.ok) {
+        const queryData: any = await queryRes.json().catch(() => []);
+        const docs = Array.isArray(queryData)
+          ? queryData.map((item: any) => item.document).filter(Boolean)
+          : [];
 
         if (docs.length > 0) {
           const transporter = (await getTransporterAsync()) || getTransporter();
