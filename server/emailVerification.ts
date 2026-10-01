@@ -483,22 +483,9 @@ export async function createAndSendVerificationCode(
     console.warn(`[VERIFICATION EMAIL WARNING] Send notice for ${cleanEmail}:`, err?.message || err);
   }
 
-  // 2. Only trigger Firebase verification email as fallback if direct OTP was not delivered
+  // Direct 6-digit OTP code email delivery
   if (!emailDelivered) {
-    triggerFirebaseVerificationEmail(
-      cleanEmail,
-      savedPending?.password || existing?.firebasePassword,
-      effectiveName,
-      Boolean(forceSend && pendingRegistration)
-    ).then((fbRes) => {
-      if (fbRes.sent && fbRes.usedPassword) {
-        const latest = loadVerifications();
-        if (latest[cleanEmail]) {
-          latest[cleanEmail].firebasePassword = fbRes.usedPassword;
-          saveVerifications(latest);
-        }
-      }
-    }).catch(() => {});
+    console.warn(`[VERIFICATION EMAIL] Direct OTP email was not delivered immediately for ${cleanEmail}`);
   }
 
   return {
@@ -633,27 +620,9 @@ export async function createAndSendPasswordResetCode(
     console.warn(`[PASSWORD RESET EMAIL WARNING] Send notice for ${cleanEmail}:`, err?.message || err);
   }
 
-  // 2. Only fallback to Google Firebase Auth Password Reset if direct OTP was not delivered
-  if (!emailDelivered && FIREBASE_AUTH_API_KEY) {
-    try {
-      const fbResetRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requestType: 'PASSWORD_RESET',
-          email: cleanEmail
-        })
-      });
-      if (fbResetRes.ok) {
-        emailDelivered = true;
-        console.log(`[FIREBASE AUTH PASSWORD RESET SENT] Unlimited HTTPS 443 reset email sent to ${cleanEmail}`);
-      } else {
-        const errData: any = await fbResetRes.json().catch(() => ({}));
-        console.warn(`[FIREBASE AUTH PASSWORD RESET NOTICE] For ${cleanEmail}:`, errData?.error?.message || fbResetRes.statusText);
-      }
-    } catch (err: any) {
-      console.warn('Firebase Auth password reset warning:', err?.message || err);
-    }
+  // Direct 6-digit OTP code email delivery
+  if (!emailDelivered) {
+    console.warn(`[PASSWORD RESET] Direct OTP email was not delivered immediately for ${cleanEmail}`);
   }
 
   return {

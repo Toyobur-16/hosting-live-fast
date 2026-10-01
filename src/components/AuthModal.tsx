@@ -767,7 +767,7 @@ export const AuthModal = ({
             </div>
 
             {/* Expiration Timer Indicator */}
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-5 px-1">
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-3 px-1">
               <div className="flex items-center gap-1.5 text-amber-400 font-medium">
                 <Clock className="w-3.5 h-3.5" />
                 <span>
@@ -788,6 +788,11 @@ export const AuthModal = ({
                   ? `${lang === 'bn' ? 'পুনরায় পাঠান' : 'Resend Code'} (${resendCooldown}s)`
                   : (lang === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code')}
               </button>
+            </div>
+
+            <div className="mb-4 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300/90 text-xs flex items-center gap-2">
+              <Mail className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>{lang === 'bn' ? 'ইমেইল না পেলে আপনার জিমেইল অ্যাপের Spam (স্প্যাম) ফোল্ডার চেক করুন।' : 'If not in Inbox, please check your Spam / Junk folder.'}</span>
             </div>
 
             {/* Verify Button */}
@@ -914,6 +919,11 @@ export const AuthModal = ({
                     ? `${lang === 'bn' ? 'পুনরায় পাঠান' : 'Resend Code'} (${resendCooldown}s)`
                     : (lang === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code')}
                 </button>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300/90 text-xs flex items-center gap-2">
+                <Mail className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>{lang === 'bn' ? 'কোড না পেলে আপনার জিমেইল অ্যাপের Spam (স্প্যাম) ফোল্ডার চেক করুন।' : 'If code is not in Inbox, check your Spam / Junk folder.'}</span>
               </div>
 
               {/* New Password input */}

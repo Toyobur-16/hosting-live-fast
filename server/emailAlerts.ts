@@ -1986,8 +1986,7 @@ export async function sendVerificationEmail(
   userName?: string
 ): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
   const cleanName = userName?.trim() || to.split('@')[0] || 'User';
-  // Include code upfront so mobile users see it immediately in push notifications
-  const subject = `${code} is your hosting live fast verification code | আপনার ভেরিফিকেশন কোড`;
+  const subject = `hosting live fast ভেরিফিকেশন কোড: ${code}`;
 
   const html = `
     <!DOCTYPE html>
@@ -2064,8 +2063,7 @@ export async function sendPasswordResetEmail(
   userName?: string
 ): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
   const cleanName = userName?.trim() || to.split('@')[0] || 'User';
-  // Include code upfront so mobile users see it immediately in push notifications
-  const subject = `${resetCodeOrLink} is your hosting live fast password reset code | আপনার পাসওয়ার্ড রিসেট কোড`;
+  const subject = `hosting live fast পাসওয়ার্ড রিসেট কোড: ${resetCodeOrLink}`;
 
   const html = `
     <!DOCTYPE html>
