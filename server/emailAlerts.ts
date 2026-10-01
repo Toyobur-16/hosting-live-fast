@@ -1419,19 +1419,10 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
         date: new Date()
       };
 
-      if (isAuthVerification) {
-        mailOptions.priority = 'high';
-        mailOptions.headers = {
-          'X-Priority': '1',
-          'Importance': 'high'
-        };
-      } else {
-        mailOptions.headers = {
-          'X-Mailer': 'hosting live fast Web Notification',
-          'X-Priority': '3',
-          'List-Unsubscribe': `<mailto:${senderAddress}?subject=unsubscribe>`
-        };
-      }
+      // Standard clean headers for optimal Google inbox delivery
+      mailOptions.headers = {
+        'X-Mailer': 'hosting live fast Web Service'
+      };
 
       const info = await transporter.sendMail(mailOptions);
       console.log(`[EMAIL ALERT SENT] To: ${to} | Subject: "${subject}" | MsgId: ${info.messageId}`);

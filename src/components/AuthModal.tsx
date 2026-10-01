@@ -434,25 +434,15 @@ export const AuthModal = ({
 
       setResendCooldown(25);
       setExpirySeconds(600);
-      if (data?.code) {
-        const codeDigits = String(data.code).split('').slice(0, 6);
-        setDigits(codeDigits);
-        setSuccessMessage(
-          lang === 'bn'
-            ? `✅ আপনার নতুন ৬ সংখ্যার কোড: ${data.code} (স্বয়ংক্রিয়ভাবে কোড বসানো হয়েছে)`
-            : `✅ Your new 6-digit code: ${data.code} (Auto-filled below)`
-        );
-      } else {
-        setDigits(['', '', '', '', '', '']);
-        setSuccessMessage(
-          lang === 'bn'
-            ? (isReset
-                ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে। ইনবক্স অথবা Spam চেক করুন।`
-                : `আপনার ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। ইনবক্স অথবা Spam চেক করুন।`)
-            : 'A new 6-digit code has been sent to your email.'
-        );
-        digitInputRefs.current[0]?.focus();
-      }
+      setDigits(['', '', '', '', '', '']);
+      setSuccessMessage(
+        lang === 'bn'
+          ? (isReset
+              ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে। ইনবক্স অথবা Spam চেক করুন।`
+              : `আপনার ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। ইনবক্স অথবা Spam চেক করুন।`)
+          : 'A new 6-digit code has been sent to your email.'
+      );
+      digitInputRefs.current[0]?.focus();
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('Unexpected token') || msg.includes('<!DOCTYPE') || msg.includes('is not valid JSON')) {
@@ -537,23 +527,13 @@ export const AuthModal = ({
           setMode('verify');
           setExpirySeconds(600);
           setResendCooldown(25);
-          if (data?.code) {
-            const codeDigits = String(data.code).split('').slice(0, 6);
-            setDigits(codeDigits);
-            setSuccessMessage(
-              lang === 'bn'
-                ? `🎉 আপনার ৬ সংখ্যার ভেরিফিকেশন কোড: ${data.code} (স্বয়ংক্রিয়ভাবে কোড বসানো হয়েছে, নিচে ভেরিফাই বাটনে ক্লিক করুন)`
-                : `🎉 Your verification code: ${data.code} (Auto-filled below, click verify)`
-            );
-          } else {
-            setDigits(['', '', '', '', '', '']);
-            setSuccessMessage(
-              lang === 'bn'
-                ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে! অনুগ্রহ করে আপনার জিমেইল ইনবক্স অথবা Spam ফোল্ডার চেক করে ৬ সংখ্যার কোডটি দিন।`
-                : `A 6-digit verification code has been sent to ${cleanEmail}. Check your inbox or spam folder and enter the code below.`
-            );
-            setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
-          }
+          setDigits(['', '', '', '', '', '']);
+          setSuccessMessage(
+            lang === 'bn'
+              ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে! অনুগ্রহ করে আপনার জিমেইল ইনবক্স অথবা Spam ফোল্ডার চেক করে ৬ সংখ্যার কোডটি দিন।`
+              : `A 6-digit verification code has been sent to ${cleanEmail}. Check your inbox or spam folder and enter the code below.`
+          );
+          setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
           localStorage.setItem('bot_auth_token', data.token);
           localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
@@ -578,23 +558,13 @@ export const AuthModal = ({
           setMode('verify');
           setExpirySeconds(600);
           setResendCooldown(25);
-          if (data?.code) {
-            const codeDigits = String(data.code).split('').slice(0, 6);
-            setDigits(codeDigits);
-            setSuccessMessage(
-              lang === 'bn'
-                ? `🎉 আপনার ৬ সংখ্যার ভেরিফিকেশন কোড: ${data.code} (স্বয়ংক্রিয়ভাবে কোড বসানো হয়েছে, নিচে ভেরিফাই বাটনে ক্লিক করুন)`
-                : `🎉 Your verification code: ${data.code} (Auto-filled below, click verify)`
-            );
-          } else {
-            setDigits(['', '', '', '', '', '']);
-            setSuccessMessage(
-              lang === 'bn'
-                ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। জিমেইল চেক করে কোডটি দিন।`
-                : `A 6-digit verification code has been sent to ${cleanEmail}.`
-            );
-            setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
-          }
+          setDigits(['', '', '', '', '', '']);
+          setSuccessMessage(
+            lang === 'bn'
+              ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। জিমেইল চেক করে কোডটি দিন।`
+              : `A 6-digit verification code has been sent to ${cleanEmail}.`
+          );
+          setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
           localStorage.setItem('bot_auth_token', data.token);
           localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
@@ -639,27 +609,17 @@ export const AuthModal = ({
       setResetStep('verify_and_set');
       setExpirySeconds(600);
       setResendCooldown(25);
+      setDigits(['', '', '', '', '', '']);
       setNewPassword('');
       setConfirmNewPassword('');
-      if (data?.code) {
-        const codeDigits = String(data.code).split('').slice(0, 6);
-        setDigits(codeDigits);
-        setSuccessMessage(
-          lang === 'bn'
-            ? `✅ আপনার ৬ সংখ্যার রিসেট কোড: ${data.code} (স্বয়ংক্রিয়ভাবে বসানো হয়েছে! নিচে নতুন পাসওয়ার্ড দিন)`
-            : `✅ Your reset code: ${data.code} (Auto-filled! Please enter your new password below)`
-        );
-      } else {
-        setDigits(['', '', '', '', '', '']);
-        setSuccessMessage(
-          lang === 'bn'
-            ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে! জিমেইল ইনবক্স বা Spam চেক করে কোডটি বসিয়ে নতুন পাসওয়ার্ড দিন।`
-            : `A 6-digit password reset code has been sent to ${cleanEmail}. Enter the code and your new password below.`
-        );
-        setTimeout(() => {
-          digitInputRefs.current[0]?.focus();
-        }, 150);
-      }
+      setSuccessMessage(
+        lang === 'bn'
+          ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে! আপনার জিমেইল ইনবক্স বা Spam ফোল্ডার চেক করে কোডটি বসিয়ে নতুন পাসওয়ার্ড দিন।`
+          : `A 6-digit password reset code has been sent to ${cleanEmail}. Check your inbox or spam folder and enter the code below.`
+      );
+      setTimeout(() => {
+        digitInputRefs.current[0]?.focus();
+      }, 150);
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('Unexpected token') || msg.includes('<!DOCTYPE') || msg.includes('is not valid JSON')) {
