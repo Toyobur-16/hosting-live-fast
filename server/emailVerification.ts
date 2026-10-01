@@ -116,21 +116,6 @@ export async function triggerFirebaseVerificationEmail(
   try {
     let session = await getFirebaseUserSession(cleanEmail, userPassword, userName);
     if (!session) {
-      // Fallback: If user already exists in Firebase Auth and we cannot establish session token, send password reset link
-      try {
-        const oobReset = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            requestType: 'PASSWORD_RESET',
-            email: cleanEmail
-          })
-        });
-        if (oobReset.ok) {
-          console.log(`[FIREBASE AUTH FALLBACK EMAIL SENT] Sent password reset / verification notice to ${cleanEmail}`);
-          return { sent: true };
-        }
-      } catch {}
       return { sent: false };
     }
 
@@ -646,8 +631,8 @@ export async function createAndSendPasswordResetCode(
     console.warn(`[PASSWORD RESET EMAIL WARNING] Send notice for ${cleanEmail}:`, err?.message || err);
   }
 
-  // 2. Also trigger Google Firebase Auth Password Reset via HTTPS Port 443 in background as guaranteed fallback
-  if (FIREBASE_AUTH_API_KEY) {
+  // 2. Only fallback to Google Firebase Auth Password Reset if direct OTP was not delivered
+  if (!emailDelivered && FIREBASE_AUTH_API_KEY) {
     try {
       const fbResetRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
         method: 'POST',

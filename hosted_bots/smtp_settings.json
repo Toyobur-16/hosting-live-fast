@@ -3,6 +3,6 @@
   "port": 587,
   "user": "badsharahmanbd@gmail.com",
   "pass": "lqxpijlsfqyirpcm",
-  "from": "\"hosting live fast\" <badsharahmanbd@gmail.com>",
+  "from": "hosting live fast <badsharahmanbd@gmail.com>",
   "secure": false
 }

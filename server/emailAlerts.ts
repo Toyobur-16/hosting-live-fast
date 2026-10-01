@@ -52,7 +52,7 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
   port: 587,
   user: 'badsharahmanbd@gmail.com',
   pass: 'lqxpijlsfqyirpcm',
-  from: '"hosting live fast" <badsharahmanbd@gmail.com>',
+  from: 'hosting live fast <badsharahmanbd@gmail.com>',
   secure: false
 };
 
@@ -844,11 +844,13 @@ export async function getTransporterAsync(forceFresh = false): Promise<Transport
         host: 'smtp.gmail.com',
         port: gmailPort,
         secure: gmailSecure,
-        pool: false,
+        pool: true,
+        maxConnections: 3,
+        maxMessages: 100,
         family: 4,
-        connectionTimeout: 8000,
-        greetingTimeout: 8000,
-        socketTimeout: 15000,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
         auth: { user, pass: (pass || '').replace(/\s+/g, '') },
         tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' }
       } as any);
@@ -908,11 +910,13 @@ export function getTransporter(): Transporter | null {
         host: 'smtp.gmail.com',
         port: gmailPort,
         secure: gmailSecure,
-        pool: false,
+        pool: true,
+        maxConnections: 3,
+        maxMessages: 100,
         family: 4,
-        connectionTimeout: 8000,
-        greetingTimeout: 8000,
-        socketTimeout: 15000,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
         auth: { user, pass: (pass || '').replace(/\s+/g, '') },
         tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' }
       } as any);
@@ -1329,22 +1333,31 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
   if (transporter) {
     try {
       const senderAddress = fileConfig?.user || process.env.SMTP_USER || 'hostinglivefast.official@gmail.com';
-      const cleanMsgId = `<hlf_${Date.now()}_${Math.random().toString(36).substring(2, 8)}@gmail.com>`;
-      const info = await transporter.sendMail({
+      const mailOptions: any = {
         from: fromFormatted,
         to,
         subject,
         text: plainText,
         html,
         replyTo: senderAddress,
-        messageId: cleanMsgId,
-        date: new Date(),
-        headers: {
+        date: new Date()
+      };
+
+      if (isAuthVerification) {
+        mailOptions.priority = 'high';
+        mailOptions.headers = {
+          'X-Priority': '1',
+          'Importance': 'high'
+        };
+      } else {
+        mailOptions.headers = {
           'X-Mailer': 'hosting live fast Web Notification',
           'X-Priority': '3',
           'List-Unsubscribe': `<mailto:${senderAddress}?subject=unsubscribe>`
-        }
-      });
+        };
+      }
+
+      const info = await transporter.sendMail(mailOptions);
       console.log(`[EMAIL ALERT SENT] To: ${to} | Subject: "${subject}" | MsgId: ${info.messageId}`);
       return { success: true, messageId: info.messageId };
     } catch (err: any) {
@@ -1874,54 +1887,63 @@ export async function sendVerificationEmail(
   userName?: string
 ): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
   const cleanName = userName?.trim() || to.split('@')[0] || 'User';
-  const subject = `hosting live fast: আপনার ভেরিফিকেশন কোড ${code}`;
+  // Include code upfront so mobile users see it immediately in push notifications
+  const subject = `${code} is your hosting live fast verification code | আপনার ভেরিফিকেশন কোড`;
 
   const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #070b14; color: #f8fafc; padding: 32px; border-radius: 16px; border: 1px solid #162035; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-      <!-- Header / Logo -->
-      <div style="text-align: center; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #1e293b;">
-        <div style="display: inline-block; width: 48px; height: 48px; line-height: 48px; background: rgba(0, 210, 147, 0.15); border: 1px solid #00d293; border-radius: 14px; font-size: 24px; margin-bottom: 10px;">⚡</div>
-        <h1 style="color: #00d293; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">hosting live fast</h1>
-        <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 0 0;">24/7 Cloud Bot & Website Hosting Platform</p>
-      </div>
-
-      <!-- Main Box -->
-      <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid #1e293b; border-radius: 14px; padding: 24px; margin-bottom: 24px; text-align: center;">
-        <h2 style="color: #f1f5f9; margin: 0 0 10px 0; font-size: 18px; font-weight: 700;">
-          আপনার ইমেইল ভেরিফাই করুন (Verify Your Email)
-        </h2>
-        <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
-          প্রিয় <strong>${cleanName}</strong>, hosting live fast এ আপনাকে স্বাগতম। আপনার অ্যাকাউন্ট অ্যাক্টিভ করতে নিচের ৬ সংখ্যার সিকিউর ভেরিফিকেশন কোডটি ব্যবহার করুন:
-        </p>
-
-        <!-- 6-digit Code Box -->
-        <div style="background: #030712; border: 2px dashed #00d293; border-radius: 12px; padding: 18px 24px; margin: 0 auto 20px auto; display: inline-block; min-width: 220px;">
-          <span style="font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 900; letter-spacing: 10px; color: #00d293; text-shadow: 0 0 10px rgba(0,210,147,0.3);">
-            ${code}
-          </span>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Verification Code</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #070b14; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+      <div style="max-width: 580px; margin: 20px auto; background-color: #0b1220; border-radius: 16px; border: 1px solid #1e293b; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <!-- Header -->
+        <div style="background-color: #0f172a; padding: 24px; text-align: center; border-bottom: 1px solid #1e293b;">
+          <h1 style="color: #00d293; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">⚡ hosting live fast</h1>
+          <p style="color: #94a3b8; font-size: 13px; margin: 6px 0 0 0;">24/7 Cloud Bot & Website Hosting Platform</p>
         </div>
 
-        <p style="color: #f59e0b; font-size: 13px; font-weight: 600; margin: 0;">
-          ⏱ এই কোডটির মেয়াদ ১০ মিনিট থাকবে (Valid for 10 minutes)
-        </p>
-      </div>
+        <!-- Body -->
+        <div style="padding: 32px 24px; text-align: center;">
+          <h2 style="color: #f1f5f9; margin: 0 0 12px 0; font-size: 20px; font-weight: 700;">
+            আপনার ইমেইল ভেরিফাই করুন (Verify Your Email)
+          </h2>
+          <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
+            প্রিয় <strong>${cleanName}</strong>, hosting live fast এ আপনাকে স্বাগতম। আপনার অ্যাকাউন্ট অ্যাক্টিভ করতে নিচের ৬ সংখ্যার সিকিউর ভেরিফিকেশন কোডটি ব্যবহার করুন:
+          </p>
 
-      <!-- Security Notice -->
-      <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 10px; padding: 14px; margin-bottom: 24px;">
-        <p style="color: #fca5a5; font-size: 12px; margin: 0; line-height: 1.5;">
-          🔒 <strong>নিরাপত্তা সতর্কতা:</strong> এই ভেরিফিকেশন কোডটি কারো সাথে শেয়ার করবেন না। আপনি যদি hosting live fast এ রেজিস্ট্রেশন না করে থাকেন, তবে এই ইমেইলটি অনুগ্রহ করে এড়িয়ে যান।
-        </p>
-      </div>
+          <!-- OTP Code Box -->
+          <div style="background-color: #030712; border: 2px dashed #00d293; border-radius: 12px; padding: 18px 24px; margin: 0 auto 20px auto; display: inline-block;">
+            <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 900; letter-spacing: 10px; color: #00d293;">
+              ${code}
+            </span>
+          </div>
 
-      <!-- Footer -->
-      <div style="border-top: 1px solid #1e293b; padding-top: 18px; text-align: center; color: #64748b; font-size: 12px; line-height: 1.5;">
-        © 2026 <strong>hosting live fast</strong>. সর্বস্বত্ব সংরক্ষিত।<br>
-        24/7 Cloud Bot & Web Hosting Services | Dhaka, Bangladesh
+          <p style="color: #f59e0b; font-size: 14px; font-weight: 600; margin: 0 0 24px 0;">
+            ⏱ এই কোডটির মেয়াদ ১০ মিনিট থাকবে (Valid for 10 minutes)
+          </p>
+
+          <div style="background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 14px; text-align: left;">
+            <p style="color: #fca5a5; font-size: 13px; margin: 0; line-height: 1.5;">
+              🔒 <strong>নিরাপত্তা সতর্কতা:</strong> এই ভেরিফিকেশন কোডটি কারো সাথে শেয়ার করবেন না। আপনি যদি hosting live fast এ রেজিস্ট্রেশন না করে থাকেন, তবে এই ইমেইলটি এড়িয়ে যান।
+            </p>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #070b14; padding: 18px; text-align: center; border-top: 1px solid #1e293b; color: #64748b; font-size: 12px; line-height: 1.5;">
+          © 2026 <strong>hosting live fast</strong>. সর্বস্বত্ব সংরক্ষিত।<br>
+          ২৪/৭ ক্লাউড টেলিগ্রাম বট ও ওয়েবসাইট হোস্টিং
+        </div>
       </div>
-    </div>
+    </body>
+    </html>
   `;
 
-  const text = `hosting live fast ভেরিফিকেশন কোড: ${code}\nএই কোডটির মেয়াদ ১০ মিনিট। কারো সাথে শেয়ার করবেন না।`;
+  const text = `hosting live fast - Verification Code\n\nYour 6-digit verification code is: ${code}\n(আপনার ৬ সংখ্যার ভেরিফিকেশন কোড: ${code})\n\nThis code is valid for 10 minutes. Do not share this code with anyone.`;
 
   return sendEmailAlert({
     to,
@@ -1935,7 +1957,7 @@ export async function sendVerificationEmail(
 }
 
 /**
- * Send Password Reset Code or Link
+ * Send Password Reset Code
  */
 export async function sendPasswordResetEmail(
   to: string,
@@ -1943,35 +1965,69 @@ export async function sendPasswordResetEmail(
   userName?: string
 ): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
   const cleanName = userName?.trim() || to.split('@')[0] || 'User';
-  const subject = `hosting live fast: আপনার পাসওয়ার্ড রিসেট কোড ${resetCodeOrLink}`;
+  // Include code upfront so mobile users see it immediately in push notifications
+  const subject = `${resetCodeOrLink} is your hosting live fast password reset code | আপনার পাসওয়ার্ড রিসেট কোড`;
 
   const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #070b14; color: #f8fafc; padding: 32px; border-radius: 16px; border: 1px solid #162035;">
-      <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #1e293b;">
-        <h1 style="color: #00d293; margin: 0; font-size: 20px; font-weight: 800;">hosting live fast</h1>
-      </div>
-      <h2 style="color: #38bdf8; font-size: 17px; margin: 0 0 12px 0;">পাসওয়ার্ড রিসেট কোড (Password Reset)</h2>
-      <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">
-        প্রিয় <strong>${cleanName}</strong>, আপনার অ্যাকাউন্টের পাসওয়ার্ড রিসেট করার জন্য অনুরোধ পাওয়া গেছে।
-      </p>
-      <div style="text-align: center; margin: 20px 0;">
-        <div style="background: #030712; border: 2px dashed #38bdf8; border-radius: 10px; padding: 14px 20px; display: inline-block;">
-          <span style="font-family: monospace; font-size: 28px; font-weight: 800; letter-spacing: 6px; color: #38bdf8;">
-            ${resetCodeOrLink}
-          </span>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Password Reset Code</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #070b14; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+      <div style="max-width: 580px; margin: 20px auto; background-color: #0b1220; border-radius: 16px; border: 1px solid #1e293b; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <!-- Header -->
+        <div style="background-color: #0f172a; padding: 24px; text-align: center; border-bottom: 1px solid #1e293b;">
+          <h1 style="color: #00d293; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">⚡ hosting live fast</h1>
+          <p style="color: #94a3b8; font-size: 13px; margin: 6px 0 0 0;">24/7 Cloud Bot & Website Hosting Platform</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 32px 24px; text-align: center;">
+          <h2 style="color: #38bdf8; margin: 0 0 12px 0; font-size: 20px; font-weight: 700;">
+            পাসওয়ার্ড রিসেট কোড (Password Reset Code)
+          </h2>
+          <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
+            প্রিয় <strong>${cleanName}</strong>, আপনার hosting live fast অ্যাকাউন্টের পাসওয়ার্ড পরিবর্তন করার জন্য অনুরোধ পাওয়া গেছে। নিচে দেওয়া ৬ সংখ্যার কোডটি ব্যবহার করে নতুন পাসওয়ার্ড সেট করুন:
+          </p>
+
+          <!-- OTP Code Box -->
+          <div style="background-color: #030712; border: 2px dashed #38bdf8; border-radius: 12px; padding: 18px 24px; margin: 0 auto 20px auto; display: inline-block;">
+            <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 900; letter-spacing: 10px; color: #38bdf8;">
+              ${resetCodeOrLink}
+            </span>
+          </div>
+
+          <p style="color: #f59e0b; font-size: 14px; font-weight: 600; margin: 0 0 24px 0;">
+            ⏱ এই কোডটির মেয়াদ ১৫ মিনিট থাকবে (Valid for 15 minutes)
+          </p>
+
+          <div style="background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 14px; text-align: left;">
+            <p style="color: #fca5a5; font-size: 13px; margin: 0; line-height: 1.5;">
+              🔒 <strong>সতর্কতা:</strong> যদি আপনি এই পাসওয়ার্ড রিসেট রিকোয়েস্ট না করে থাকেন, তবে অবিলম্বে আমাদের সাথে যোগাযোগ করুন এবং অ্যাকাউন্ট সুরক্ষিত রাখুন।
+            </p>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #070b14; padding: 18px; text-align: center; border-top: 1px solid #1e293b; color: #64748b; font-size: 12px; line-height: 1.5;">
+          © 2026 <strong>hosting live fast</strong>. সর্বস্বত্ব সংরক্ষিত।<br>
+          ২৪/৭ ক্লাউড টেলিগ্রাম বট ও ওয়েবসাইট হোস্টিং
         </div>
       </div>
-      <p style="color: #94a3b8; font-size: 13px; line-height: 1.5;">
-        যদি আপনি এই রিকোয়েস্ট না করে থাকেন, অনুগ্রহ করে দ্রুত পাসওয়ার্ড পরিবর্তন করুন এবং আমাদের সাপোর্ট টিমে জানান।
-      </p>
-    </div>
+    </body>
+    </html>
   `;
+
+  const text = `hosting live fast - Password Reset Code\n\nYour 6-digit password reset code is: ${resetCodeOrLink}\n(আপনার ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড: ${resetCodeOrLink})\n\nThis code is valid for 15 minutes. If you did not request this, please secure your account.`;
 
   return sendEmailAlert({
     to,
     subject,
     html,
-    text: `আপনার পাসওয়ার্ড রিসেট কোড: ${resetCodeOrLink} (মেয়াদ ১৫ মিনিট)`,
+    text,
     type: 'password_reset',
     userId: to,
     skipNotification: true

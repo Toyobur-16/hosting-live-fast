@@ -2975,6 +2975,25 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     }
 
     if (!user) {
+      const pendingReg = getPendingRegistration(cleanEmail);
+      if (pendingReg) {
+        user = buildVerifiedUserRecord(cleanEmail, pendingReg.name);
+        accounts.push(user);
+        saveAccounts(accounts);
+      }
+    }
+
+    if (!user) {
+      // If user has a pending verification record, allow resetting password
+      const verifications = JSON.parse(fs.readFileSync(path.join(HOSTED_BOTS_DIR, 'email_verifications.json'), 'utf-8') || '{}');
+      if (verifications[cleanEmail]) {
+        user = buildVerifiedUserRecord(cleanEmail, verifications[cleanEmail]?.pendingRegistration?.name);
+        accounts.push(user);
+        saveAccounts(accounts);
+      }
+    }
+
+    if (!user) {
       return res.status(404).json({
         success: false,
         error: 'এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে প্রথমে রেজিস্ট্রেশন করুন।'
