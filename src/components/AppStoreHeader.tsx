@@ -18,6 +18,7 @@ import {
   Globe
 } from 'lucide-react';
 import { AuthUser, SiteSettings } from '../types';
+import { normalizeLogoUrl } from '../utils/logoUrl';
 
 interface AppStoreHeaderProps {
   user: AuthUser | null;
@@ -77,30 +78,30 @@ export function AppStoreHeader({
     return (user.name || user.email || 'U').charAt(0).toUpperCase();
   };
 
+  const resolvedLogoUrl = normalizeLogoUrl(siteSettings?.logoUrl || '/site-logo.png');
+
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-[#070b13]/95 backdrop-blur-md border-b border-slate-200 dark:border-[#162035] transition-colors">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 h-15 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-3 w-full">
-        {/* Left Branding: Full Brand Logo Banner (Fits exact user highlighted area across header) */}
-        <div className="flex items-center min-w-0 flex-1 sm:flex-initial overflow-hidden py-0.5">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 h-15 sm:h-16 flex items-center justify-between gap-2 sm:gap-3 w-full">
+        {/* Left Branding: Full Brand Logo Banner spanning the header left area */}
+        <div className="flex items-center min-w-0 flex-1 lg:flex-initial overflow-hidden py-0.5 pr-1">
           <button
             type="button"
             onClick={() => onSelectTab('home')}
-            className="flex items-center group cursor-pointer text-left focus:outline-hidden min-w-0 overflow-hidden transition-transform hover:scale-102"
-            title={siteSettings?.siteName || 'FAKIR BD TOP UP'}
+            className="flex items-center group cursor-pointer text-left focus:outline-hidden w-full max-w-[185px] sm:max-w-[260px] md:max-w-[320px] min-w-0 overflow-hidden transition-transform hover:scale-102"
+            title={siteSettings?.siteName || 'hosting-live-fast'}
           >
             <img
-              src={siteSettings?.logoUrl || '/fakir-logo.svg'}
-              alt={siteSettings?.siteName || 'FAKIR BD TOP UP'}
-              className="h-8 xs:h-9 sm:h-10 md:h-11 w-auto max-w-[170px] xs:max-w-[210px] sm:max-w-[270px] md:max-w-[340px] object-contain object-left drop-shadow-md select-none"
+              src={resolvedLogoUrl}
+              alt={siteSettings?.siteName || 'hosting-live-fast'}
+              className="h-10 sm:h-11 md:h-12 w-full object-contain object-left drop-shadow-md select-none"
               referrerPolicy="no-referrer"
               onError={(e) => {
                 const target = e.currentTarget as HTMLImageElement;
-                if (!target.src.endsWith('fakir-logo.svg')) {
-                  target.src = '/fakir-logo.svg';
-                } else if (!target.src.endsWith('fakir-logo.png')) {
-                  target.src = '/fakir-logo.png';
-                } else if (!target.src.endsWith('site-logo.png')) {
+                if (!target.src.endsWith('site-logo.png')) {
                   target.src = '/site-logo.png';
+                } else if (!target.src.endsWith('hosting-live-fast-logo.png')) {
+                  target.src = '/hosting-live-fast-logo.png';
                 }
               }}
             />

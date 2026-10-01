@@ -26,6 +26,7 @@ import { AiLiveSupportWidget } from './components/AiLiveSupportWidget';
 import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 import { checkIsAdmin } from './utils/adminCheck';
+import { normalizeLogoUrl } from './utils/logoUrl';
 import { db, doc, onSnapshot, setDoc } from './lib/firebase';
 
 export default function App() {
@@ -36,33 +37,60 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>({
-    siteName: 'hosting-live-fast',
-    logoUrl: '/site-logo.png',
-    taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
-    taglineEn: '24/7 Fast Bot & Top Up Service'
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
+    try {
+      const cached = localStorage.getItem('hlf_site_settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return {
+          siteName: parsed.siteName || 'hosting-live-fast',
+          logoUrl: normalizeLogoUrl(parsed.logoUrl || '/site-logo.png'),
+          taglineBn: parsed.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
+          taglineEn: parsed.taglineEn || '24/7 Fast Bot & Top Up Service',
+          hostingVideoUrl: parsed.hostingVideoUrl,
+          websiteVideoUrl: parsed.websiteVideoUrl
+        };
+      }
+    } catch {}
+    return {
+      siteName: 'hosting-live-fast',
+      logoUrl: '/site-logo.png',
+      taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
+      taglineEn: '24/7 Fast Bot & Top Up Service'
+    };
   });
+
+  const applyBrowserBranding = (name?: string, rawLogo?: string) => {
+    if (name) {
+      document.title = `${name} | 24/7 Bot & Store Service`;
+    }
+    if (rawLogo) {
+      const cleanLogo = normalizeLogoUrl(rawLogo);
+      const iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+      if (iconLink) iconLink.href = cleanLogo;
+      const appleIcon = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
+      if (appleIcon) appleIcon.href = cleanLogo;
+    }
+  };
 
   const fetchSiteSettings = () => {
     fetch('/api/site-settings')
       .then((res) => res.json())
       .then((data) => {
         if (data.settings) {
-          setSiteSettings(data.settings);
-          // Dynamically update page title and favicon
-          if (data.settings.siteName) {
-            document.title = `${data.settings.siteName} | 24/7 Bot & Store Service`;
-          }
-          if (data.settings.logoUrl) {
-            const iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
-            if (iconLink) {
-              iconLink.href = data.settings.logoUrl;
+          const cleanLogo = normalizeLogoUrl(data.settings.logoUrl);
+          const normalized = { ...data.settings, logoUrl: cleanLogo };
+          setSiteSettings((prev) => {
+            // Do not overwrite a custom data:image logo already loaded from Firestore with a broken local thumbnail path
+            if (
+              prev.logoUrl?.startsWith('data:image/') &&
+              cleanLogo.startsWith('/api/store/thumbnails/')
+            ) {
+              return { ...normalized, logoUrl: prev.logoUrl };
             }
-            const appleIcon = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
-            if (appleIcon) {
-              appleIcon.href = data.settings.logoUrl;
-            }
-          }
+            return normalized;
+          });
+          applyBrowserBranding(normalized.siteName, normalized.logoUrl);
         }
       })
       .catch(() => {});
@@ -70,7 +98,20 @@ export default function App() {
 
   useEffect(() => {
     fetchSiteSettings();
-    const handleSettingsUpdate = () => fetchSiteSettings();
+    const handleSettingsUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<SiteSettings>;
+      if (customEvent.detail) {
+        const cleanLogo = normalizeLogoUrl(customEvent.detail.logoUrl);
+        const updated = { ...customEvent.detail, logoUrl: cleanLogo };
+        setSiteSettings(updated);
+        applyBrowserBranding(updated.siteName, updated.logoUrl);
+        try {
+          localStorage.setItem('hlf_site_settings', JSON.stringify(updated));
+        } catch {}
+      } else {
+        fetchSiteSettings();
+      }
+    };
     window.addEventListener('site-settings-updated', handleSettingsUpdate);
 
     // Live Firebase Firestore listener for site logo and settings
@@ -78,14 +119,19 @@ export default function App() {
       if (snap.exists()) {
         const cloudSettings = snap.data() as SiteSettings;
         if (cloudSettings) {
-          setSiteSettings((prev) => ({ ...prev, ...cloudSettings }));
-          if (cloudSettings.siteName) document.title = cloudSettings.siteName;
-          if (cloudSettings.logoUrl) {
-            const iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
-            if (iconLink) iconLink.href = cloudSettings.logoUrl;
-            const appleIcon = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
-            if (appleIcon) appleIcon.href = cloudSettings.logoUrl;
-          }
+          const cleanLogo = cloudSettings.logoUrl ? normalizeLogoUrl(cloudSettings.logoUrl) : undefined;
+          setSiteSettings((prev) => {
+            const next = {
+              ...prev,
+              ...cloudSettings,
+              logoUrl: cleanLogo || prev.logoUrl || '/site-logo.png'
+            };
+            try {
+              localStorage.setItem('hlf_site_settings', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+          applyBrowserBranding(cloudSettings.siteName, cleanLogo);
         }
       }
     }, () => {});
@@ -94,13 +140,17 @@ export default function App() {
     const unsubLogo = onSnapshot(doc(db, 'site_images', 'site_logo'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        const logo = data?.base64 || data?.url;
-        if (logo) {
-          setSiteSettings((prev) => ({ ...prev, logoUrl: logo }));
-          const iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
-          if (iconLink) iconLink.href = logo;
-          const appleIcon = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
-          if (appleIcon) appleIcon.href = logo;
+        const rawLogo = data?.dataUrl || data?.base64 || data?.url;
+        if (rawLogo) {
+          const cleanLogo = normalizeLogoUrl(rawLogo, data?.contentType);
+          setSiteSettings((prev) => {
+            const next = { ...prev, logoUrl: cleanLogo };
+            try {
+              localStorage.setItem('hlf_site_settings', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+          applyBrowserBranding(undefined, cleanLogo);
         }
       }
     }, () => {});

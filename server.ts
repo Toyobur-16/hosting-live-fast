@@ -5402,6 +5402,16 @@ app.post('/api/admin/site-settings', (req, res) => {
     ...(typeof hostingVideoUrl === 'string' ? { hostingVideoUrl: hostingVideoUrl.trim() } : {}),
     ...(typeof websiteVideoUrl === 'string' ? { websiteVideoUrl: websiteVideoUrl.trim() } : {})
   };
+
+  if (finalLogoUrl && finalLogoUrl.startsWith('data:image/')) {
+    try {
+      const rawBase64 = finalLogoUrl.includes(',') ? finalLogoUrl.split(',')[1] : finalLogoUrl;
+      const buffer = Buffer.from(rawBase64, 'base64');
+      fs.writeFileSync(path.join(process.cwd(), 'public', 'site-logo.png'), buffer);
+      FirebaseSync.saveSiteImageToCloud('site_logo', 'site-logo.png', 'image/png', finalLogoUrl).catch(() => {});
+    } catch {}
+  }
+
   saveSiteSettings(updated);
   res.json({ success: true, settings: updated });
 });

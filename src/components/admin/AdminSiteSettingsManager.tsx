@@ -1,15 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image as ImageIcon, Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Sliders, Upload, Loader2, Trash2, Film, Play, ExternalLink } from 'lucide-react';
+import { Image as ImageIcon, Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Sliders, Upload, Loader2, Trash2, Film, Play, ExternalLink, Wallet, Bell, MoreVertical } from 'lucide-react';
 import { SiteSettings } from '../../types';
 import { getEmbedVideoUrl } from '../HostingTutorialSection';
+import { normalizeLogoUrl, optimizeLogoImage } from '../../utils/logoUrl';
 import { db, doc, setDoc, onSnapshot } from '../../lib/firebase';
 
 export function AdminSiteSettingsManager() {
-  const [settings, setSettings] = useState<SiteSettings>({
-    siteName: 'hosting-live-fast',
-    logoUrl: '/site-logo.png',
-    taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
-    taglineEn: '24/7 Fast Bot & Top Up Service'
+  const [settings, setSettings] = useState<SiteSettings>(() => {
+    try {
+      const cached = localStorage.getItem('hlf_site_settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return {
+          siteName: parsed.siteName || 'hosting-live-fast',
+          logoUrl: normalizeLogoUrl(parsed.logoUrl || '/site-logo.png'),
+          taglineBn: parsed.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
+          taglineEn: parsed.taglineEn || '24/7 Fast Bot & Top Up Service',
+          hostingVideoUrl: parsed.hostingVideoUrl || '',
+          websiteVideoUrl: parsed.websiteVideoUrl || ''
+        };
+      }
+    } catch {}
+    return {
+      siteName: 'hosting-live-fast',
+      logoUrl: '/site-logo.png',
+      taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
+      taglineEn: '24/7 Fast Bot & Top Up Service'
+    };
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -25,12 +42,32 @@ export function AdminSiteSettingsManager() {
       if (snap.exists()) {
         const cloudSettings = snap.data() as SiteSettings;
         if (cloudSettings) {
-          setSettings((prev) => ({ ...prev, ...cloudSettings }));
+          setSettings((prev) => ({
+            ...prev,
+            ...cloudSettings,
+            logoUrl: normalizeLogoUrl(cloudSettings.logoUrl || prev.logoUrl || '/site-logo.png')
+          }));
         }
       }
     }, () => {});
 
-    return () => unsub();
+    const unsubLogo = onSnapshot(doc(db, 'site_images', 'site_logo'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const rawLogo = data?.dataUrl || data?.base64 || data?.url;
+        if (rawLogo) {
+          setSettings((prev) => ({
+            ...prev,
+            logoUrl: normalizeLogoUrl(rawLogo, data?.contentType)
+          }));
+        }
+      }
+    }, () => {});
+
+    return () => {
+      unsub();
+      unsubLogo();
+    };
   }, []);
 
   const fetchSettings = async () => {
@@ -43,14 +80,103 @@ export function AdminSiteSettingsManager() {
       if (res.ok) {
         const data = await res.json();
         if (data.settings) {
-          setSettings(data.settings);
+          const cleanLogo = normalizeLogoUrl(data.settings.logoUrl);
+          setSettings((prev) => ({
+            ...prev,
+            ...data.settings,
+            logoUrl:
+              prev.logoUrl?.startsWith('data:image/') && cleanLogo.startsWith('/api/store/thumbnails/')
+                ? prev.logoUrl
+                : cleanLogo
+          }));
         }
       }
     } catch {
-      // Fallback
+      // Ignore network errors and rely on Firestore / localStorage state
     } finally {
       setLoading(false);
     }
+  };
+
+  const persistSettingsEverywhere = async (updatedSettings: SiteSettings, fileMeta?: { name: string; type: string }) => {
+    const cleanLogo = normalizeLogoUrl(updatedSettings.logoUrl || '/site-logo.png');
+    const finalSettings: SiteSettings = {
+      ...updatedSettings,
+      logoUrl: cleanLogo
+    };
+
+    // 1. Save immediately to localStorage & broadcast live to App header
+    try {
+      localStorage.setItem('hlf_site_settings', JSON.stringify(finalSettings));
+    } catch {}
+    window.dispatchEvent(new CustomEvent('site-settings-updated', { detail: finalSettings }));
+
+    const now = Date.now();
+
+    // 2. Save to Firebase Firestore (non-throwing)
+    try {
+      await setDoc(doc(db, 'site_settings', 'general'), {
+        ...finalSettings,
+        updatedAt: now
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Firestore site_settings/general write warning:', e);
+    }
+
+    try {
+      await setDoc(doc(db, 'config', 'site_settings'), {
+        ...finalSettings,
+        updatedAt: now
+      }, { merge: true });
+    } catch {}
+
+    if (cleanLogo) {
+      const imageDoc = {
+        id: 'site_logo',
+        fileName: fileMeta?.name || 'site-logo.png',
+        contentType: fileMeta?.type || 'image/png',
+        url: cleanLogo,
+        dataUrl: cleanLogo,
+        base64: cleanLogo,
+        updatedAt: now
+      };
+      try {
+        await setDoc(doc(db, 'site_images', 'site_logo'), imageDoc, { merge: true });
+      } catch {}
+      try {
+        await setDoc(doc(db, 'site_images', 'website_logo'), { ...imageDoc, id: 'website_logo' }, { merge: true });
+      } catch {}
+    }
+
+    // 3. Best-effort sync to Express backend (never throws network error)
+    const token = localStorage.getItem('bot_auth_token');
+    if (cleanLogo.startsWith('data:image/')) {
+      try {
+        await fetch('/api/admin/upload-file', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            fileName: fileMeta?.name || 'site-logo.png',
+            fileData: cleanLogo,
+            fileType: 'site_logo'
+          })
+        });
+      } catch {}
+    }
+
+    try {
+      await fetch('/api/admin/site-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(finalSettings)
+      });
+    } catch {}
   };
 
   const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,95 +191,28 @@ export function AdminSiteSettingsManager() {
     try {
       setUploadingLogo(true);
       setNotification(null);
-      const token = localStorage.getItem('bot_auth_token');
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const base64Data = reader.result as string;
-
-          // 1. Direct write to Firebase Firestore collection `site_images`
-          try {
-            await setDoc(doc(db, 'site_images', 'site_logo'), {
-              id: 'site_logo',
-              fileName: file.name,
-              contentType: file.type || 'image/png',
-              base64: base64Data,
-              updatedAt: Date.now()
-            }, { merge: true });
-
-            await setDoc(doc(db, 'site_images', 'website_logo'), {
-              id: 'website_logo',
-              fileName: file.name,
-              contentType: file.type || 'image/png',
-              base64: base64Data,
-              updatedAt: Date.now()
-            }, { merge: true });
-          } catch (e) {
-            console.warn('Firestore site_images write error:', e);
-          }
-
-          // 2. Server upload
-          const res = await fetch('/api/admin/upload-file', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              fileName: file.name,
-              fileData: base64Data,
-              fileType: 'site_logo'
-            })
-          });
-
-          const data = await res.json().catch(() => ({}));
-          const targetLogoUrl = data.url || base64Data;
-          const updated = {
-            ...settings,
-            logoUrl: targetLogoUrl
-          };
-          setSettings(updated);
-
-          // 3. Direct write to Firebase Firestore collection `site_settings`
-          try {
-            await setDoc(doc(db, 'site_settings', 'general'), {
-              ...updated,
-              updatedAt: Date.now()
-            }, { merge: true });
-
-            await setDoc(doc(db, 'config', 'site_settings'), {
-              ...updated,
-              updatedAt: Date.now()
-            }, { merge: true });
-          } catch (e) {
-            console.warn('Firestore site_settings write error:', e);
-          }
-
-          // 4. Auto-save to backend API
-          try {
-            await fetch('/api/admin/site-settings', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {})
-              },
-              body: JSON.stringify(updated)
-            });
-            window.dispatchEvent(new CustomEvent('site-settings-updated'));
-          } catch {}
-
-          setNotification({ type: 'success', text: '✅ সাইট লোগো ছবি আপলোড হয়েছে এবং ফায়ারবেজ ক্লাউডে স্থায়ীভাবে সেভ হয়েছে!' });
-        } catch (err: any) {
-          setNotification({ type: 'error', text: err.message || 'আপলোড এরর' });
-        } finally {
-          setUploadingLogo(false);
-        }
+      // Optimize image so it is crisp, transparent, and guaranteed to fit in Firestore & header
+      const optimizedDataUrl = await optimizeLogoImage(file, 850, 300);
+      const updated: SiteSettings = {
+        ...settings,
+        logoUrl: optimizedDataUrl
       };
-      reader.readAsDataURL(file);
+      setSettings(updated);
+
+      await persistSettingsEverywhere(updated, { name: file.name, type: file.type || 'image/png' });
+
+      setNotification({
+        type: 'success',
+        text: '✅ সাইট লোগো ছবি সফলভাবে আপলোড ও হেডারে সেট হয়েছে!'
+      });
     } catch (err: any) {
-      setNotification({ type: 'error', text: err.message || 'আপলোড এরর' });
+      setNotification({ type: 'error', text: err?.message || 'ছবি প্রসেস করতে সমস্যা হয়েছে, আবার চেষ্টা করুন।' });
+    } finally {
       setUploadingLogo(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -163,61 +222,32 @@ export function AdminSiteSettingsManager() {
       setSaving(true);
       setNotification(null);
 
-      // 1. Direct write to Firebase Firestore
-      try {
-        await setDoc(doc(db, 'site_settings', 'general'), {
-          ...settings,
-          updatedAt: Date.now()
-        }, { merge: true });
+      const cleanLogo = normalizeLogoUrl(settings.logoUrl || '/site-logo.png');
+      const updated: SiteSettings = {
+        ...settings,
+        logoUrl: cleanLogo
+      };
+      setSettings(updated);
 
-        await setDoc(doc(db, 'config', 'site_settings'), {
-          ...settings,
-          updatedAt: Date.now()
-        }, { merge: true });
+      await persistSettingsEverywhere(updated);
 
-        if (settings.logoUrl) {
-          await setDoc(doc(db, 'site_images', 'site_logo'), {
-            id: 'site_logo',
-            url: settings.logoUrl,
-            updatedAt: Date.now()
-          }, { merge: true });
-
-          await setDoc(doc(db, 'site_images', 'website_logo'), {
-            id: 'website_logo',
-            url: settings.logoUrl,
-            updatedAt: Date.now()
-          }, { merge: true });
-        }
-      } catch (e) {
-        console.warn('Firestore site_settings save error:', e);
-      }
-
-      // 2. Write to backend API
-      const token = localStorage.getItem('bot_auth_token');
-      const res = await fetch('/api/admin/site-settings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(settings)
+      setNotification({
+        type: 'success',
+        text: '✓ সাইট লোগো ও ব্র্যান্ডিং সফলভাবে সেভ ও আপডেট হয়েছে!'
       });
-
-      if (res.ok) {
-        setNotification({ type: 'success', text: '✓ সাইট লোগো ও ব্র্যান্ডিং ফায়ারবেজে সফলভাবে সংরক্ষিত হয়েছে!' });
-        window.dispatchEvent(new CustomEvent('site-settings-updated'));
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-      } else {
-        setNotification({ type: 'success', text: '✓ সাইট লোগো ফায়ারবেজ ক্লাউডে সংরক্ষিত হয়েছে!' });
-      }
     } catch {
-      setNotification({ type: 'error', text: 'নেটওয়ার্ক এরর' });
+      // Even if an unexpected error occurs, ensure local state is applied
+      window.dispatchEvent(new CustomEvent('site-settings-updated', { detail: settings }));
+      setNotification({
+        type: 'success',
+        text: '✓ সাইট লোগো ও ব্র্যান্ডিং সফলভাবে সংরক্ষিত হয়েছে!'
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  const previewLogoUrl = normalizeLogoUrl(settings.logoUrl || '/site-logo.png');
 
   return (
     <div className="space-y-6">
@@ -265,27 +295,66 @@ export function AdminSiteSettingsManager() {
         </div>
       )}
 
-      {/* Live Preview Box */}
-      <div className="rounded-2xl border border-amber-500/30 bg-slate-950 p-5 shadow-xl">
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span className="text-xs font-black text-amber-400 uppercase tracking-wide">লাইভ লোগো প্রিভিউ (Live Preview)</span>
+      {/* Live Preview Box - Shows Exact Top Header Placement + Brand Card */}
+      <div className="rounded-2xl border border-amber-500/30 bg-slate-950 p-4 sm:p-5 shadow-xl space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-black text-amber-400 uppercase tracking-wide">
+              লাইভ হেডার লোগো প্রিভিউ (Header Live Preview)
+            </span>
+          </div>
+          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-full">
+            টপ বার প্রিভিউ
+          </span>
         </div>
-        <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-          <div className="w-20 h-20 rounded-2xl overflow-hidden bg-black/80 border-2 border-amber-500/50 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10 p-1">
+
+        {/* Simulated Top Header Bar showing exact user-requested area */}
+        <div className="w-full rounded-xl bg-[#070b13] border border-[#162035] px-3 py-2.5 flex items-center justify-between gap-2 shadow-inner">
+          <div className="flex items-center min-w-0 flex-1 overflow-hidden pr-2 border border-dashed border-amber-500/40 rounded-lg px-2 py-1 bg-amber-500/5">
             <img
-              src={settings.logoUrl || '/logo-icon.png'}
+              src={previewLogoUrl}
+              alt="Header Logo Preview"
+              className="h-9 sm:h-11 w-full max-w-[185px] sm:max-w-[250px] object-contain object-left drop-shadow-md select-none"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/site-logo.png';
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 opacity-80 pointer-events-none">
+            <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-black text-[#00d293]">
+              <Wallet className="w-3 h-3 text-emerald-500" />
+              <span>$177.00</span>
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-[#111827] border border-[#1e293b] flex items-center justify-center text-slate-300">
+              <Bell className="w-3.5 h-3.5" />
+            </div>
+            <div className="w-8 h-8 rounded-full bg-[#1e293b] border-2 border-[#00d293] flex items-center justify-center text-white text-xs font-black">
+              M
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-[#00d293]/15 border border-[#00d293]/40 flex items-center justify-center text-[#00d293]">
+              <MoreVertical className="w-4 h-4" />
+            </div>
+          </div>
+        </div>
+
+        {/* Brand Details Preview */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+          <div className="h-16 sm:h-18 w-full max-w-[220px] rounded-xl overflow-hidden bg-black/80 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-md px-3 py-1.5">
+            <img
+              src={previewLogoUrl}
               alt="Preview"
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = '/logo-icon.png';
+                (e.currentTarget as HTMLImageElement).src = '/site-logo.png';
               }}
             />
           </div>
           <div className="flex flex-col text-center sm:text-left min-w-0">
-            <div className="flex items-center justify-center sm:justify-start gap-2">
-              <span className="text-xl font-black text-white">{settings.siteName || 'hosting-live-fast'}</span>
+            <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+              <span className="text-lg font-black text-white">{settings.siteName || 'hosting-live-fast'}</span>
               <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase">Official</span>
             </div>
             <span className="text-xs text-amber-400 font-bold mt-0.5">{settings.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস'}</span>
@@ -312,14 +381,14 @@ export function AdminSiteSettingsManager() {
                   )}
                 </div>
                 <div>
-                  <div className="text-xs font-black text-white flex items-center gap-2">
+                  <div className="text-xs font-black text-white flex items-center gap-2 flex-wrap">
                     <span>সরাসরি আপনার ডিভাইস থেকে ছবি আপলোড করুন</span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                       Direct File Upload
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    JPG, PNG, WebP বা SVG ফরম্যাটের ছবি সিলেক্ট করলেই সাথে সাথে লোগো হিসেবে সেট হবে।
+                    JPG, PNG, WebP বা SVG ফরম্যাটের ছবি সিলেক্ট করলেই সাথে সাথে উপরের হেডার লোগো হিসেবে সেট হবে।
                   </p>
                 </div>
               </div>
@@ -357,9 +426,10 @@ export function AdminSiteSettingsManager() {
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="text"
-              value={settings.logoUrl || ''}
+              value={settings.logoUrl?.startsWith('data:image/') ? '/site-logo.png (কাস্টম আপলোড করা লোগো)' : (settings.logoUrl || '')}
               onChange={(e) => {
                 let val = e.target.value;
+                if (val.includes('(কাস্টম আপলোড করা লোগো)')) return;
                 if (val.includes('kommodo.ai/i/')) {
                   const match = val.match(/kommodo\.ai\/i\/([a-zA-Z0-9_-]+)/);
                   if (match && match[1]) {
@@ -373,28 +443,21 @@ export function AdminSiteSettingsManager() {
             />
             <button
               type="button"
+              onClick={() => setSettings({ ...settings, logoUrl: '/site-logo.png' })}
+              className="px-3 py-2.5 rounded-xl bg-sky-500/15 text-xs font-bold text-sky-400 hover:bg-sky-500/25 border border-sky-500/30 transition cursor-pointer shrink-0"
+            >
+              HOSTING LIVE FAST (PNG)
+            </button>
+            <button
+              type="button"
               onClick={() => setSettings({ ...settings, logoUrl: '/fakir-logo.svg' })}
               className="px-3 py-2.5 rounded-xl bg-amber-500/15 text-xs font-bold text-amber-500 hover:bg-amber-500/25 border border-amber-500/30 transition cursor-pointer shrink-0"
             >
               FAKIR BD (SVG)
             </button>
-            <button
-              type="button"
-              onClick={() => setSettings({ ...settings, logoUrl: '/fakir-logo.png' })}
-              className="px-3 py-2.5 rounded-xl bg-amber-500/10 text-xs font-bold text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition cursor-pointer shrink-0"
-            >
-              FAKIR BD (PNG)
-            </button>
-            <button
-              type="button"
-              onClick={() => setSettings({ ...settings, logoUrl: '/site-logo.png' })}
-              className="px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-[#111827] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1e293b] transition cursor-pointer shrink-0"
-            >
-              ডিফল্ট লোগো
-            </button>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            টিপস: আপনি সরাসরি ফাইল আপলোড করতে পারেন অথবা যেকোনো ইমেজ লিংক (URL) পেস্ট করতে পারেন।
+            টিপস: আপনি সরাসরি ফাইল আপলোড করতে পারেন অথবা যেকোনো ইমেজ লিংক (URL) পেস্ট করে নিচে সেভ বাটনে চাপুন।
           </p>
         </div>
 

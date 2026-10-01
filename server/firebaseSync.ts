@@ -768,7 +768,6 @@ export class FirebaseSync {
     if (!settings) return false;
     try {
       const idToken = await getAdminIdToken();
-      if (!idToken) return false;
 
       const fields: Record<string, any> = {};
       for (const [key, val] of Object.entries(settings)) {
@@ -778,12 +777,12 @@ export class FirebaseSync {
       }
       fields['updatedAt'] = toFirestoreValue(Date.now());
 
-      const url = `${BASE_URL}/site_settings/general`;
+      const url = `${BASE_URL}/site_settings/general?key=${API_KEY}`;
       const res = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
         },
         body: JSON.stringify({ fields })
       });
@@ -797,11 +796,10 @@ export class FirebaseSync {
   static async loadSiteSettingsFromCloud(): Promise<any | null> {
     try {
       const idToken = await getAdminIdToken();
-      if (!idToken) return null;
 
-      const url = `${BASE_URL}/site_settings/general`;
+      const url = `${BASE_URL}/site_settings/general?key=${API_KEY}`;
       const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${idToken}` }
+        headers: idToken ? { 'Authorization': `Bearer ${idToken}` } : {}
       });
       if (!res.ok) return null;
       const data: any = await res.json();
@@ -1021,24 +1019,27 @@ export class FirebaseSync {
     if (!imageId || !base64Data) return false;
     try {
       const idToken = await getAdminIdToken();
-      if (!idToken) return false;
 
+      const mime = contentType || 'image/png';
       const rawBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+      const fullDataUrl = base64Data.startsWith('data:') ? base64Data : `data:${mime};base64,${rawBase64}`;
       const safeId = encodeURIComponent(imageId.replace(/[^a-zA-Z0-9_-]/g, '_'));
 
-      const url = `${BASE_URL}/site_images/${safeId}`;
+      const url = `${BASE_URL}/site_images/${safeId}?key=${API_KEY}`;
       const res = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
         },
         body: JSON.stringify({
           fields: {
             id: { stringValue: imageId },
             fileName: { stringValue: fileName || imageId },
-            contentType: { stringValue: contentType || 'image/png' },
-            base64: { stringValue: rawBase64 },
+            contentType: { stringValue: mime },
+            url: { stringValue: fullDataUrl },
+            dataUrl: { stringValue: fullDataUrl },
+            base64: { stringValue: fullDataUrl },
             updatedAt: { integerValue: String(Date.now()) }
           }
         })
@@ -1054,18 +1055,19 @@ export class FirebaseSync {
     if (!imageId) return null;
     try {
       const idToken = await getAdminIdToken();
-      if (!idToken) return null;
 
       const safeId = encodeURIComponent(imageId.replace(/[^a-zA-Z0-9_-]/g, '_'));
-      const url = `${BASE_URL}/site_images/${safeId}`;
+      const url = `${BASE_URL}/site_images/${safeId}?key=${API_KEY}`;
       const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${idToken}` }
+        headers: idToken ? { 'Authorization': `Bearer ${idToken}` } : {}
       });
       if (!res.ok) return null;
       const data: any = await res.json();
       if (data && data.fields?.base64?.stringValue) {
+        const stored = data.fields.base64.stringValue;
+        const raw = stored.includes(',') ? stored.split(',')[1] : stored;
         return {
-          base64: data.fields.base64.stringValue,
+          base64: raw,
           contentType: data.fields.contentType?.stringValue || 'image/png'
         };
       }

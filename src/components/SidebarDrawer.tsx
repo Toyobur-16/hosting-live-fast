@@ -23,6 +23,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { AuthUser, SiteSettings } from '../types';
+import { normalizeLogoUrl } from '../utils/logoUrl';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -178,19 +179,17 @@ export function SidebarDrawer({
           {/* Top Section */}
           <div>
             {/* Top Brand Banner */}
-            <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#070b14] border-b border-slate-200 dark:border-[#162035] flex items-center justify-between">
+            <div className="px-4 py-3 bg-slate-50 dark:bg-[#070b14] border-b border-slate-200 dark:border-[#162035] flex items-center justify-between gap-2">
               <div className="flex items-center min-w-0 flex-1 overflow-hidden py-0.5">
                 <img
-                  src={siteSettings?.logoUrl || '/fakir-logo.svg'}
-                  alt={siteSettings?.siteName || 'FAKIR BD TOP UP'}
-                  className="h-8 w-auto max-w-[190px] object-contain object-left drop-shadow-xs"
+                  src={normalizeLogoUrl(siteSettings?.logoUrl || '/site-logo.png')}
+                  alt={siteSettings?.siteName || 'hosting-live-fast'}
+                  className="h-9 sm:h-10 w-full max-w-[210px] object-contain object-left drop-shadow-xs"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
                     const target = e.currentTarget as HTMLImageElement;
-                    if (!target.src.endsWith('fakir-logo.svg')) {
-                      target.src = '/fakir-logo.svg';
-                    } else if (!target.src.endsWith('fakir-logo.png')) {
-                      target.src = '/fakir-logo.png';
+                    if (!target.src.endsWith('site-logo.png')) {
+                      target.src = '/site-logo.png';
                     }
                   }}
                 />

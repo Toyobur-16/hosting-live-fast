@@ -24,6 +24,7 @@ import {
   Share2
 } from 'lucide-react';
 import { StoreBanner, AuthUser, SiteSettings } from '../types';
+import { normalizeLogoUrl } from '../utils/logoUrl';
 
 interface AnnouncementItem {
   id: string;
@@ -124,17 +125,23 @@ export function StoreHomePage({
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Brand Hero Card with Official Logo */}
       <div className="relative rounded-3xl overflow-hidden border border-amber-500/30 bg-gradient-to-br from-slate-950 via-[#0e1628] to-slate-900 shadow-xl p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5 sm:gap-5 w-full sm:w-auto">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-black/70 border-2 border-amber-500/50 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10 p-1">
+        <div className="flex flex-col sm:flex-row items-center gap-3.5 sm:gap-5 w-full sm:w-auto text-center sm:text-left">
+          <div className="h-14 sm:h-16 max-w-[200px] sm:max-w-[240px] px-2.5 py-1.5 rounded-2xl overflow-hidden bg-black/70 border-2 border-amber-500/50 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10">
             <img
-              src={siteSettings?.logoUrl || '/logo-icon.png'}
+              src={normalizeLogoUrl(siteSettings?.logoUrl || '/site-logo.png')}
               alt={siteSettings?.siteName || 'Logo'}
-              className="w-full h-full object-contain"
+              className="h-full w-auto max-w-full object-contain"
               referrerPolicy="no-referrer"
+              onError={(e) => {
+                const target = e.currentTarget as HTMLImageElement;
+                if (!target.src.endsWith('site-logo.png')) {
+                  target.src = '/site-logo.png';
+                }
+              }}
             />
           </div>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-col items-center sm:items-start min-w-0">
+            <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">
                 {siteSettings?.siteName || 'hosting-live-fast'}
               </h1>
