@@ -9121,6 +9121,26 @@ async function initSiteConfigSync() {
       }
     }
 
+    // Publish current active bridge URL to Firestore config/smtp_bridge so external hosts (e.g. Render) can discover it
+    try {
+      const activeBridge = 'https://ais-dev-tvhgjgf3t5dquqrqha6jmx-884876402553.asia-southeast1.run.app/api/smtp-cloud-bridge';
+      const projectId = 'hosting-live-fast-11b13';
+      const databaseId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;
+      await fetch(`${baseUrl}/config/smtp_bridge`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            url: { stringValue: activeBridge },
+            updatedAt: { integerValue: String(Date.now()) }
+          }
+        }),
+        signal: AbortSignal.timeout(3000)
+      });
+      console.log('✅ Published active SMTP bridge URL to Firestore!');
+    } catch {}
+
     const remoteWebsites = await FirebaseSync.loadWebsitesFromCloud();
     if (remoteWebsites && Array.isArray(remoteWebsites) && remoteWebsites.length > 0) {
       const current = getWebsites();

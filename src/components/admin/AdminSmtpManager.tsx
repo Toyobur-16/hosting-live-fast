@@ -280,7 +280,7 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
     }
   };
 
-  const applyPreset = (type: 'gmail-ssl' | 'gmail-tls' | 'custom') => {
+  const applyPreset = (type: 'gmail-ssl' | 'gmail-tls' | 'brevo' | 'resend' | 'custom') => {
     if (type === 'gmail-ssl') {
       setFormData((prev) => ({
         ...prev,
@@ -292,6 +292,20 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
       setFormData((prev) => ({
         ...prev,
         host: 'smtp.gmail.com',
+        port: 587,
+        secure: false
+      }));
+    } else if (type === 'brevo') {
+      setFormData((prev) => ({
+        ...prev,
+        host: 'smtp-relay.brevo.com',
+        port: 587,
+        secure: false
+      }));
+    } else if (type === 'resend') {
+      setFormData((prev) => ({
+        ...prev,
+        host: 'smtp.resend.com',
         port: 587,
         secure: false
       }));
@@ -441,7 +455,7 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
                 onClick={() => applyPreset('gmail-tls')}
                 className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 cursor-pointer font-bold flex items-center gap-1"
               >
-                <span>⚡ Gmail 587 (TLS - রিকমেন্ডেড)</span>
+                <span>⚡ Gmail 587 (TLS)</span>
               </button>
               <button
                 type="button"
@@ -450,17 +464,31 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
               >
                 Gmail 465 (SSL)
               </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('brevo')}
+                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer font-medium"
+              >
+                Brevo (HTTPS API)
+              </button>
             </div>
           </div>
 
           {/* Cloud hosting port hint */}
-          <div className="p-2.5 rounded-xl bg-sky-950/30 border border-sky-500/25 text-[11px] text-sky-200 flex items-start gap-2">
-            <span className="text-sm">💡</span>
-            <span>
+          <div className="p-3 rounded-xl bg-sky-950/30 border border-sky-500/25 text-[11px] text-sky-200 space-y-1.5">
+            <div className="flex items-center gap-2 font-bold text-sky-300">
+              <span className="text-sm">💡</span>
+              <span>
+                {lang === 'bn'
+                  ? 'হোস্টিং সার্ভার ও Render Free Tier ডেলিভারি গাইড:'
+                  : 'Hosting Server & Render Delivery Guide:'}
+              </span>
+            </div>
+            <p className="leading-relaxed text-slate-300">
               {lang === 'bn'
-                ? 'ক্লাউড হোস্টিংয়ে (Render, AWS, GCP ইত্যাদি) পোর্ট ৪৬৫ ব্লক থাকতে পারে। নিরবচ্ছিন্ন ভেরিফিকেশন কোড ও এলার্ট পাঠাতে Gmail Port 587 (TLS) ব্যবহার করুন।'
-                : 'Outbound port 465 may be blocked on cloud hosting (Render, AWS, GCP). Use Gmail Port 587 (TLS) for guaranteed email delivery.'}
-            </span>
+                ? 'Render Free Tier এ পোর্ট ৫87 ও ৪৬৫ সরাসরি ব্লক থাকে। তবে সিস্টেমে ক্লাউড HTTPS ব্রিজ ও Brevo/Resend ইন্টিগ্রেশন রয়েছে। যদি Render-এ হোস্ট করা সাইট থেকে ইমেইল সরাসরি পাঠাতে চান, তবে Brevo-র ফ্রি একাউন্ট খুলে API Key (xkeysib-...) পাসওয়ার্ড বক্সে অথবা Render Environment Variables এ BREVO_API_KEY সেট করুন।'
+                : 'Outbound SMTP ports may be blocked on Render Free Tier. For zero-block delivery, enter a Brevo API key (xkeysib-...) or set BREVO_API_KEY / RESEND_API_KEY in your hosting environment.'}
+            </p>
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-3.5">

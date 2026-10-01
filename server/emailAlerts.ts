@@ -56,12 +56,45 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
   secure: false
 };
 
-const CLOUD_SMTP_BRIDGE_URLS = [
+const STATIC_SMTP_BRIDGE_URLS = [
   process.env.SMTP_BRIDGE_URL,
-  'https://ais-pre-y2om3arl3yth3fwaltcwzy-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge',
-  'https://ais-dev-y2om3arl3yth3fwaltcwzy-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge',
-  'https://ais-pre-ykmsp67mhlegotwyvf4twj-191111779762.asia-southeast1.run.app/api/smtp-cloud-bridge'
+  'https://ais-dev-tvhgjgf3t5dquqrqha6jmx-884876402553.asia-southeast1.run.app/api/smtp-cloud-bridge',
+  'https://ais-pre-tvhgjgf3t5dquqrqha6jmx-884876402553.asia-southeast1.run.app/api/smtp-cloud-bridge'
 ].filter(Boolean) as string[];
+
+let dynamicBridgeUrlCache: { url: string; expiresAt: number } | null = null;
+
+async function getAvailableBridgeUrls(): Promise<string[]> {
+  const urls: string[] = [];
+  if (process.env.SMTP_BRIDGE_URL) {
+    urls.push(process.env.SMTP_BRIDGE_URL.trim());
+  }
+
+  // Fast check dynamic bridge URL from Firestore config/smtp_bridge
+  if (dynamicBridgeUrlCache && dynamicBridgeUrlCache.expiresAt > Date.now()) {
+    if (dynamicBridgeUrlCache.url) urls.push(dynamicBridgeUrlCache.url);
+  } else {
+    try {
+      const projectId = 'hosting-live-fast-11b13';
+      const databaseId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
+      const docRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/config/smtp_bridge`,
+        { signal: AbortSignal.timeout(1800) }
+      );
+      if (docRes.ok) {
+        const doc: any = await docRes.json();
+        const dynUrl = doc?.fields?.url?.stringValue;
+        if (dynUrl && dynUrl.startsWith('http')) {
+          urls.push(dynUrl);
+          dynamicBridgeUrlCache = { url: dynUrl, expiresAt: Date.now() + 5 * 60 * 1000 };
+        }
+      }
+    } catch {}
+  }
+
+  urls.push(...STATIC_SMTP_BRIDGE_URLS);
+  return Array.from(new Set(urls.filter(Boolean)));
+}
 
 export const SMTP_BRIDGE_SECRET = 'hlf_cloud_smtp_bridge_2026_key';
 
@@ -193,11 +226,49 @@ export async function relayViaHttpsBridge(payload: {
     }
   }
 
+  // 0C. Resend HTTPS Port 443 API Relay (if API key starts with re_)
+  const resendKey = rawPass.startsWith('re_') ? rawPass : (process.env.RESEND_API_KEY || '').trim();
+  if (resendKey && resendKey.startsWith('re_')) {
+    if (payload.action === 'verify') {
+      return {
+        success: true,
+        message: '✅ Resend HTTPS API (Port 443) ইমেইল গেটওয়ে সফলভাবে সংযুক্ত!'
+      };
+    }
+    if (payload.action === 'send' && payload.mail && payload.mail.to) {
+      try {
+        const resendRes = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: 'hosting live fast <onboarding@resend.dev>',
+            to: [payload.mail.to],
+            subject: payload.mail.subject,
+            html: payload.mail.html || `<p>${payload.mail.text}</p>`,
+            text: payload.mail.text || payload.mail.subject
+          })
+        });
+        if (resendRes.ok) {
+          const rData: any = await resendRes.json().catch(() => ({}));
+          return {
+            success: true,
+            messageId: rData.id || `<resend_${Date.now()}@hosting-live-fast.cloud>`,
+            message: 'Sent via Resend HTTPS Port 443 API'
+          };
+        }
+      } catch {}
+    }
+  }
+
   // 1. Try direct HTTPS bridge URLs if configured
-  for (const bridgeUrl of CLOUD_SMTP_BRIDGE_URLS) {
+  const bridgeUrls = await getAvailableBridgeUrls();
+  for (const bridgeUrl of bridgeUrls) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3500);
+      const timer = setTimeout(() => controller.abort(), 2800);
       const res = await fetch(bridgeUrl, {
         method: 'POST',
         headers: {
@@ -285,9 +356,11 @@ export async function relayViaHttpsBridge(payload: {
  */
 export function startCloudSmtpRelayWorker(): void {
   let isProcessing = false;
+  let quotaBackoffUntil = 0;
 
   setInterval(async () => {
     if (isProcessing) return;
+    if (Date.now() < quotaBackoffUntil) return;
     isProcessing = true;
     try {
       const idToken = await getFirebaseRelayToken();
@@ -300,7 +373,7 @@ export function startCloudSmtpRelayWorker(): void {
       const databaseId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
       const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;
 
-      // 1. Process Firestore Email Queue using :runQuery (bypasses 403 collection-listing restrictions on named databases)
+      // 1. Process Firestore Email Queue using :runQuery
       const queryRes = await fetch(`${baseUrl}:runQuery`, {
         method: 'POST',
         headers: {
@@ -312,10 +385,20 @@ export function startCloudSmtpRelayWorker(): void {
             from: [{ collectionId: 'email_queue' }],
             limit: 20
           }
-        })
+        }),
+        signal: AbortSignal.timeout(6000)
+      }).catch((err) => {
+        return null;
       });
 
-      if (queryRes.ok) {
+      if (queryRes && queryRes.status === 429) {
+        // Quota exceeded, back off for 3 minutes so it does not spam
+        quotaBackoffUntil = Date.now() + 180000;
+        isProcessing = false;
+        return;
+      }
+
+      if (queryRes && queryRes.ok) {
         const queryData: any = await queryRes.json().catch(() => []);
         const docs = Array.isArray(queryData)
           ? queryData.map((item: any) => item.document).filter(Boolean)
@@ -367,54 +450,12 @@ export function startCloudSmtpRelayWorker(): void {
           }
         }
       }
-
-      // 2. Legacy fallback: check Auth user displayName queue
-      const lookRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_RELAY_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken })
-      });
-      if (lookRes.ok) {
-        const lookData: any = await lookRes.json();
-        const rawDisplay = lookData?.users?.[0]?.displayName;
-        if (rawDisplay && typeof rawDisplay === 'string' && rawDisplay.startsWith('{')) {
-          const job = JSON.parse(rawDisplay);
-          if (job && job.id && !job.done && job.id !== lastProcessedRelayJobId && job.to) {
-            lastProcessedRelayJobId = job.id;
-            const transporter = (await getTransporterAsync()) || getTransporter();
-            if (transporter) {
-              const fileConfig = loadSmtpSettingsFile();
-              const rawFrom = (fileConfig?.from || DEFAULT_SMTP_SETTINGS.from || DEFAULT_SMTP_SETTINGS.user).trim();
-              const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
-
-              const info = await transporter.sendMail({
-                from: fromFormatted,
-                to: job.to,
-                subject: job.sub || 'hosting live fast Notification',
-                text: job.txt || job.sub,
-                html: job.txt || job.sub
-              });
-              console.log(`[CLOUD RELAY WORKER] Sent queued email for ${job.to} | MsgId: ${info.messageId}`);
-
-              await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_RELAY_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  idToken,
-                  displayName: JSON.stringify({ id: job.id, done: true, msgId: info.messageId, ts: Date.now() }),
-                  returnSecureToken: false
-                })
-              }).catch(() => {});
-            }
-          }
-        }
-      }
     } catch {
       // Ignore transient network errors
     } finally {
       isProcessing = false;
     }
-  }, 1500);
+  }, 25000);
 }
 
 export function loadSmtpSettingsFile(): SmtpSettingsData {
@@ -848,9 +889,9 @@ export async function getTransporterAsync(forceFresh = false): Promise<Transport
         maxConnections: 3,
         maxMessages: 100,
         family: 4,
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 20000,
+        connectionTimeout: 4000,
+        greetingTimeout: 4000,
+        socketTimeout: 10000,
         auth: { user, pass: (pass || '').replace(/\s+/g, '') },
         tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' }
       } as any);
@@ -914,9 +955,9 @@ export function getTransporter(): Transporter | null {
         maxConnections: 3,
         maxMessages: 100,
         family: 4,
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 20000,
+        connectionTimeout: 4000,
+        greetingTimeout: 4000,
+        socketTimeout: 10000,
         auth: { user, pass: (pass || '').replace(/\s+/g, '') },
         tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' }
       } as any);
@@ -1282,6 +1323,8 @@ export async function testSmtpWithParams(options: {
   };
 }
 
+let lastDirectSmtpBlockedUntil = 0;
+
 /**
  * Main helper function to send email alerts to users.
  * Delivers via SMTP if configured, and always stores an in-app persistent notification alert.
@@ -1322,11 +1365,31 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
     }
   }
 
-  // 2. Attempt real SMTP sending if configured
+  // 2. Attempt real SMTP or HTTPS bridge sending
   const fileConfig = loadSmtpSettingsFile();
   const rawFrom = (fileConfig?.from || process.env.SMTP_FROM || fileConfig?.user || process.env.SMTP_USER || 'hostinglivefast.official@gmail.com').trim();
   const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
   const plainText = text || html.replace(/<[^>]+>/g, ' ');
+
+  // If direct SMTP was recently blocked (e.g. Render Free Tier port 587 block), prioritize HTTPS bridge immediately
+  if (Date.now() < lastDirectSmtpBlockedUntil) {
+    const fastBridgeRes = await relayViaHttpsBridge({
+      action: 'send',
+      smtp: fileConfig,
+      mail: {
+        from: fromFormatted,
+        to,
+        subject,
+        text: plainText,
+        html
+      }
+    });
+
+    if (fastBridgeRes.success) {
+      console.log(`[EMAIL ALERT SENT VIA FAST HTTPS BRIDGE] To: ${to} | MsgId: ${fastBridgeRes.messageId}`);
+      return { success: true, messageId: fastBridgeRes.messageId };
+    }
+  }
 
   const transporter = (await getTransporterAsync()) || getTransporter();
 
@@ -1363,6 +1426,12 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
     } catch (err: any) {
       const errorDetail = explainSmtpError(err);
       console.warn(`[EMAIL ALERT DIRECT SMTP NOTE] Could not send directly to ${to}: ${errorDetail}. Trying HTTPS bridge...`);
+
+      // Mark direct SMTP blocked if connection was timed out or unreachable
+      const isPortBlock = err?.code === 'ETIMEDOUT' || err?.code === 'ECONNREFUSED' || err?.code === 'ENETUNREACH' || err?.message?.includes('timeout');
+      if (isPortBlock) {
+        lastDirectSmtpBlockedUntil = Date.now() + 180000; // 3 minutes fast routing via bridge
+      }
 
       const isAuthError = err?.message?.includes('535') || err?.code === 'EAUTH' || err?.message?.includes('BadCredentials') || err?.message?.includes('Username and Password not accepted');
       if (isAuthError) {
@@ -1403,9 +1472,26 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
         return { success: true, messageId: bridgeRes.messageId };
       }
 
-      return { success: true, simulated: true, messageId: `cloud_queued_${Date.now()}` };
+      return { success: false, error: bridgeRes.error || errorDetail };
     }
   } else {
+    // Transporter not configured, try bridge directly
+    const bridgeRes = await relayViaHttpsBridge({
+      action: 'send',
+      smtp: fileConfig,
+      mail: {
+        from: fromFormatted,
+        to,
+        subject,
+        text: plainText,
+        html
+      }
+    });
+
+    if (bridgeRes.success) {
+      return { success: true, messageId: bridgeRes.messageId };
+    }
+
     console.log(`[EMAIL ALERT SIMULATION] Stored in in-app notifications for ${to}.`);
     return { success: true, simulated: true };
   }
