@@ -391,8 +391,8 @@ export const AuthModal = ({
       } else {
         setSuccessMessage(
           lang === 'bn'
-            ? 'আপনার জিমেইল ইনবক্স বা Spam ফোল্ডারে পাঠানো ৬ সংখ্যার কোডটি উপরের ঘরে বসান অথবা ইমেইলের ভেরিফাই লিংকে ক্লিক করুন।'
-            : 'Please enter the 6-digit code sent to your email inbox/spam folder above, or click the verification link in your email.'
+            ? 'আপনার ইমেইলে পাঠানো ৬ সংখ্যার কোডটি উপরের ঘরে বসিয়ে সাবমিট করুন।'
+            : 'Please enter the 6-digit code sent to your email.'
         );
         digitInputRefs.current[0]?.focus();
       }
@@ -438,8 +438,8 @@ export const AuthModal = ({
       setSuccessMessage(
         lang === 'bn'
           ? (isReset
-              ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে। ইনবক্স অথবা Spam চেক করুন।`
-              : `আপনার ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। ইনবক্স অথবা Spam চেক করুন।`)
+              ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।`
+              : `আপনার ইমেইলে (${cleanEmail}) নতুন ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।`)
           : 'A new 6-digit code has been sent to your email.'
       );
       digitInputRefs.current[0]?.focus();
@@ -530,8 +530,8 @@ export const AuthModal = ({
           setDigits(['', '', '', '', '', '']);
           setSuccessMessage(
             lang === 'bn'
-              ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে! অনুগ্রহ করে আপনার জিমেইল ইনবক্স অথবা Spam ফোল্ডার চেক করে ৬ সংখ্যার কোডটি দিন।`
-              : `A 6-digit verification code has been sent to ${cleanEmail}. Check your inbox or spam folder and enter the code below.`
+              ? `আপনার ইমেইলে (${cleanEmail}) ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে! কোডটি নিচে লিখে অ্যাকাউন্ট যাচাই করুন।`
+              : `A 6-digit verification code has been sent to ${cleanEmail}. Enter the code below.`
           );
           setTimeout(() => digitInputRefs.current[0]?.focus(), 100);
         } else {
@@ -614,8 +614,8 @@ export const AuthModal = ({
       setConfirmNewPassword('');
       setSuccessMessage(
         lang === 'bn'
-          ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে! আপনার জিমেইল ইনবক্স বা Spam ফোল্ডার চেক করে কোডটি বসিয়ে নতুন পাসওয়ার্ড দিন।`
-          : `A 6-digit password reset code has been sent to ${cleanEmail}. Check your inbox or spam folder and enter the code below.`
+          ? `আপনার নিবন্ধিত ইমেইলে (${cleanEmail}) ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে! কোডটি বসিয়ে নতুন পাসওয়ার্ড দিন।`
+          : `A 6-digit password reset code has been sent to ${cleanEmail}. Enter the code and your new password below.`
       );
       setTimeout(() => {
         digitInputRefs.current[0]?.focus();
@@ -715,8 +715,8 @@ export const AuthModal = ({
               </h2>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                 {lang === 'bn'
-                  ? 'আপনার জিমেইল ইনবক্স অথবা Spam ফোল্ডার চেক করুন। সেখানে পাঠানো ৬ সংখ্যার সিকিউর কোডটি নিচের ঘরে বসিয়ে অ্যাকাউন্ট সক্রিয় করুন।'
-                  : 'Check your email inbox or spam folder. Enter the 6-digit verification code below to activate your account.'}
+                  ? 'আপনার ইমেইলে পাঠানো ৬ সংখ্যার সিকিউর কোডটি নিচের ঘরে বসিয়ে অ্যাকাউন্ট সক্রিয় করুন।'
+                  : 'Enter the 6-digit verification code sent to your email to activate your account.'}
               </p>
 
               {/* Target Email Box */}
@@ -790,11 +790,6 @@ export const AuthModal = ({
               </button>
             </div>
 
-            <div className="mb-4 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300/90 text-xs flex items-center gap-2">
-              <Mail className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>{lang === 'bn' ? 'ইমেইল না পেলে আপনার জিমেইল অ্যাপের Spam (স্প্যাম) ফোল্ডার চেক করুন।' : 'If not in Inbox, please check your Spam / Junk folder.'}</span>
-            </div>
-
             {/* Verify Button */}
             <button
               type="button"
@@ -833,8 +828,8 @@ export const AuthModal = ({
               </h2>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                 {lang === 'bn'
-                  ? 'আপনার জিমেইল ইনবক্স বা Spam ফোল্ডার চেক করুন। সেখানে পাঠানো ৬ সংখ্যার কোড এবং নতুন পাসওয়ার্ড দিয়ে লগইন করুন।'
-                  : 'Check your email inbox or spam folder. Enter the 6-digit code and your new password to sign in.'}
+                  ? 'আপনার ইমেইলে পাঠানো ৬ সংখ্যার কোড এবং নতুন পাসওয়ার্ড দিয়ে সাবমিট করুন।'
+                  : 'Enter the 6-digit code sent to your email and your new password to sign in.'}
               </p>
 
               {/* Target Email Box */}
@@ -919,11 +914,6 @@ export const AuthModal = ({
                     ? `${lang === 'bn' ? 'পুনরায় পাঠান' : 'Resend Code'} (${resendCooldown}s)`
                     : (lang === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code')}
                 </button>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300/90 text-xs flex items-center gap-2">
-                <Mail className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>{lang === 'bn' ? 'কোড না পেলে আপনার জিমেইল অ্যাপের Spam (স্প্যাম) ফোল্ডার চেক করুন।' : 'If code is not in Inbox, check your Spam / Junk folder.'}</span>
               </div>
 
               {/* New Password input */}
