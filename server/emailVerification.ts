@@ -490,7 +490,8 @@ export async function createAndSendVerificationCode(
 
   return {
     success: true,
-    emailSent: emailDelivered
+    emailSent: emailDelivered,
+    code: code
   };
 }
 
@@ -627,7 +628,8 @@ export async function createAndSendPasswordResetCode(
 
   return {
     success: true,
-    emailSent: emailDelivered
+    emailSent: emailDelivered,
+    code: code
   };
 }
 

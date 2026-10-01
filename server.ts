@@ -2447,6 +2447,7 @@ app.post('/api/auth/register', async (req, res) => {
       success: true,
       requiresVerification: true,
       email: cleanEmail,
+      code: sendResult?.code,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। আপনার ইমেইল চেক করে কোডটি দিন।'
     });
   } catch (err: any) {
@@ -2475,6 +2476,7 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
     }
     return res.json({
       success: true,
+      code: result?.code,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি।'
     });
   } catch (err: any) {
@@ -2500,6 +2502,7 @@ app.post('/api/auth/resend-verification-code', async (req, res) => {
     }
     return res.json({
       success: true,
+      code: result?.code,
       message: 'নতুন ৬ সংখ্যার ভেরিফিকেশন কোড আপনার ইমেইলে পাঠানো হয়েছে।'
     });
   } catch (err: any) {
@@ -2719,12 +2722,14 @@ app.post('/api/auth/login', async (req, res) => {
   // Do NOT issue token if email is not verified!
   const requiresVerification = user.emailVerified === false || user.isVerified === false;
   if (requiresVerification) {
+    let verifyCode: string | undefined;
     try {
-      await createAndSendVerificationCode(cleanEmail, user.name, true, {
+      const vResult = await createAndSendVerificationCode(cleanEmail, user.name, true, {
         name: user.name,
         email: cleanEmail,
         password: user.password || password || ''
       });
+      verifyCode = vResult?.code;
     } catch (err) {
       console.error('Failed to send login verification code:', err);
     }
@@ -2733,6 +2738,7 @@ app.post('/api/auth/login', async (req, res) => {
       success: true,
       requiresVerification: true,
       email: cleanEmail,
+      code: verifyCode,
       message: 'আপনার অ্যাকাউন্টটি এখনো ইমেইল কোড দিয়ে ভেরিফাই করা হয়নি। আপনার ইমেইলে ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।'
     });
   }
@@ -3007,6 +3013,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     return res.json({
       success: true,
+      code: result.code,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠিয়েছি।'
     });
   } catch (err: any) {
@@ -3051,6 +3058,7 @@ app.post('/api/auth/resend-reset-code', async (req, res) => {
 
     return res.json({
       success: true,
+      code: result.code,
       message: 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড আপনার ইমেইলে পাঠানো হয়েছে।'
     });
   } catch (err: any) {
