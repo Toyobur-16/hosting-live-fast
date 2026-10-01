@@ -104,50 +104,94 @@ export function ProfilePage({
     }
   }, [user?.id, user?.email, user?.name, user?.avatar]);
 
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_DIM = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          } else {
+            resolve(event.target?.result as string);
+          }
+        };
+        img.onerror = () => resolve(event.target?.result as string);
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 8 * 1024 * 1024) {
-      setNotification({
-        type: 'error',
-        text: lang === 'bn' ? 'ছবির সাইজ ৮ মেগাবাইটের কম হতে হবে।' : 'Image size must be less than 8MB.'
-      });
-      return;
-    }
-
     try {
       setUploadingImage(true);
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = reader.result as string;
-        setAvatarPreview(base64Data);
+      // Auto-compress to clean, fast-loading 400x400 avatar (~50KB)
+      const compressedBase64 = await compressImage(file);
+      if (!compressedBase64) {
+        setUploadingImage(false);
+        return;
+      }
+      setAvatarPreview(compressedBase64);
 
-        // Upload to server store thumbnails to get a clean permanent URL
-        try {
-          const res = await fetch('/api/store/upload-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              base64: base64Data,
-              fileName: `avatar_${user?.id || 'usr'}_${Date.now()}.png`,
-              fileType: 'avatar'
-            })
-          });
+      // Upload to server thumbnail storage
+      const token = localStorage.getItem('bot_auth_token');
+      try {
+        const res = await fetch('/api/user/upload-avatar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            base64: compressedBase64,
+            fileName: `avatar_${user?.id || 'usr'}_${Date.now()}.jpg`
+          })
+        });
 
-          const data = await res.json();
-          if (data.success && data.url) {
-            setEditAvatar(data.url);
-          } else {
-            setEditAvatar(base64Data);
+        const data = await res.json().catch(() => ({}));
+        if (data.success && data.url) {
+          setEditAvatar(data.url);
+          setAvatarPreview(data.url);
+          // Auto-update user state if already saved
+          if (user) {
+            const updatedUser: AuthUser = { ...user, avatar: data.url };
+            onUserUpdate?.(updatedUser);
+            localStorage.setItem('bot_auth_user', JSON.stringify(updatedUser));
           }
-        } catch {
-          setEditAvatar(base64Data);
-        } finally {
-          setUploadingImage(false);
+        } else {
+          setEditAvatar(compressedBase64);
         }
-      };
-      reader.readAsDataURL(file);
+      } catch {
+        setEditAvatar(compressedBase64);
+      } finally {
+        setUploadingImage(false);
+      }
     } catch {
       setUploadingImage(false);
     }
@@ -167,7 +211,7 @@ export function ProfilePage({
         avatar: finalAvatar
       };
 
-      // 1. Direct write to Firestore /accounts/{user.id} without showing internal logs
+      // 1. Direct write to Firestore /accounts/{user.id}
       try {
         await setDoc(doc(db, 'accounts', user.id), {
           ...updatedUser,
@@ -179,34 +223,42 @@ export function ProfilePage({
 
       // 2. Update server backend
       const token = localStorage.getItem('bot_auth_token');
-      const res = await fetch('/api/user/profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          name: finalName,
-          avatar: finalAvatar
-        })
-      });
+      try {
+        const res = await fetch('/api/user/profile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            name: finalName,
+            avatar: finalAvatar
+          })
+        });
 
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.user) {
-          onUserUpdate?.(data.user);
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.user) {
+            onUserUpdate?.(data.user);
+            localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+          } else {
+            onUserUpdate?.(updatedUser);
+            localStorage.setItem('bot_auth_user', JSON.stringify(updatedUser));
+          }
         } else {
           onUserUpdate?.(updatedUser);
+          localStorage.setItem('bot_auth_user', JSON.stringify(updatedUser));
         }
-      } else {
+      } catch {
         onUserUpdate?.(updatedUser);
+        localStorage.setItem('bot_auth_user', JSON.stringify(updatedUser));
       }
 
-      localStorage.setItem('bot_auth_user', JSON.stringify(updatedUser));
+      window.dispatchEvent(new CustomEvent('bot_auth_change', { detail: updatedUser }));
       setIsEditing(false);
       setNotification({
         type: 'success',
-        text: lang === 'bn' ? '✓ প্রোফাইল সফলভাবে আপডেট হয়েছে!' : '✓ Profile updated successfully!'
+        text: lang === 'bn' ? '✓ প্রোফাইল ও ছবি সফলভাবে সংরক্ষিত হয়েছে!' : '✓ Profile & photo saved successfully!'
       });
       setTimeout(() => setNotification(null), 3500);
     } catch (err: any) {

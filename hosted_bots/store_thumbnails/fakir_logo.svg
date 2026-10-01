@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 240" fill="none" className="w-full h-full">
+  <defs>
+    <!-- Gold Gradients -->
+    <linearGradient id="goldLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff8cc"/>
+      <stop offset="30%" stop-color="#fbbf24"/>
+      <stop offset="70%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#78350f"/>
+    </linearGradient>
+    <linearGradient id="goldBevel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffedd5"/>
+      <stop offset="25%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#d97706"/>
+      <stop offset="75%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#451a03"/>
+    </linearGradient>
+    <linearGradient id="goldPure" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fde68a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <!-- Chrome Metal Gradients -->
+    <linearGradient id="chromeMetal" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="20%" stop-color="#e2e8f0"/>
+      <stop offset="45%" stop-color="#94a3b8"/>
+      <stop offset="50%" stop-color="#1e293b"/>
+      <stop offset="55%" stop-color="#0f172a"/>
+      <stop offset="80%" stop-color="#475569"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="darkBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#09090b"/>
+    </linearGradient>
+    <!-- Shadow filters -->
+    <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#f59e0b" flood-opacity="0.45"/>
+    </filter>
+    <filter id="textDepth" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="3" dy="5" stdDeviation="3" flood-color="#000000" flood-opacity="0.9"/>
+    </filter>
+  </defs>
+
+  <g transform="translate(10, 5)">
+    <!-- ==================== LEFT ICON EMBLEM ==================== -->
+    <!-- Crown on Top-Left of Badge -->
+    <g transform="rotate(-12, 105, 55)" filter="url(#goldGlow)">
+      <!-- Crown Base Band -->
+      <path d="M 68 62 C 85 58, 125 58, 142 62 L 140 68 C 125 64, 85 64, 70 68 Z" fill="url(#goldBevel)" stroke="#451a03" stroke-width="1.5"/>
+      <!-- Crown Jewels in Base -->
+      <circle cx="82" cy="65" r="2" fill="#ef4444"/>
+      <circle cx="95" cy="64.5" r="2.5" fill="#38bdf8"/>
+      <circle cx="105" cy="64" r="3" fill="#ef4444"/>
+      <circle cx="115" cy="64.5" r="2.5" fill="#38bdf8"/>
+      <circle cx="128" cy="65" r="2" fill="#ef4444"/>
+      
+      <!-- Crown 5 Peaks -->
+      <path d="M 70 62 
+               L 60 38 L 78 52 
+               L 88 30 L 98 50 
+               L 105 22 L 112 50 
+               L 122 30 L 132 52 
+               L 150 38 L 140 62 Z" 
+            fill="url(#goldLight)" stroke="#451a03" stroke-width="2" stroke-linejoin="round"/>
+      
+      <!-- Crown Peak Jewels -->
+      <circle cx="60" cy="38" r="3" fill="#ffedd5" stroke="#f59e0b" stroke-width="1"/>
+      <circle cx="88" cy="30" r="3.5" fill="#ffedd5" stroke="#f59e0b" stroke-width="1"/>
+      <circle cx="105" cy="22" r="4.5" fill="#ffedd5" stroke="#f59e0b" stroke-width="1.5"/>
+      <circle cx="122" cy="30" r="3.5" fill="#ffedd5" stroke="#f59e0b" stroke-width="1"/>
+      <circle cx="150" cy="38" r="3" fill="#ffedd5" stroke="#f59e0b" stroke-width="1"/>
+    </g>
+
+    <!-- Rounded Square Badge -->
+    <g filter="url(#goldGlow)">
+      <!-- Outer Glow Frame -->
+      <rect x="75" y="70" width="135" height="135" rx="26" fill="url(#darkBg)" stroke="url(#goldBevel)" stroke-width="7"/>
+      <!-- Inner Gold Ring -->
+      <rect x="82" y="77" width="121" height="121" rx="20" fill="none" stroke="url(#goldLight)" stroke-width="2" opacity="0.85"/>
+      <!-- Inner Dark Plate -->
+      <rect x="85" y="80" width="115" height="115" rx="18" fill="url(#darkBg)"/>
+
+      <!-- Stylized Letter 'F' in Emblem -->
+      <!-- Top Chrome Bar -->
+      <path d="M 100 95 L 175 95 L 170 115 L 126 115 L 122 135 L 160 135 L 155 152 L 120 152 L 114 185 L 94 185 Z" 
+            fill="url(#chromeMetal)" stroke="url(#goldLight)" stroke-width="2.5" stroke-linejoin="round"/>
+      <!-- Sharp Gold Slash Cutting across F -->
+      <path d="M 90 178 L 185 110 L 175 104 L 84 168 Z" 
+            fill="url(#goldPure)" stroke="#451a03" stroke-width="1.5"/>
+    </g>
+
+    <!-- ==================== RIGHT BRAND TEXT ==================== -->
+    <g transform="translate(235, 0)">
+      <!-- Line 1: FAKIR (Gaming 3D Chrome + Gold Outline) -->
+      <g filter="url(#textDepth)">
+        <!-- 3D Extrusion Shadow Behind -->
+        <text x="0" y="145" font-family="'Impact', 'Arial Black', sans-serif" font-size="112" font-style="italic" font-weight="900" letter-spacing="4" fill="#000000" stroke="#000000" stroke-width="16" stroke-linejoin="round">FAKIR</text>
+        <text x="3" y="147" font-family="'Impact', 'Arial Black', sans-serif" font-size="112" font-style="italic" font-weight="900" letter-spacing="4" fill="#451a03" stroke="#78350f" stroke-width="12" stroke-linejoin="round">FAKIR</text>
+        
+        <!-- Gold Outer Border/Bevel -->
+        <text x="0" y="143" font-family="'Impact', 'Arial Black', sans-serif" font-size="112" font-style="italic" font-weight="900" letter-spacing="4" fill="none" stroke="url(#goldBevel)" stroke-width="10" stroke-linejoin="round">FAKIR</text>
+        <text x="0" y="143" font-family="'Impact', 'Arial Black', sans-serif" font-size="112" font-style="italic" font-weight="900" letter-spacing="4" fill="none" stroke="url(#goldLight)" stroke-width="4" stroke-linejoin="round">FAKIR</text>
+        
+        <!-- Metallic Chrome Main Face -->
+        <text x="0" y="143" font-family="'Impact', 'Arial Black', sans-serif" font-size="112" font-style="italic" font-weight="900" letter-spacing="4" fill="url(#chromeMetal)">FAKIR</text>
+        
+        <!-- Sharp Golden Wing extending from 'R' -->
+        <path d="M 458 108 L 565 72 L 485 116 Z" fill="url(#goldLight)" stroke="#78350f" stroke-width="2"/>
+        <path d="M 470 120 L 595 105 L 480 135 Z" fill="url(#goldPure)" stroke="#451a03" stroke-width="2"/>
+      </g>
+
+      <!-- Line 2: BD TOP UP (With Speed Wings) -->
+      <g transform="translate(0, 195)" filter="url(#textDepth)">
+        <!-- Left Speed Wings -->
+        <path d="M 10 3 L 85 3 L 70 8 L 0 8 Z" fill="url(#goldPure)"/>
+        <path d="M 25 12 L 85 12 L 75 16 L 15 16 Z" fill="url(#goldLight)"/>
+        <path d="M 45 20 L 85 20 L 80 23 L 40 23 Z" fill="url(#goldBevel)"/>
+
+        <!-- Center Gold Text "BD TOP UP" -->
+        <!-- Shadow & Stroke -->
+        <text x="250" y="18" text-anchor="middle" font-family="'Impact', 'Arial Black', sans-serif" font-size="44" font-style="italic" font-weight="900" letter-spacing="5" fill="#451a03" stroke="#451a03" stroke-width="6" stroke-linejoin="round">BD TOP UP</text>
+        <text x="250" y="18" text-anchor="middle" font-family="'Impact', 'Arial Black', sans-serif" font-size="44" font-style="italic" font-weight="900" letter-spacing="5" fill="none" stroke="url(#goldLight)" stroke-width="3" stroke-linejoin="round">BD TOP UP</text>
+        <!-- Main Face -->
+        <text x="250" y="18" text-anchor="middle" font-family="'Impact', 'Arial Black', sans-serif" font-size="44" font-style="italic" font-weight="900" letter-spacing="5" fill="url(#goldLight)">BD TOP UP</text>
+
+        <!-- Right Speed Wings -->
+        <path d="M 415 3 L 490 3 L 500 8 L 430 8 Z" fill="url(#goldPure)"/>
+        <path d="M 415 12 L 475 12 L 485 16 L 425 16 Z" fill="url(#goldLight)"/>
+        <path d="M 415 20 L 455 20 L 460 23 L 420 23 Z" fill="url(#goldBevel)"/>
+      </g>
+    </g>
+  </g>
+</svg>

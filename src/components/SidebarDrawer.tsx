@@ -179,35 +179,21 @@ export function SidebarDrawer({
           <div>
             {/* Top Brand Banner */}
             <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#070b14] border-b border-slate-200 dark:border-[#162035] flex items-center justify-between">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl overflow-hidden bg-slate-900 border border-amber-500/40 shrink-0 flex items-center justify-center shadow-xs">
-                  <img
-                    src={siteSettings?.logoUrl || '/site-logo.png'}
-                    alt="Logo"
-                    className="w-full h-full object-contain p-0.5"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      const target = e.currentTarget as HTMLImageElement;
-                      if (!target.src.endsWith('site-logo.png')) {
-                        target.src = '/site-logo.png';
-                      } else if (!target.src.endsWith('site-logo.jpg')) {
-                        target.src = '/site-logo.jpg';
-                      } else if (!target.src.endsWith('logo-icon.png')) {
-                        target.src = '/logo-icon.png';
-                      }
-                    }}
-                  />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-black text-slate-900 dark:text-white truncate">
-                    {siteSettings?.siteName || 'hosting-live-fast'}
-                  </span>
-                  <span className="text-[9px] font-bold text-amber-500 dark:text-amber-400 truncate">
-                    {lang === 'bn'
-                      ? (siteSettings?.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ')
-                      : (siteSettings?.taglineEn || '24/7 Fast Bot & Top Up')}
-                  </span>
-                </div>
+              <div className="flex items-center min-w-0 flex-1 overflow-hidden py-0.5">
+                <img
+                  src={siteSettings?.logoUrl || '/fakir-logo.svg'}
+                  alt={siteSettings?.siteName || 'FAKIR BD TOP UP'}
+                  className="h-8 w-auto max-w-[190px] object-contain object-left drop-shadow-xs"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    if (!target.src.endsWith('fakir-logo.svg')) {
+                      target.src = '/fakir-logo.svg';
+                    } else if (!target.src.endsWith('fakir-logo.png')) {
+                      target.src = '/fakir-logo.png';
+                    }
+                  }}
+                />
               </div>
               <button
                 onClick={onClose}
@@ -222,8 +208,23 @@ export function SidebarDrawer({
             <div className="p-5 border-b border-slate-200 dark:border-[#162035] flex items-center justify-between">
               {user ? (
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-[#1e293b] border-2 border-[#00d293] flex items-center justify-center text-slate-900 dark:text-white font-black text-base shadow-md">
-                    {getUserInitial()}
+                  <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-[#1e293b] border-2 border-[#00d293] flex items-center justify-center text-slate-900 dark:text-white font-black text-base shadow-md overflow-hidden shrink-0">
+                    {user.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt={user.name || 'User'}
+                        className="w-full h-full object-cover rounded-full"
+                        onError={(e) => {
+                          const target = e.currentTarget as HTMLImageElement;
+                          target.style.display = 'none';
+                          if (target.parentElement) {
+                            target.parentElement.textContent = getUserInitial();
+                          }
+                        }}
+                      />
+                    ) : (
+                      getUserInitial()
+                    )}
                   </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-bold text-slate-900 dark:text-white leading-tight">

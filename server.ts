@@ -2651,6 +2651,56 @@ app.post('/api/user/profile', (req, res) => {
   });
 });
 
+// User avatar & profile image upload endpoint (Guaranteed permanent storage + Firebase Firestore sync)
+app.post(['/api/user/upload-avatar', '/api/store/upload-image'], async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'লগইন আবশ্যক (Unauthorized)' });
+  }
+
+  const { base64, fileData, fileName } = req.body || {};
+  const rawData = base64 || fileData;
+  if (!rawData || typeof rawData !== 'string') {
+    return res.status(400).json({ error: 'ছবির ডাটা পাওয়া যায়নি।' });
+  }
+
+  try {
+    const cleanBase64 = rawData.includes(',') ? rawData.split(',')[1] : rawData;
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    const safeName = (fileName || `avatar_${user.id}.png`).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storedFileName = `avatar_${user.id}_${Date.now()}_${safeName}`;
+    const destPath = path.join(STORE_THUMBNAILS_DIR, storedFileName);
+
+    if (!fs.existsSync(STORE_THUMBNAILS_DIR)) {
+      fs.mkdirSync(STORE_THUMBNAILS_DIR, { recursive: true });
+    }
+    fs.writeFileSync(destPath, buffer);
+
+    const publicUrl = `/api/store/thumbnails/${storedFileName}`;
+
+    // Cloud Persistence: Sync to Firebase Firestore site_images
+    FirebaseSync.saveSiteImageToCloud(storedFileName, safeName, 'image/png', cleanBase64).catch(() => {});
+
+    // Automatically update accounts database with new avatar URL
+    const accounts = getAccounts();
+    const idx = accounts.findIndex((a) => a.id === user.id);
+    if (idx !== -1) {
+      accounts[idx].avatar = publicUrl;
+      saveAccounts(accounts);
+      const updatedUser = enrichUserWithPlanAndRole(accounts[idx]);
+      FirebaseSync.syncAccountToCloud(updatedUser).catch(() => {});
+    }
+
+    return res.json({
+      success: true,
+      url: publicUrl,
+      message: 'প্রোফাইল ছবি সফলভাবে আপলোড ও সেভ করা হয়েছে!'
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Avatar upload failed' });
+  }
+});
+
 // Request 6-digit password reset OTP code
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {

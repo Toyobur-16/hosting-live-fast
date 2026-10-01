@@ -373,10 +373,17 @@ export function AdminSiteSettingsManager() {
             />
             <button
               type="button"
-              onClick={() => setSettings({ ...settings, logoUrl: 'https://plain-apac-prod-public.komododecks.com/202609/15/ITIrJC4dcVtKMXpxe1Il/image.png' })}
-              className="px-3 py-2.5 rounded-xl bg-amber-500/10 text-xs font-bold text-amber-500 hover:bg-amber-500/20 border border-amber-500/30 transition cursor-pointer shrink-0"
+              onClick={() => setSettings({ ...settings, logoUrl: '/fakir-logo.svg' })}
+              className="px-3 py-2.5 rounded-xl bg-amber-500/15 text-xs font-bold text-amber-500 hover:bg-amber-500/25 border border-amber-500/30 transition cursor-pointer shrink-0"
             >
-              আপনার লোগো
+              FAKIR BD (SVG)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSettings({ ...settings, logoUrl: '/fakir-logo.png' })}
+              className="px-3 py-2.5 rounded-xl bg-amber-500/10 text-xs font-bold text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition cursor-pointer shrink-0"
+            >
+              FAKIR BD (PNG)
             </button>
             <button
               type="button"
@@ -384,13 +391,6 @@ export function AdminSiteSettingsManager() {
               className="px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-[#111827] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1e293b] transition cursor-pointer shrink-0"
             >
               ডিফল্ট লোগো
-            </button>
-            <button
-              type="button"
-              onClick={() => setSettings({ ...settings, logoUrl: '/logo-icon.png' })}
-              className="px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-[#111827] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1e293b] transition cursor-pointer shrink-0"
-            >
-              আইকন লোগো
             </button>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">

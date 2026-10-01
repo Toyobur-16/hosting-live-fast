@@ -80,41 +80,30 @@ export function AppStoreHeader({
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-[#070b13]/95 backdrop-blur-md border-b border-slate-200 dark:border-[#162035] transition-colors">
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 h-15 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-3 w-full">
-        {/* Left Branding: Site Logo & Name */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1 sm:flex-initial overflow-hidden">
+        {/* Left Branding: Full Brand Logo Banner (Fits exact user highlighted area across header) */}
+        <div className="flex items-center min-w-0 flex-1 sm:flex-initial overflow-hidden py-0.5">
           <button
             type="button"
             onClick={() => onSelectTab('home')}
-            className="flex items-center gap-1.5 sm:gap-3 group cursor-pointer text-left focus:outline-hidden min-w-0 overflow-hidden"
+            className="flex items-center group cursor-pointer text-left focus:outline-hidden min-w-0 overflow-hidden transition-transform hover:scale-102"
+            title={siteSettings?.siteName || 'FAKIR BD TOP UP'}
           >
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl overflow-hidden bg-slate-900 border border-amber-500/50 flex items-center justify-center shadow-md shadow-amber-500/10 group-hover:scale-105 transition-transform shrink-0">
-              <img
-                src={siteSettings?.logoUrl || '/site-logo.png'}
-                alt={siteSettings?.siteName || 'Logo'}
-                className="w-full h-full object-contain p-0.5"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  if (!target.src.endsWith('site-logo.png')) {
-                    target.src = '/site-logo.png';
-                  } else if (!target.src.endsWith('site-logo.jpg')) {
-                    target.src = '/site-logo.jpg';
-                  } else if (!target.src.endsWith('logo-icon.png')) {
-                    target.src = '/logo-icon.png';
-                  }
-                }}
-              />
-            </div>
-            <div className="flex flex-col min-w-0 overflow-hidden">
-              <span className="text-xs xs:text-sm sm:text-base lg:text-lg font-black text-slate-900 dark:text-white tracking-tight truncate">
-                {siteSettings?.siteName || 'hosting-live-fast'}
-              </span>
-              <span className="hidden sm:block text-[9px] sm:text-[10px] font-bold text-amber-500 dark:text-amber-400 tracking-wider uppercase truncate">
-                {lang === 'bn'
-                  ? (siteSettings?.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ')
-                  : (siteSettings?.taglineEn || '24/7 Fast Bot & Top Up')}
-              </span>
-            </div>
+            <img
+              src={siteSettings?.logoUrl || '/fakir-logo.svg'}
+              alt={siteSettings?.siteName || 'FAKIR BD TOP UP'}
+              className="h-8 xs:h-9 sm:h-10 md:h-11 w-auto max-w-[170px] xs:max-w-[210px] sm:max-w-[270px] md:max-w-[340px] object-contain object-left drop-shadow-md select-none"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const target = e.currentTarget as HTMLImageElement;
+                if (!target.src.endsWith('fakir-logo.svg')) {
+                  target.src = '/fakir-logo.svg';
+                } else if (!target.src.endsWith('fakir-logo.png')) {
+                  target.src = '/fakir-logo.png';
+                } else if (!target.src.endsWith('site-logo.png')) {
+                  target.src = '/site-logo.png';
+                }
+              }}
+            />
           </button>
         </div>
 
@@ -301,10 +290,25 @@ export function AppStoreHeader({
             <button
               id="header-user-avatar-btn"
               onClick={() => onSelectTab('profile')}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-200 dark:bg-[#1e293b] border-2 border-[#00d293] flex items-center justify-center text-slate-900 dark:text-white font-black text-xs sm:text-sm shadow-md hover:scale-105 cursor-pointer transition-transform shrink-0"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-200 dark:bg-[#1e293b] border-2 border-[#00d293] flex items-center justify-center text-slate-900 dark:text-white font-black text-xs sm:text-sm shadow-md hover:scale-105 cursor-pointer transition-transform shrink-0 overflow-hidden"
               title={`${user.name || user.email} (${lang === 'bn' ? 'প্রোফাইল দেখুন' : 'View Profile'})`}
             >
-              {getUserInitial()}
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name || 'User'}
+                  className="w-full h-full object-cover rounded-full"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    target.style.display = 'none';
+                    if (target.parentElement) {
+                      target.parentElement.textContent = getUserInitial();
+                    }
+                  }}
+                />
+              ) : (
+                getUserInitial()
+              )}
             </button>
           ) : (
             <button
