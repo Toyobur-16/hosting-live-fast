@@ -16,6 +16,9 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
     configured: boolean;
     connected?: boolean;
     message?: string;
+    errorCategory?: string;
+    solutionHint?: string;
+    details?: string;
     config?: {
       host: string;
       port: number;
@@ -24,17 +27,13 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
       secure: boolean;
       source?: string;
     };
-  } | null>({
-    configured: true,
-    connected: true,
-    message: '✅ SMTP সংযোগ সক্রিয় রয়েছে (smtp.gmail.com:587 TLS)! ইমেইল ও ভেরিফিকেশন কোড পাঠানোর জন্য সম্পূর্ণ প্রস্তুত।'
-  });
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     host: 'smtp.gmail.com',
     port: 587,
     user: 'badsharahmanbd@gmail.com',
-    pass: 'tbjiiarmfltepsyh',
+    pass: '',
     from: '"hosting live fast" <badsharahmanbd@gmail.com>',
     secure: false
   });
@@ -82,7 +81,7 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
             host: settData.settings.host || 'smtp.gmail.com',
             port: settData.settings.port || 587,
             user: settData.settings.user || 'badsharahmanbd@gmail.com',
-            pass: settData.settings.pass || 'tbjiiarmfltepsyh',
+            pass: settData.settings.pass || '',
             from: settData.settings.from || '"hosting live fast" <badsharahmanbd@gmail.com>',
             secure: settData.settings.secure !== undefined ? settData.settings.secure : false
           });
@@ -356,33 +355,69 @@ export const AdminSmtpManager: React.FC<AdminSmtpManagerProps> = ({ lang = 'bn' 
       </div>
 
       {/* Diagnostics / Connection Message Banner */}
-      {statusData?.message && (
-        <div className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-          statusData.connected
-            ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
-            : 'bg-rose-950/40 border-rose-500/30 text-rose-300'
-        }`}>
-          <div className="flex items-start gap-2.5">
-            {statusData.connected ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
-            ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
-            )}
-            <div className="leading-relaxed">
-              <strong>{lang === 'bn' ? 'সার্ভার ডায়াগনস্টিক রিপোর্ট:' : 'Server Diagnostics:'}</strong> {statusData.message}
+      {statusData && (
+        <div className="space-y-3">
+          <div className={`p-4 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+            statusData.connected
+              ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
+              : 'bg-rose-950/40 border-rose-500/30 text-rose-300'
+          }`}>
+            <div className="flex items-start gap-2.5">
+              {statusData.connected ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+              ) : (
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+              )}
+              <div className="leading-relaxed">
+                <strong>{lang === 'bn' ? 'সার্ভার ডায়াগনস্টিক রিপোর্ট:' : 'Server Diagnostics:'}</strong> {statusData.message || (statusData.connected ? 'সফলভাবে সংযুক্ত' : 'সংযোগ ত্রুটি')}
+                {statusData.solutionHint && (
+                  <div className="mt-1 text-slate-300">
+                    💡 <strong>{lang === 'bn' ? 'সমাধান:' : 'Solution:'}</strong> {statusData.solutionHint}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {!statusData.connected && (
+              <button
+                type="button"
+                onClick={handleAutoFix}
+                disabled={autoFixing}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 cursor-pointer self-start sm:self-center shadow-sm disabled:opacity-50"
+              >
+                {autoFixing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span>⚡</span>}
+                <span>{autoFixing ? 'ফিক্স হচ্ছে...' : 'অটো-ফিক্স ও কানেক্ট করুন'}</span>
+              </button>
+            )}
           </div>
 
-          {!statusData.connected && (
-            <button
-              type="button"
-              onClick={handleAutoFix}
-              disabled={autoFixing}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 cursor-pointer self-start sm:self-center shadow-sm disabled:opacity-50"
-            >
-              {autoFixing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span>⚡</span>}
-              <span>{autoFixing ? 'ফিক্স হচ্ছে...' : 'অটো-ফিক্স ও কানেক্ট করুন'}</span>
-            </button>
+          {!statusData.connected && (statusData.errorCategory === 'Invalid SMTP credentials' || statusData.message?.includes('অ্যাপ পাসওয়ার্ড') || statusData.message?.includes('535') || !formData.pass) && (
+            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-950/60 to-rose-950/60 border border-amber-500/40 text-amber-200 text-xs space-y-2.5">
+              <div className="flex items-center gap-2 font-bold text-amber-300 text-sm">
+                <Key className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>⚠️ জরুরি সমাধান: জিমেইল অ্যাপ পাসওয়ার্ড (Google App Password) তৈরি করুন</span>
+              </div>
+              <p className="text-slate-200 leading-relaxed">
+                আপনার গুগল অ্যাকাউন্টের ১৬ অক্ষরের App Password টি বাতিল (535 Bad Credentials) বা পরিবর্তন হয়েছে। এই কারণেই ইউজারদের <strong>রেজিস্ট্রেশন ভেরিফিকেশন কোড</strong>, <strong>পাসওয়ার্ড রিসেট ওটিপি</strong> এবং <strong>হোস্টিং প্ল্যান মেয়াদের সতর্কবার্তা</strong> ইমেইলে পৌঁছাচ্ছে না।
+              </p>
+              <div className="p-3 bg-black/40 rounded-lg border border-amber-500/20 space-y-1.5 text-slate-300">
+                <div className="font-semibold text-emerald-400">সহজ ৩ ধাপে ১ মিনিটে সচল করুন:</div>
+                <div>১. নিচের বাটনে ক্লিক করে <strong>Google App Passwords</strong> পেজে যান (আপনার জিমেইলে 2-Step Verification অন থাকতে হবে)।</div>
+                <div>২. App Name বক্সে <strong>hosting-live-fast</strong> লিখে <strong>Create</strong> বাটনে ক্লিক করুন।</div>
+                <div>৩. গুগল আপনাকে যে ১৬ অক্ষরের নতুন পাসওয়ার্ড দিবে (যেমন: <code className="text-amber-300 font-mono">abcd efgh ijkl mnop</code>), সেটি কপি করে নিচের পাসওয়ার্ড বক্সে বসিয়ে <strong>'সংরক্ষণ ও সংযোগ পরীক্ষা করুন'</strong> বাটনে চাপ দিন।</div>
+              </div>
+              <div>
+                <a
+                  href="https://myaccount.google.com/apppasswords"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-colors"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Google App Password জেনারেটর পেজ খুলুন ↗</span>
+                </a>
+              </div>
+            </div>
           )}
         </div>
       )}

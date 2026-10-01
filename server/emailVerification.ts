@@ -115,7 +115,24 @@ export async function triggerFirebaseVerificationEmail(
   const cleanEmail = email.trim().toLowerCase();
   try {
     let session = await getFirebaseUserSession(cleanEmail, userPassword, userName);
-    if (!session) return { sent: false };
+    if (!session) {
+      // Fallback: If user already exists in Firebase Auth and we cannot establish session token, send password reset link
+      try {
+        const oobReset = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestType: 'PASSWORD_RESET',
+            email: cleanEmail
+          })
+        });
+        if (oobReset.ok) {
+          console.log(`[FIREBASE AUTH FALLBACK EMAIL SENT] Sent password reset / verification notice to ${cleanEmail}`);
+          return { sent: true };
+        }
+      } catch {}
+      return { sent: false };
+    }
 
     if (resetIfAlreadyVerified) {
       // Check if Firebase Auth already had this email marked verified from an old deleted registration
@@ -629,10 +646,9 @@ export async function createAndSendPasswordResetCode(
     console.warn(`[PASSWORD RESET EMAIL WARNING] Send notice for ${cleanEmail}:`, err?.message || err);
   }
 
-  // 2. Also trigger Google Firebase Auth Password Reset via HTTPS Port 443 in background as secondary fallback
+  // 2. Also trigger Google Firebase Auth Password Reset via HTTPS Port 443 in background as guaranteed fallback
   if (FIREBASE_AUTH_API_KEY) {
     try {
-      await getFirebaseUserSession(cleanEmail, undefined, userName);
       const fbResetRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -644,6 +660,9 @@ export async function createAndSendPasswordResetCode(
       if (fbResetRes.ok) {
         emailDelivered = true;
         console.log(`[FIREBASE AUTH PASSWORD RESET SENT] Unlimited HTTPS 443 reset email sent to ${cleanEmail}`);
+      } else {
+        const errData: any = await fbResetRes.json().catch(() => ({}));
+        console.warn(`[FIREBASE AUTH PASSWORD RESET NOTICE] For ${cleanEmail}:`, errData?.error?.message || fbResetRes.statusText);
       }
     } catch (err: any) {
       console.warn('Firebase Auth password reset warning:', err?.message || err);

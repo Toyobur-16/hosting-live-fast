@@ -5004,6 +5004,9 @@ app.get('/api/admin/smtp-status', async (req, res) => {
     configured: true,
     connected: verifyResult.success,
     message: verifyResult.message,
+    errorCategory: verifyResult.errorCategory,
+    solutionHint: verifyResult.solutionHint,
+    details: verifyResult.details,
     config: getSmtpConfig()
   });
 });

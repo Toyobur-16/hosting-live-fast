@@ -51,7 +51,7 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
   host: 'smtp.gmail.com',
   port: 587,
   user: 'badsharahmanbd@gmail.com',
-  pass: 'tbjiiarmfltepsyh',
+  pass: 'lqxpijlsfqyirpcm',
   from: '"hosting live fast" <badsharahmanbd@gmail.com>',
   secure: false
 };
@@ -1337,6 +1337,27 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
     } catch (err: any) {
       const errorDetail = explainSmtpError(err);
       console.warn(`[EMAIL ALERT DIRECT SMTP NOTE] Could not send directly to ${to}: ${errorDetail}. Trying HTTPS bridge...`);
+
+      const isAuthError = err?.message?.includes('535') || err?.code === 'EAUTH' || err?.message?.includes('BadCredentials') || err?.message?.includes('Username and Password not accepted');
+      if (isAuthError) {
+        try {
+          const notifList = getStoredNotifications();
+          const hasExisting = notifList.some((n) => n.id === 'notif_admin_smtp_535_alert' || (n.title && n.title.includes('SMTP অ্যাপ পাসওয়ার্ড')));
+          if (!hasExisting) {
+            notifList.unshift({
+              id: 'notif_admin_smtp_535_alert',
+              userId: 'all',
+              target: 'all',
+              type: 'broadcast',
+              title: '⚠️ জরুরি এডমিন নোটিশ: জিমেইল SMTP অ্যাপ পাসওয়ার্ড বাতিল হয়েছে (535 Bad Credentials)',
+              message: 'গুগল আপনার জিমেইল অ্যাপ পাসওয়ার্ডটি বাতিল করেছে। ফলে রেজিস্ট্রেশন ও প্ল্যান নোটিফিকেশন গ্রাহকের ইমেইলে পৌঁছাতে পারছে না। অবিলম্বে এডমিন প্যানেল > SMTP সেটিংস এ গিয়ে একটি নতুন ১৬ অক্ষরের Google App Password সেট করুন।',
+              createdAt: new Date().toISOString(),
+              read: false
+            });
+            saveStoredNotifications(notifList);
+          }
+        } catch {}
+      }
 
       // Automatic HTTPS Port 443 Cloud Relay Bridge for hosts blocking SMTP ports (e.g. Render Free Tier)
       const bridgeRes = await relayViaHttpsBridge({

@@ -1,10 +1,14 @@
 {
   "badsharahmanbd@gmail.com": {
     "email": "badsharahmanbd@gmail.com",
-    "codeHash": "ecc7ee3ecc3f7099559f781084c39e2c0c97440c276d61ff4d8ddfb218c89951",
-    "expiresAt": 1790454245177,
+    "codeHash": "713c7f1cc9584cdceb6c1536dddfbcfc357fd11dc016665467deb91d3b7922bd",
+    "validCodeHashes": [
+      "713c7f1cc9584cdceb6c1536dddfbcfc357fd11dc016665467deb91d3b7922bd",
+      "ecc7ee3ecc3f7099559f781084c39e2c0c97440c276d61ff4d8ddfb218c89951"
+    ],
+    "expiresAt": 1790842675777,
     "attempts": 0,
-    "lastSentAt": 1790453645177,
+    "lastSentAt": 1790840875777,
     "createdAt": 1790453645177,
     "pendingRegistration": {
       "name": "Badsha Test",
