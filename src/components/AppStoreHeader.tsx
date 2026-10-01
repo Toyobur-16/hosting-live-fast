@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { AuthUser, SiteSettings } from '../types';
 import { normalizeLogoUrl } from '../utils/logoUrl';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface AppStoreHeaderProps {
   user: AuthUser | null;
@@ -58,6 +59,7 @@ export function AppStoreHeader({
   siteSettings,
   onOpenInstallApp
 }: AppStoreHeaderProps) {
+  const { isDownloaded } = usePWAInstall();
   const [unreadNotifications, setUnreadNotifications] = useState<number>(0);
 
   useEffect(() => {
@@ -274,8 +276,8 @@ export function AppStoreHeader({
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
           </button>
 
-          {/* In-App Install & Download Button */}
-          {onOpenInstallApp && (
+          {/* In-App Install & Download Button (Hidden once user has downloaded the APK or installed app) */}
+          {onOpenInstallApp && !isDownloaded && (
             <button
               id="header-install-app-btn"
               type="button"

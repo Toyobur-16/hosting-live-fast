@@ -8,6 +8,7 @@ interface InstallAppModalProps {
   lang: 'bn' | 'en';
   siteName?: string;
   logoUrl?: string;
+  onDownloaded?: () => void;
 }
 
 export function InstallAppModal({
@@ -15,11 +16,13 @@ export function InstallAppModal({
   onClose,
   lang,
   siteName = 'hosting live fast',
-  logoUrl = '/pwa-192x192.png'
+  logoUrl = '/pwa-192x192.png',
+  onDownloaded
 }: InstallAppModalProps) {
-  const { isInstallable, isInstalled, isIOS, install, apkDownloadUrl } = usePWAInstall();
+  const { isInstallable, isInstalled, isIOS, install, apkDownloadUrl, isDownloaded, recordApkDownload } = usePWAInstall();
   const [installing, setInstalling] = useState(false);
   const [installedSuccess, setInstalledSuccess] = useState(false);
+  const [downloadedSuccess, setDownloadedSuccess] = useState(false);
 
   if (!isOpen) return null;
 
@@ -30,6 +33,7 @@ export function InstallAppModal({
         const accepted = await install();
         if (accepted) {
           setInstalledSuccess(true);
+          if (onDownloaded) onDownloaded();
         }
       } catch (err) {
         console.error('PWA install error:', err);
@@ -37,6 +41,15 @@ export function InstallAppModal({
         setInstalling(false);
       }
     }
+  };
+
+  const handleApkDownloadClick = () => {
+    recordApkDownload();
+    setDownloadedSuccess(true);
+    if (onDownloaded) onDownloaded();
+    setTimeout(() => {
+      onClose();
+    }, 1600);
   };
 
   return (
@@ -54,7 +67,7 @@ export function InstallAppModal({
         <div className="flex flex-col items-center text-center mb-6">
           <div className="relative w-20 h-20 rounded-2xl p-1 bg-gradient-to-tr from-[#00d293] to-sky-500 shadow-lg shadow-[#00d293]/20 mb-3 flex items-center justify-center">
             <img
-              src="/pwa-192x192.png"
+              src={logoUrl || '/pwa-192x192.png'}
               alt={siteName}
               className="w-full h-full object-cover rounded-xl bg-slate-900"
               onError={(e) => {
@@ -81,16 +94,22 @@ export function InstallAppModal({
 
         {/* Status / Actions */}
         <div className="space-y-3">
-          {isInstalled || installedSuccess ? (
-            <div className="p-4 rounded-xl bg-[#00d293]/15 border border-[#00d293]/30 text-center">
+          {isInstalled || installedSuccess || downloadedSuccess ? (
+            <div className="p-4 rounded-xl bg-[#00d293]/15 border border-[#00d293]/30 text-center animate-in fade-in">
               <CheckCircle className="w-8 h-8 text-[#00d293] mx-auto mb-2" />
               <div className="text-sm font-bold text-[#00a876] dark:text-[#00d293]">
-                {lang === 'bn' ? 'অ্যাপটি ইতিমধ্যেই ইন্সটল করা হয়েছে!' : 'App is already installed!'}
+                {downloadedSuccess
+                  ? (lang === 'bn' ? '✓ APK সফলভাবে ডাউনলোড হচ্ছে!' : '✓ APK download started successfully!')
+                  : (lang === 'bn' ? 'অ্যাপটি ইতিমধ্যেই ইন্সটল করা হয়েছে!' : 'App is already installed!')}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {lang === 'bn'
-                  ? 'আপনার হোমস্ক্রিনে বা অ্যাপ ড্রয়ারে লোগোসহ আইকন যুক্ত হয়েছে।'
-                  : 'The icon with logo is added to your home screen or app drawer.'}
+                {downloadedSuccess
+                  ? (lang === 'bn'
+                    ? 'আপনার ডিভাইসে ৫.০ MB APK ডাউনলোড শুরু হয়েছে। ইন্সটল করে ব্যবহার করুন!'
+                    : 'The 5.0 MB APK download has started on your device. Enjoy!')
+                  : (lang === 'bn'
+                    ? 'আপনার হোমস্ক্রিনে বা অ্যাপ ড্রয়ারে লোগোসহ আইকন যুক্ত হয়েছে।'
+                    : 'The icon with logo is added to your home screen or app drawer.')}
               </p>
             </div>
           ) : (
@@ -111,17 +130,31 @@ export function InstallAppModal({
                 </button>
               )}
 
-              {/* Direct APK Download Button (If available) */}
-              {apkDownloadUrl && (
-                <a
-                  href={apkDownloadUrl}
-                  download
-                  className="w-full py-3 px-4 rounded-xl bg-slate-100 dark:bg-[#162035] hover:bg-slate-200 dark:hover:bg-[#1e2d4a] text-slate-900 dark:text-white border border-slate-300 dark:border-[#233352] font-bold text-sm flex items-center justify-center gap-2 transition"
-                >
-                  <ArrowDownToLine className="w-4.5 h-4.5 text-[#00d293]" />
-                  <span>{lang === 'bn' ? 'অ্যান্ড্রয়েড APK ডাউনলোড করুন (.apk)' : 'Download Android APK (.apk)'}</span>
-                </a>
-              )}
+              {/* Direct 5.0 MB APK Download Button */}
+              <a
+                href={apkDownloadUrl || '/api/app-download/apk'}
+                download="hosting-live-fast.apk"
+                onClick={handleApkDownloadClick}
+                className="w-full p-3.5 rounded-xl bg-gradient-to-r from-emerald-500/15 via-[#00d293]/15 to-teal-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 text-slate-900 dark:text-white border-2 border-[#00d293]/50 font-bold text-sm flex items-center justify-between transition cursor-pointer shadow-lg shadow-[#00d293]/15 group hover:scale-[1.01] active:scale-98"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-[#00d293] text-slate-950 flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+                    <ArrowDownToLine className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                      {lang === 'bn' ? 'অ্যান্ড্রয়েড APK ডাউনলোড করুন (.apk)' : 'Download Android APK (.apk)'}
+                    </div>
+                    <div className="text-[11px] text-emerald-600 dark:text-[#00d293] font-medium flex items-center gap-1.5 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#00d293] animate-pulse" />
+                      <span>{lang === 'bn' ? 'অফিসিয়াল অ্যাপ • ৫.০ MB' : 'Official App • 5.0 MB'}</span>
+                    </div>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-[#00d293]/20 text-[#00a876] dark:text-[#00d293] text-[10px] font-mono font-black border border-[#00d293]/30 shrink-0">
+                  5.0 MB
+                </span>
+              </a>
 
               {/* iOS Safari Instructions */}
               {isIOS && (

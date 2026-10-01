@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { db, doc, setDoc } from '../lib/firebase';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface ProfilePageProps {
   user: AuthUser | null;
@@ -88,6 +89,7 @@ export function ProfilePage({
   lang = 'bn',
   onOpenInstallApp
 }: ProfilePageProps) {
+  const { isDownloaded } = usePWAInstall();
   // Edit Profile States
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
@@ -605,8 +607,8 @@ export function ProfilePage({
         </div>
       </div>
 
-      {/* Official App Download & Install Card */}
-      {onOpenInstallApp && (
+      {/* Official App Download & Install Card (Hidden once user has downloaded the APK or installed app) */}
+      {onOpenInstallApp && !isDownloaded && (
         <div className="p-4 rounded-3xl bg-gradient-to-br from-[#0c1c2e] to-[#08121f] border border-[#1e3450] shadow-xl flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#00d293] to-sky-500 p-0.5 shadow-md shrink-0 flex items-center justify-center">

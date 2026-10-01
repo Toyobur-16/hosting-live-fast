@@ -34,8 +34,11 @@ export function AdminSiteSettingsManager() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apkFileInputRef = useRef<HTMLInputElement>(null);
+  const apkIconInputRef = useRef<HTMLInputElement>(null);
   const [apkInfo, setApkInfo] = useState<{ hasApk: boolean; fileName?: string; downloadUrl?: string; sizeBytes?: number } | null>(null);
   const [uploadingApk, setUploadingApk] = useState(false);
+  const [uploadingApkIcon, setUploadingApkIcon] = useState(false);
+  const [apkIconUrl, setApkIconUrl] = useState<string>(() => settings.logoUrl || '/pwa-192x192.png');
 
   useEffect(() => {
     fetchSettings();
@@ -60,10 +63,22 @@ export function AdminSiteSettingsManager() {
         const data = snap.data();
         const rawLogo = data?.dataUrl || data?.base64 || data?.url;
         if (rawLogo) {
+          const clean = normalizeLogoUrl(rawLogo, data?.contentType);
           setSettings((prev) => ({
             ...prev,
-            logoUrl: normalizeLogoUrl(rawLogo, data?.contentType)
+            logoUrl: clean
           }));
+          setApkIconUrl(clean);
+        }
+      }
+    }, () => {});
+
+    const unsubApkIcon = onSnapshot(doc(db, 'site_images', 'apk_icon'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const raw = data?.dataUrl || data?.base64 || data?.url;
+        if (raw) {
+          setApkIconUrl(normalizeLogoUrl(raw, data?.contentType));
         }
       }
     }, () => {});
@@ -71,6 +86,7 @@ export function AdminSiteSettingsManager() {
     return () => {
       unsub();
       unsubLogo();
+      unsubApkIcon();
     };
   }, []);
 
@@ -161,6 +177,62 @@ export function AdminSiteSettingsManager() {
       setNotification({ type: 'success', text: '✓ APK ফাইল ডিলিট করা হয়েছে।' });
       fetchApkInfo();
     } catch {}
+  };
+
+  const handleApkIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setNotification({ type: 'error', text: 'শুধুমাত্র ইমেজ ফাইল (PNG, JPG, WebP) নির্বাচন করুন।' });
+      return;
+    }
+
+    try {
+      setUploadingApkIcon(true);
+      setNotification(null);
+
+      // Optimize image for high-res square app icon (512x512)
+      const optimizedDataUrl = await optimizeLogoImage(file, 512, 512);
+      setApkIconUrl(optimizedDataUrl);
+
+      const token = localStorage.getItem('bot_auth_token');
+      const res = await fetch('/api/admin/app-download/icon', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ iconBase64: optimizedDataUrl })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Also update site_images/apk_icon in Firestore for cloud persistence
+        try {
+          await setDoc(doc(db, 'site_images', 'apk_icon'), {
+            base64: optimizedDataUrl,
+            contentType: file.type || 'image/png',
+            updatedAt: Date.now()
+          }, { merge: true });
+        } catch {}
+
+        setNotification({
+          type: 'success',
+          text: '✓ APK-র পিকচার সফলভাবে পরিবর্তন হয়েছে এবং নতুন ৫.০ MB APK তৈরি হয়েছে!'
+        });
+        fetchApkInfo();
+      } else {
+        setNotification({ type: 'error', text: data.error || 'APK পিকচার আপডেট করতে সমস্যা হয়েছে।' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', text: err.message || 'Error updating APK picture' });
+    } finally {
+      setUploadingApkIcon(false);
+      if (apkIconInputRef.current) {
+        apkIconInputRef.current.value = '';
+      }
+    }
   };
 
   const persistSettingsEverywhere = async (updatedSettings: SiteSettings, fileMeta?: { name: string; type: string }) => {
@@ -627,75 +699,157 @@ export function AdminSiteSettingsManager() {
           )}
         </div>
 
-        {/* Android APK Download Manager */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#080e1b] border border-slate-200 dark:border-[#162035] space-y-4">
+        {/* Android APK Download & Icon Manager */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#080e1b] border border-slate-200 dark:border-[#162035] space-y-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-black uppercase text-[#00d293] tracking-wider">
               <Smartphone className="w-4 h-4" />
-              <span>অ্যান্ড্রয়েড APK ম্যানেজমেন্ট (Android APK Download)</span>
+              <span>অ্যান্ড্রয়েড APK ও পিকচার ম্যানেজমেন্ট (Android APK & Icon)</span>
             </div>
-            {uploadingApk && <Loader2 className="w-4 h-4 text-[#00d293] animate-spin" />}
+            {(uploadingApk || uploadingApkIcon) && <Loader2 className="w-4 h-4 text-[#00d293] animate-spin" />}
           </div>
 
-          <p className="text-xs text-slate-500">
-            এখানে আপনার সাইটের অফিসিয়াল অ্যান্ড্রয়েড অ্যাপের <code>.apk</code> ফাইল আপলোড করতে পারেন। ইউজাররা অ্যাপ ডাউনলোড ডায়ালগ থেকে সরাসরি এই APK ডাউনলোড করতে পারবেন।
-          </p>
+          {/* Section 1: APK App Picture / Icon Management */}
+          <div className="p-4 rounded-xl bg-slate-100 dark:bg-[#0d1627] border border-slate-200 dark:border-[#1e2d48] space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-[#00d293]" />
+                  <span>এপিকের পিকচার / লোগো (APK Picture & Icon)</span>
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  এখান থেকে ছবি চেঞ্জ করলে সরাসরি অ্যান্ড্রয়েড APK-র ভেতরে এবং অ্যাপ ডাউনলোড পেজের আইকন পরিবর্তন হয়ে যাবে।
+                </p>
+              </div>
+            </div>
 
-          <input
-            type="file"
-            ref={apkFileInputRef}
-            onChange={handleApkUpload}
-            accept=".apk"
-            className="hidden"
-          />
+            <input
+              type="file"
+              ref={apkIconInputRef}
+              onChange={handleApkIconUpload}
+              accept="image/*"
+              className="hidden"
+            />
 
-          {apkInfo?.hasApk ? (
-            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <FileCheck className="w-5 h-5 text-[#00d293] shrink-0" />
-                <div className="truncate">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                    {apkInfo.fileName}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-3 bg-white dark:bg-[#080e1b] rounded-xl border border-slate-200 dark:border-[#162035]">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl p-1 bg-gradient-to-tr from-[#00d293] to-sky-500 shadow-md flex items-center justify-center shrink-0">
+                  <img
+                    src={apkIconUrl || settings.logoUrl || '/pwa-192x192.png'}
+                    alt="APK Icon"
+                    className="w-full h-full object-cover rounded-xl bg-slate-900"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      if (!target.src.includes('pwa-192x192.png')) {
+                        target.src = '/pwa-192x192.png';
+                      }
+                    }}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">
+                    বর্তমান এপিকের পিকচার (Active APK Icon)
                   </div>
-                  <div className="text-[10px] text-slate-500">
-                    সাইজ: {((apkInfo.sizeBytes || 0) / (1024 * 1024)).toFixed(2)} MB
+                  <div className="text-[10px] text-emerald-600 dark:text-[#00d293] font-medium flex items-center gap-1 mt-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00d293] animate-pulse" />
+                    <span>৫.০ MB APK প্যাকেজে সংযুক্ত</span>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={apkInfo.downloadUrl}
-                  download
-                  className="px-3 py-1.5 rounded-lg bg-[#00d293] hover:bg-[#00be84] text-slate-950 font-bold text-xs flex items-center gap-1 shadow-xs"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>ডাউনলোড</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={handleDeleteApk}
-                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
-                  title="ডিলিট করুন"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-[#223048] text-center space-y-2">
-              <Smartphone className="w-8 h-8 text-slate-400 mx-auto" />
-              <div className="text-xs text-slate-400">কোনো APK ফাইল এখনো আপলোড করা হয়নি।</div>
+
               <button
                 type="button"
-                onClick={() => apkFileInputRef.current?.click()}
-                disabled={uploadingApk}
-                className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-[#162035] hover:bg-slate-300 dark:hover:bg-[#1f2d48] text-slate-900 dark:text-white font-bold text-xs cursor-pointer inline-flex items-center gap-1.5 transition"
+                onClick={() => apkIconInputRef.current?.click()}
+                disabled={uploadingApkIcon}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-[#00d293] to-teal-500 hover:from-[#00b881] hover:to-teal-600 text-slate-950 font-black text-xs cursor-pointer shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <Upload className="w-3.5 h-3.5 text-[#00d293]" />
-                <span>{uploadingApk ? 'আপলোড হচ্ছে...' : 'নতুন APK আপলোড করুন'}</span>
+                {uploadingApkIcon ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>পিকচার আপডেট হচ্ছে...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 stroke-[2.5]" />
+                    <span>এপিকার পিক চেঞ্জ করুন</span>
+                  </>
+                )}
               </button>
             </div>
-          )}
+          </div>
+
+          {/* Section 2: APK File Status & Download */}
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500">
+              অ্যান্ড্রয়েড APK প্যাকেজ স্ট্যাটাস (ইউজাররা অ্যাপ ডাউনলোড ডায়ালগ থেকে ৫.০ MB সাইজের এই APK ডাউনলোড করতে পারবেন):
+            </p>
+
+            <input
+              type="file"
+              ref={apkFileInputRef}
+              onChange={handleApkUpload}
+              accept=".apk"
+              className="hidden"
+            />
+
+            {apkInfo?.hasApk ? (
+              <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <FileCheck className="w-5 h-5 text-[#00d293] shrink-0" />
+                  <div className="truncate">
+                    <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {apkInfo.fileName}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      সাইজ: {((apkInfo.sizeBytes || 0) / (1024 * 1024)).toFixed(2)} MB
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={apkInfo.downloadUrl}
+                    download
+                    className="px-3 py-1.5 rounded-lg bg-[#00d293] hover:bg-[#00be84] text-slate-950 font-bold text-xs flex items-center gap-1 shadow-xs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>ডাউনলোড</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => apkFileInputRef.current?.click()}
+                    disabled={uploadingApk}
+                    className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer text-xs font-semibold flex items-center gap-1"
+                    title="কাস্টম .apk ফাইল দিয়ে প্রতিস্থাপন করুন"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">নতুন APK ফাইল</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteApk}
+                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
+                    title="ডিলিট করুন"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-[#223048] text-center space-y-2">
+                <Smartphone className="w-8 h-8 text-slate-400 mx-auto" />
+                <div className="text-xs text-slate-400">কোনো APK ফাইল এখনো আপলোড করা হয়নি।</div>
+                <button
+                  type="button"
+                  onClick={() => apkFileInputRef.current?.click()}
+                  disabled={uploadingApk}
+                  className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-[#162035] hover:bg-slate-300 dark:hover:bg-[#1f2d48] text-slate-900 dark:text-white font-bold text-xs cursor-pointer inline-flex items-center gap-1.5 transition"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#00d293]" />
+                  <span>{uploadingApk ? 'আপলোড হচ্ছে...' : 'নতুন APK আপলোড করুন'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <button

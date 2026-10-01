@@ -19,6 +19,7 @@ import { SafeUploadModal } from './components/SafeUploadModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { NotificationsModal } from './components/NotificationsModal';
 import { InstallAppModal } from './components/InstallAppModal';
+import { usePWAInstall } from './hooks/usePWAInstall';
 import { WebsitesPage } from './components/WebsitesPage';
 import { SocialTasksPage } from './components/SocialTasksPage';
 import { HostingTutorialPage } from './components/HostingTutorialPage';
@@ -182,6 +183,7 @@ export default function App() {
   const [safeUploadBot, setSafeUploadBot] = useState<HostedBot | null>(null);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showInstallAppModal, setShowInstallAppModal] = useState(false);
+  const { isDownloaded, recordApkDownload } = usePWAInstall();
   const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
   const [tokenForDeploy, setTokenForDeploy] = useState<{ token: string; botName?: string } | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('overview');
@@ -703,7 +705,7 @@ export default function App() {
         botsCount={bots.length}
         pendingCount={pendingRequestsCount}
         siteSettings={siteSettings}
-        onOpenInstallApp={() => setShowInstallAppModal(true)}
+        onOpenInstallApp={isDownloaded ? undefined : () => setShowInstallAppModal(true)}
       />
 
       {/* Slide-out Navigation Drawer */}
@@ -731,7 +733,7 @@ export default function App() {
         onToggleTheme={handleToggleTheme}
         onToggleLang={() => setLang((prev) => (prev === 'bn' ? 'en' : 'bn'))}
         siteSettings={siteSettings}
-        onOpenInstallApp={() => setShowInstallAppModal(true)}
+        onOpenInstallApp={isDownloaded ? undefined : () => setShowInstallAppModal(true)}
       />
 
       {/* Main Page Content - Generous bottom padding on mobile so bottom bar never obscures content */}
@@ -769,7 +771,7 @@ export default function App() {
             lang={lang}
             botsCount={bots.length}
             siteSettings={siteSettings}
-            onOpenInstallApp={() => setShowInstallAppModal(true)}
+            onOpenInstallApp={isDownloaded ? undefined : () => setShowInstallAppModal(true)}
           />
         )}
 
@@ -828,7 +830,7 @@ export default function App() {
             onOpenAdminModal={() => setShowAdminModal(true)}
             onUserUpdate={(u) => setCurrentUser(u)}
             lang={lang}
-            onOpenInstallApp={() => setShowInstallAppModal(true)}
+            onOpenInstallApp={isDownloaded ? undefined : () => setShowInstallAppModal(true)}
           />
         )}
 
@@ -1096,6 +1098,10 @@ export default function App() {
         lang={lang}
         siteName={siteSettings.siteName}
         logoUrl={siteSettings.logoUrl}
+        onDownloaded={() => {
+          recordApkDownload();
+          setToastMessage(lang === 'bn' ? '✓ APK সফলভাবে ডাউনলোড হচ্ছে!' : '✓ APK download started!');
+        }}
       />
 
       {/* 24/7 AI Live Support Robot Assistant (Bilingual: Bengali & English) */}

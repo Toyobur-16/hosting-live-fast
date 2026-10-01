@@ -513,19 +513,19 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
   const activeCount = websites.filter((w) => w.status === 'online').length;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 text-slate-100">
+    <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 text-slate-100 min-w-0 w-full overflow-hidden">
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl p-6 md:p-8 bg-gradient-to-br from-[#0c1427] via-[#091122] to-[#040813] border border-cyan-500/25 shadow-2xl mb-8">
+      <div className="relative overflow-hidden rounded-3xl p-5 sm:p-6 md:p-8 bg-gradient-to-br from-[#0c1427] via-[#091122] to-[#040813] border border-cyan-500/25 shadow-2xl mb-6 sm:mb-8">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-bold mb-3">
-              <Globe className="w-3.5 h-3.5" />
+              <Globe className="w-3.5 h-3.5 shrink-0" />
               <span>{lang === 'bn' ? '🌐 স্ট্যাটিক ওয়েবসাইট হোস্টিং' : '🌐 Static Website Cloud Hosting'}</span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-white tracking-tight">
               {lang === 'bn' ? 'আপনার নিজস্ব ওয়েবসাইট ও পোর্টফোলিও লাইভ হোস্ট করুন' : 'Host Static Websites with Free Subdomains'}
             </h1>
-            <p className="text-sm text-slate-400 mt-2 max-w-xl leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-400 mt-2 max-w-xl leading-relaxed">
               {lang === 'bn'
                 ? 'HTML, CSS, JavaScript ও ইমেজ দিয়ে তৈরি ওয়েবসাইট সরাসরি ZIP বা ফাইল আপলোড করে ফ্রিতে সাবডোমেন সহ লাইভ পাবলিশ করুন।'
                 : 'Upload HTML, CSS, JS, and image assets via ZIP or folder. Instantly live with free SSL and custom subdomains.'}
@@ -540,9 +540,9 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                 setShowNewModal(true);
               }
             }}
-            className="w-full md:w-auto px-6 py-3.5 bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-bold text-sm rounded-2xl shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+            className="w-full md:w-auto px-5 sm:px-6 py-3 sm:py-3.5 bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
           >
-            <Plus className="w-4 h-4 stroke-[3]" />
+            <Plus className="w-4 h-4 stroke-[3] shrink-0" />
             <span>{lang === 'bn' ? 'নতুন ওয়েবসাইট হোস্ট করুন' : 'Deploy New Website'}</span>
           </button>
         </div>
@@ -550,14 +550,14 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
 
       {/* Notifications */}
       {successMsg && (
-        <div className="mb-6 p-4 bg-emerald-950/50 border border-emerald-500/50 rounded-2xl text-emerald-300 text-sm flex items-center gap-3 shadow-lg">
+        <div className="mb-6 p-4 bg-emerald-950/50 border border-emerald-500/50 rounded-2xl text-emerald-300 text-xs sm:text-sm flex items-center gap-3 shadow-lg">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
           <div className="flex-1 font-semibold">{successMsg}</div>
         </div>
       )}
 
       {error && (
-        <div className="mb-6 p-4 bg-rose-950/50 border border-rose-500/50 rounded-2xl text-rose-300 text-sm flex items-center gap-3 shadow-lg">
+        <div className="mb-6 p-4 bg-rose-950/50 border border-rose-500/50 rounded-2xl text-rose-300 text-xs sm:text-sm flex items-center gap-3 shadow-lg">
           <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
           <div className="flex-1">{error}</div>
         </div>
@@ -572,45 +572,45 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <div className="bg-[#0b1222] border border-slate-800 p-4 rounded-2xl shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
-            <Globe className="w-4 h-4 text-cyan-400" />
-            <span>{lang === 'bn' ? 'হোস্ট করা ওয়েবসাইট' : 'Total Websites'}</span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="bg-[#0b1222] border border-slate-800 p-3 sm:p-4 rounded-2xl shadow-sm min-w-0">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1 min-w-0">
+            <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="truncate">{lang === 'bn' ? 'মোট ওয়েবসাইট' : 'Total Websites'}</span>
           </div>
-          <p className="text-xl font-bold text-white font-mono">
+          <p className="text-lg sm:text-xl font-bold text-white font-mono truncate">
             {websites.length} / {maxWebsites}
           </p>
-          <p className="text-[11px] text-slate-500 mt-1">
-            {maxWebsites - websites.length} {lang === 'bn' ? 'টি স্লট বাকি আছে' : 'slots available'}
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">
+            {maxWebsites - websites.length} {lang === 'bn' ? 'টি স্লট বাকি' : 'slots available'}
           </p>
         </div>
 
-        <div className="bg-[#0b1222] border border-slate-800 p-4 rounded-2xl shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>{lang === 'bn' ? 'অনলাইন সক্রিয় সাইট' : 'Online Sites'}</span>
+        <div className="bg-[#0b1222] border border-slate-800 p-3 sm:p-4 rounded-2xl shadow-sm min-w-0">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1 min-w-0">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate">{lang === 'bn' ? 'অনলাইন সাইট' : 'Online Sites'}</span>
           </div>
-          <p className="text-xl font-bold text-emerald-400 font-mono">{activeCount}</p>
-          <p className="text-[11px] text-slate-500 mt-1">{lang === 'bn' ? 'লাইভ ভিজিটর রেডি' : 'Live & Serving'}</p>
+          <p className="text-lg sm:text-xl font-bold text-emerald-400 font-mono truncate">{activeCount}</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">{lang === 'bn' ? 'লাইভ ভিজিটর রেডি' : 'Live & Serving'}</p>
         </div>
 
-        <div className="bg-[#0b1222] border border-slate-800 p-4 rounded-2xl shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
-            <HardDrive className="w-4 h-4 text-purple-400" />
-            <span>{lang === 'bn' ? 'মোট স্টোরেজ ব্যবহার' : 'Storage Used'}</span>
+        <div className="bg-[#0b1222] border border-slate-800 p-3 sm:p-4 rounded-2xl shadow-sm min-w-0">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1 min-w-0">
+            <HardDrive className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+            <span className="truncate">{lang === 'bn' ? 'স্টোরেজ ব্যবহার' : 'Storage Used'}</span>
           </div>
-          <p className="text-xl font-bold text-purple-400 font-mono">{formatBytes(totalStorageBytes)}</p>
-          <p className="text-[11px] text-slate-500 mt-1">{lang === 'bn' ? 'ফাস্ট এসএসডি ক্লাউড' : 'Cloud SSD storage'}</p>
+          <p className="text-lg sm:text-xl font-bold text-purple-400 font-mono truncate">{formatBytes(totalStorageBytes)}</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">{lang === 'bn' ? 'ফাস্ট এসএসডি ক্লাউড' : 'Cloud SSD storage'}</p>
         </div>
 
-        <div className="bg-[#0b1222] border border-slate-800 p-4 rounded-2xl shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
-            <ShieldCheck className="w-4 h-4 text-amber-400" />
-            <span>{lang === 'bn' ? 'SSL সিকিউরিটি' : 'SSL Protection'}</span>
+        <div className="bg-[#0b1222] border border-slate-800 p-3 sm:p-4 rounded-2xl shadow-sm min-w-0">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1 min-w-0">
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="truncate">{lang === 'bn' ? 'SSL সিকিউরিটি' : 'SSL Protection'}</span>
           </div>
-          <p className="text-xl font-bold text-amber-400 font-mono">HTTPS</p>
-          <p className="text-[11px] text-slate-500 mt-1">{lang === 'bn' ? 'অটোমেটিক সার্টিফিকেট' : 'Auto Encrypted'}</p>
+          <p className="text-lg sm:text-xl font-bold text-amber-400 font-mono truncate">HTTPS</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">{lang === 'bn' ? 'অটোমেটিক সার্টিফিকেট' : 'Auto Encrypted'}</p>
         </div>
       </div>
 
@@ -648,7 +648,7 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {websites.map((site) => {
             const isOnline = site.status === 'online';
             const directPath = site.directUrl || `/site/${site.slug}/`;
@@ -658,24 +658,24 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
             return (
               <div
                 key={site.id}
-                className="bg-[#0b1222] border border-slate-800 hover:border-slate-700 rounded-3xl p-6 shadow-sm transition-all flex flex-col justify-between"
+                className="bg-[#0b1222] border border-slate-800 hover:border-slate-700 rounded-3xl p-4 sm:p-5 shadow-sm transition-all flex flex-col justify-between w-full min-w-0 overflow-hidden"
               >
-                <div>
+                <div className="min-w-0">
                   {/* Top Status */}
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-9 h-9 rounded-xl bg-cyan-500/15 text-cyan-400 flex items-center justify-center font-bold">
-                        <Globe className="w-5 h-5" />
+                  <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl bg-cyan-500/15 text-cyan-400 flex items-center justify-center font-bold shrink-0">
+                        <Globe className="w-5 h-5 shrink-0" />
                       </div>
-                      <div>
-                        <h3 className="text-base font-bold text-white">{site.name}</h3>
-                        <p className="text-xs text-cyan-400 font-mono font-medium truncate max-w-[200px] sm:max-w-xs">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-base font-bold text-white truncate">{site.name}</h3>
+                        <p className="text-xs text-cyan-400 font-mono font-medium truncate">
                           {site.customDomain ? `https://${site.customDomain}` : (site.netlifyUrl || `https://${site.slug}.netlify.app`)}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <span
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
                           isOnline
@@ -684,7 +684,7 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                         }`}
                       >
                         <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
-                        <span>{isOnline ? (lang === 'bn' ? 'অনলাইন লাইভ' : 'Online') : (lang === 'bn' ? 'বন্ধ' : 'Stopped')}</span>
+                        <span>{isOnline ? (lang === 'bn' ? 'অনলাইন' : 'Online') : (lang === 'bn' ? 'বন্ধ' : 'Stopped')}</span>
                       </span>
                     </div>
                   </div>
@@ -693,22 +693,22 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                   {(() => {
                     const primaryLink = site.customDomain ? `https://${site.customDomain}` : (site.netlifyUrl || `https://${site.slug}.netlify.app`);
                     return (
-                      <div className="bg-[#060c18] border border-cyan-500/30 rounded-2xl p-3.5 mb-4 shadow-inner">
+                      <div className="bg-[#060c18] border border-cyan-500/30 rounded-2xl p-3 sm:p-3.5 mb-4 shadow-inner w-full min-w-0 overflow-hidden">
                         <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                            <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-extrabold">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                            <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-extrabold truncate">
                               {site.customDomain
                                 ? (lang === 'bn' ? '🌐 সক্রিয় কাস্টম ডোমেন' : '🌐 Active Custom Domain')
                                 : (lang === 'bn' ? '⚡ Netlify ক্লাউড লাইভ লিংক' : '⚡ Netlify Cloud Live Link')}
                             </p>
                           </div>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/40">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/40 shrink-0">
                             HTTPS 24/7
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between gap-2 bg-[#091120] border border-slate-800 rounded-xl px-3 py-2">
+                        <div className="flex items-center justify-between gap-1.5 sm:gap-2 bg-[#091120] border border-slate-800 rounded-xl px-2.5 sm:px-3 py-2 min-w-0">
                           <a
                             href={primaryLink}
                             target="_blank"
@@ -719,7 +719,7 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                             {primaryLink}
                           </a>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                             <button
                               onClick={() => {
                                 copyToClipboard(primaryLink, site.id);
@@ -729,27 +729,27 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                                     : `✓ Copied: ${primaryLink}`
                                 );
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                              className="px-2 sm:px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold shrink-0"
                               title={lang === 'bn' ? 'লিংক কপি করুন' : 'Copy Live Link'}
                             >
-                              {copiedId === site.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-400" />}
-                              <span>{copiedId === site.id ? (lang === 'bn' ? 'কপি হয়েছে' : 'Copied') : (lang === 'bn' ? 'কপি' : 'Copy')}</span>
+                              {copiedId === site.id ? <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : <Copy className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+                              <span>{copiedId === site.id ? (lang === 'bn' ? 'কপি' : 'Done') : (lang === 'bn' ? 'কপি' : 'Copy')}</span>
                             </button>
                             <a
                               href={primaryLink}
                               target="_blank"
                               rel="noreferrer"
-                              className="p-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 transition-colors cursor-pointer"
+                              className="p-1 sm:p-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 transition-colors cursor-pointer shrink-0"
                               title={lang === 'bn' ? 'নতুন ট্যাবে সাইট ওপেন করুন' : 'Open Website in New Tab'}
                             >
-                              <ExternalLink className="w-4 h-4" />
+                              <ExternalLink className="w-4 h-4 shrink-0" />
                             </a>
                           </div>
                         </div>
 
                         {site.customDomain && (
                           <div className="mt-2 pt-1.5 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                            <span>Netlify: https://{site.slug}.netlify.app</span>
+                            <span className="truncate">Netlify: https://{site.slug}.netlify.app</span>
                           </div>
                         )}
                       </div>
@@ -757,44 +757,50 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                   })()}
 
                   {/* Metadata */}
-                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mb-5">
-                    <div className="flex items-center gap-1.5">
-                      <HardDrive className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{formatBytes(site.storageBytes)} ({site.filesCount || 0} {lang === 'bn' ? 'ফাইল' : 'files'})</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mb-4 min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <HardDrive className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span className="truncate">{formatBytes(site.storageBytes)} ({site.filesCount || 0} {lang === 'bn' ? 'ফাইল' : 'files'})</span>
                     </div>
-                    <div className="flex items-center gap-1.5 justify-end">
-                      <Clock className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{new Date(site.lastDeployedAt || site.createdAt).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-1.5 justify-end min-w-0">
+                      <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span className="truncate">{new Date(site.lastDeployedAt || site.createdAt).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                {/* Action Buttons - Clean 3-Tier Structured Responsive Layout */}
+                <div className="pt-3.5 border-t border-slate-800/80 space-y-2.5 w-full min-w-0">
+                  {/* Tier 1: Primary Actions (Live Preview & Upload/Redeploy) */}
+                  <div className="grid grid-cols-2 gap-2 w-full">
                     <button
                       onClick={() => setPreviewSite(site)}
-                      className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full py-2.5 px-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-98"
                       title={lang === 'bn' ? 'লাইভ প্রিভিউ দেখুন' : 'Live Preview'}
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>{lang === 'bn' ? 'লাইভ প্রিভিউ' : 'Live Preview'}</span>
+                      <Eye className="w-4 h-4 shrink-0 text-emerald-400" />
+                      <span className="truncate">{lang === 'bn' ? 'লাইভ প্রিভিউ' : 'Live Preview'}</span>
                     </button>
 
                     <button
                       onClick={() => setDeployTargetSite(site)}
-                      className="px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full py-2.5 px-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-98"
+                      title={lang === 'bn' ? 'ফাইল আপলোড বা রিডিপ্লয় করুন' : 'Upload / Redeploy'}
                     >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{lang === 'bn' ? 'আপলোড / রিডিপ্লয়' : 'Redeploy'}</span>
+                      <Upload className="w-4 h-4 shrink-0 text-cyan-400" />
+                      <span className="truncate">{lang === 'bn' ? 'রিডিপ্লয়' : 'Redeploy'}</span>
                     </button>
+                  </div>
 
+                  {/* Tier 2: Management Tools (Files, Edit Link, Custom Domain) */}
+                  <div className="grid grid-cols-3 gap-2 w-full">
                     <button
                       onClick={() => handleOpenBrowseFiles(site)}
-                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full py-2 px-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/60 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-98"
+                      title={lang === 'bn' ? 'ফাইল ম্যানেজার' : 'Files'}
                     >
-                      <Folder className="w-3.5 h-3.5" />
-                      <span>{lang === 'bn' ? 'ফাইলস' : 'Files'}</span>
+                      <Folder className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="truncate">{lang === 'bn' ? 'ফাইলস' : 'Files'}</span>
                     </button>
 
                     <button
@@ -805,11 +811,11 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                         setEditSlugAvailable(true);
                         setEditSlugError(null);
                       }}
-                      className="px-2.5 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full py-2 px-1.5 bg-slate-800/90 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-98"
                       title={lang === 'bn' ? 'ওয়েবসাইটের নাম ও লিংক পরিবর্তন' : 'Change name & URL'}
                     >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>{lang === 'bn' ? 'লিংক এডিট' : 'Edit Link'}</span>
+                      <Edit3 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <span className="truncate">{lang === 'bn' ? 'লিংক এডিট' : 'Edit Link'}</span>
                     </button>
 
                     <button
@@ -818,29 +824,44 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
                         setCustomDomainInput(site.customDomain || '');
                         setDomainError(null);
                       }}
-                      className="px-2.5 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-                      title={lang === 'bn' ? 'কাস্টম ডোমেন যুক্ত বা পরিচালনা করুন (.com, .net, .xyz)' : 'Configure Custom Domain'}
+                      className="w-full py-2 px-1.5 bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-98"
+                      title={lang === 'bn' ? 'কাস্টম ডোমেন কনফিগার করুন' : 'Configure Custom Domain'}
                     >
-                      <Globe className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{site.customDomain ? (lang === 'bn' ? 'ডোমেন' : 'Domain') : (lang === 'bn' ? '+ ডোমেন' : '+ Domain')}</span>
+                      <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="truncate">{site.customDomain ? (lang === 'bn' ? 'ডোমেন' : 'Domain') : (lang === 'bn' ? '+ ডোমেন' : '+ Domain')}</span>
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {/* Tier 3: Controls (Start/Stop Website & Delete) */}
+                  <div className="flex items-center gap-2 pt-0.5 w-full">
                     <button
                       onClick={() => handleToggleStatus(site)}
-                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                      title={isOnline ? (lang === 'bn' ? 'সাইট বন্ধ করুন' : 'Stop Website') : (lang === 'bn' ? 'সাইট চালু করুন' : 'Start Website')}
+                      className={`flex-1 py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-98 min-h-[38px] ${
+                        isOnline
+                          ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      }`}
+                      title={isOnline ? (lang === 'bn' ? 'সাইট সাময়িক বন্ধ করুন' : 'Stop Website') : (lang === 'bn' ? 'সাইট চালু করুন' : 'Start Website')}
                     >
-                      {isOnline ? <Square className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
+                      {isOnline ? (
+                        <>
+                          <Square className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>{lang === 'bn' ? 'সাইট বন্ধ করুন' : 'Stop Website'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>{lang === 'bn' ? 'সাইট চালু করুন' : 'Start Website'}</span>
+                        </>
+                      )}
                     </button>
 
                     <button
                       onClick={() => setDeleteTargetSite(site)}
-                      className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors cursor-pointer"
-                      title={lang === 'bn' ? 'ডিলিট করুন' : 'Delete'}
+                      className="p-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all cursor-pointer shrink-0 shadow-2xs active:scale-98 min-h-[38px] min-w-[38px] flex items-center justify-center"
+                      title={lang === 'bn' ? 'সাইট মুছে ফেলুন' : 'Delete Website'}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4 shrink-0" />
                     </button>
                   </div>
                 </div>

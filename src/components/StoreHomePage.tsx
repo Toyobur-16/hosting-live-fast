@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { StoreBanner, AuthUser, SiteSettings } from '../types';
 import { normalizeLogoUrl } from '../utils/logoUrl';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface AnnouncementItem {
   id: string;
@@ -73,6 +74,7 @@ export function StoreHomePage({
   siteSettings,
   onOpenInstallApp
 }: StoreHomePageProps) {
+  const { isDownloaded } = usePWAInstall();
   const isAdmin = Boolean(user && (user.role === 'admin' || user.email === 'toyoburrahman9090@gmail.com'));
   const [banners, setBanners] = useState<StoreBanner[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
@@ -535,8 +537,8 @@ export function StoreHomePage({
         </div>
       </div>
 
-      {/* Official App Download & Install Banner */}
-      {onOpenInstallApp && (
+      {/* Official App Download & Install Banner (Hidden once user has downloaded the APK or installed app) */}
+      {onOpenInstallApp && !isDownloaded && (
         <div className="rounded-3xl border border-[#00d293]/40 bg-gradient-to-r from-[#00d293]/15 via-emerald-500/10 to-teal-500/15 p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 transition-all">
           <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#00d293] to-sky-500 p-0.5 shadow-md shrink-0 flex items-center justify-center">

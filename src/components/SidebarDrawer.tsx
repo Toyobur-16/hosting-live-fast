@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { AuthUser, SiteSettings } from '../types';
 import { normalizeLogoUrl } from '../utils/logoUrl';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -68,6 +69,7 @@ export function SidebarDrawer({
   siteSettings,
   onOpenInstallApp
 }: SidebarDrawerProps) {
+  const { isDownloaded } = usePWAInstall();
   if (!isOpen) return null;
 
   const getUserInitial = () => {
@@ -83,14 +85,14 @@ export function SidebarDrawer({
       badge: null,
       color: 'emerald'
     },
-    {
+    ...(!isDownloaded ? [{
       id: 'install_app',
       label: lang === 'bn' ? 'অ্যাপ ডাউনলোড ও ইন্সটল' : 'Install & Download App',
       icon: Smartphone,
       badge: lang === 'bn' ? 'APK/PWA' : 'APK/PWA',
       color: 'emerald',
       isInstallAction: true
-    },
+    }] : []),
     {
       id: 'plans',
       label: lang === 'bn' ? 'হোস্টিং প্ল্যানস' : 'Hosting Plans',
@@ -318,8 +320,8 @@ export function SidebarDrawer({
               )}
             </div>
 
-            {/* Install / Download App Quick Action Card */}
-            {onOpenInstallApp && (
+            {/* Install / Download App Quick Action Card (Hidden once user has downloaded the APK or installed app) */}
+            {onOpenInstallApp && !isDownloaded && (
               <div className="px-3 pt-3 pb-1">
                 <button
                   type="button"

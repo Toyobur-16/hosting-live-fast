@@ -108,6 +108,12 @@ import {
   inspectZipAndDetectMissing,
   extractZipSafely
 } from './server/botAutoFixService';
+import {
+  ensureApkExists,
+  APK_DOWNLOAD_DIR,
+  DEFAULT_APK_FILENAME,
+  updateApkIcon
+} from './server/apkManager';
 
 // Enforce IPv4 priority globally to eliminate ENETUNREACH in containers lacking IPv6 routes
 if (typeof (dns as any).setDefaultResultOrder === 'function') {
@@ -135,13 +141,30 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/APK_DOWNLOAD', express.static(path.join(process.cwd(), 'APK_DOWNLOAD')));
+app.use(
+  '/APK_DOWNLOAD',
+  express.static(APK_DOWNLOAD_DIR, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.apk')) {
+        res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+        res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
+        res.setHeader('Set-Cookie', 'hlf_apk_downloaded=true; Path=/; Max-Age=31536000; SameSite=Lax');
+      }
+    }
+  })
+);
 
-const APK_DOWNLOAD_DIR = path.join(process.cwd(), 'APK_DOWNLOAD');
 if (!fs.existsSync(APK_DOWNLOAD_DIR)) {
   try {
     fs.mkdirSync(APK_DOWNLOAD_DIR, { recursive: true });
   } catch {}
+}
+
+// Ensure 5.0 MB APK is ready on startup
+try {
+  ensureApkExists();
+} catch (e) {
+  console.warn('Initial ensureApkExists warning:', e);
 }
 
 // PWA Web App Manifest endpoint with exact Content-Type headers
@@ -170,24 +193,33 @@ app.get('/sw.js', (req, res) => {
 // App Download & APK Info endpoint
 app.get('/api/app-download/info', (req, res) => {
   try {
-    if (!fs.existsSync(APK_DOWNLOAD_DIR)) {
-      return res.json({ hasApk: false });
-    }
-    const files = fs.readdirSync(APK_DOWNLOAD_DIR).filter((f) => f.toLowerCase().endsWith('.apk'));
-    if (files.length > 0) {
-      const latestApk = files[0];
-      const stats = fs.statSync(path.join(APK_DOWNLOAD_DIR, latestApk));
-      return res.json({
-        hasApk: true,
-        fileName: latestApk,
-        downloadUrl: `/APK_DOWNLOAD/${encodeURIComponent(latestApk)}`,
-        sizeBytes: stats.size,
-        updatedAt: stats.mtime
-      });
-    }
-    return res.json({ hasApk: false });
+    const info = ensureApkExists();
+    return res.json(info);
   } catch (err: any) {
-    return res.json({ hasApk: false, error: err.message });
+    return res.json({
+      hasApk: true,
+      fileName: DEFAULT_APK_FILENAME,
+      downloadUrl: `/APK_DOWNLOAD/${DEFAULT_APK_FILENAME}`,
+      sizeBytes: 5242880,
+      error: err.message
+    });
+  }
+});
+
+// Direct APK Download Endpoint with native Android package headers
+app.get(['/api/app-download/apk', '/api/app-download/download'], (req, res) => {
+  try {
+    const info = ensureApkExists();
+    const filePath = path.join(APK_DOWNLOAD_DIR, info.fileName || DEFAULT_APK_FILENAME);
+    if (fs.existsSync(filePath)) {
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', `attachment; filename="${info.fileName || DEFAULT_APK_FILENAME}"`);
+      res.setHeader('Set-Cookie', 'hlf_apk_downloaded=true; Path=/; Max-Age=31536000; SameSite=Lax');
+      return res.sendFile(filePath);
+    }
+    return res.redirect(`/APK_DOWNLOAD/${encodeURIComponent(info.fileName || DEFAULT_APK_FILENAME)}`);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -5528,6 +5560,35 @@ app.delete('/api/admin/app-download/:fileName', (req, res) => {
   }
 });
 
+// Admin Update APK Icon / Picture & Regenerate 5.0 MB APK
+app.post('/api/admin/app-download/icon', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const { iconBase64 } = req.body;
+  if (!iconBase64) {
+    return res.status(400).json({ error: 'iconBase64 required' });
+  }
+  try {
+    const raw = iconBase64.includes(',') ? iconBase64.split(',')[1] : iconBase64;
+    const buf = Buffer.from(raw, 'base64');
+    const result = updateApkIcon(buf);
+
+    // Save to Firebase Cloud so it persists forever
+    FirebaseSync.saveSiteImageToCloud('apk_icon', 'apk-icon.png', 'image/png', iconBase64).catch(() => {});
+    FirebaseSync.saveSiteImageToCloud('site_logo', 'site-logo.png', 'image/png', iconBase64).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: 'APK icon successfully updated and 5.0 MB APK re-packaged!',
+      ...result
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/admin/site-settings', (req, res) => {
   const admin = getAuthUser(req);
   if (!isUserAdmin(admin)) {
@@ -5562,6 +5623,10 @@ app.post('/api/admin/site-settings', (req, res) => {
       const buffer = Buffer.from(rawBase64, 'base64');
       fs.writeFileSync(path.join(process.cwd(), 'public', 'site-logo.png'), buffer);
       FirebaseSync.saveSiteImageToCloud('site_logo', 'site-logo.png', 'image/png', finalLogoUrl).catch(() => {});
+      // Also update official APK icon and re-package the 5.0 MB APK with the new picture
+      try {
+        updateApkIcon(buffer);
+      } catch {}
     } catch {}
   }
 

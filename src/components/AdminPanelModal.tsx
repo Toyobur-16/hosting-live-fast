@@ -1191,7 +1191,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 { id: 'websites' as AdminTabType, labelBn: 'ওয়েবসাইট হোস্টিং', labelEn: 'Hosted Websites', icon: Globe, iconColor: 'text-cyan-400' },
                 { id: 'social-tasks' as AdminTabType, labelBn: 'সোশ্যাল টাস্ক', labelEn: 'Social Tasks', icon: Share2, iconColor: 'text-purple-400', badge: pendingTasksCount > 0 ? pendingTasksCount : undefined },
                 { id: 'smtp' as AdminTabType, labelBn: 'SMTP ইমেইল কনফিগ', labelEn: 'SMTP Config', icon: Mail, iconColor: 'text-emerald-400' },
-                { id: 'site' as AdminTabType, labelBn: 'সাইট লোগো ও নাম', labelEn: 'Site Logo & Branding', icon: Sliders, iconColor: 'text-amber-400' },
+                { id: 'site' as AdminTabType, labelBn: 'সাইট লোগো ও APK পিকচার', labelEn: 'Logo & APK Picture', icon: Sliders, iconColor: 'text-amber-400' },
               ].map((tab) => {
                 const IconComp = tab.icon;
                 const isActive = activeTab === tab.id;
