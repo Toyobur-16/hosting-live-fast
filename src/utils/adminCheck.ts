@@ -1,6 +1,7 @@
 import { AuthUser } from '../types';
 
 export const ADMIN_EMAILS: string[] = [
+  'mdtoyoburrahman243@gmail.com',
   'mdtayburrahman239@gmail.com',
   'toyoburrahman83@gmail.com',
   'toyoburrahman9090@gmail.com',

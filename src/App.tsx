@@ -85,10 +85,10 @@ export default function App() {
           const cleanLogo = normalizeLogoUrl(data.settings.logoUrl);
           const normalized = { ...data.settings, logoUrl: cleanLogo };
           setSiteSettings((prev) => {
-            // Do not overwrite a custom data:image logo already loaded from Firestore with a broken local thumbnail path
+            // Do not overwrite a custom data:image or external logo with the default placeholder
             if (
-              prev.logoUrl?.startsWith('data:image/') &&
-              cleanLogo.startsWith('/api/store/thumbnails/')
+              (prev.logoUrl?.startsWith('data:image/') || prev.logoUrl?.startsWith('http')) &&
+              (!cleanLogo || cleanLogo === '/site-logo.png' || cleanLogo.startsWith('/api/store/thumbnails/'))
             ) {
               return { ...normalized, logoUrl: prev.logoUrl };
             }
@@ -125,10 +125,15 @@ export default function App() {
         if (cloudSettings) {
           const cleanLogo = cloudSettings.logoUrl ? normalizeLogoUrl(cloudSettings.logoUrl) : undefined;
           setSiteSettings((prev) => {
+            const effectiveLogo =
+              (prev.logoUrl?.startsWith('data:image/') && (!cleanLogo || cleanLogo === '/site-logo.png'))
+                ? prev.logoUrl
+                : (cleanLogo || prev.logoUrl || '/site-logo.png');
+
             const next = {
               ...prev,
               ...cloudSettings,
-              logoUrl: cleanLogo || prev.logoUrl || '/site-logo.png'
+              logoUrl: effectiveLogo
             };
             try {
               localStorage.setItem('hlf_site_settings', JSON.stringify(next));

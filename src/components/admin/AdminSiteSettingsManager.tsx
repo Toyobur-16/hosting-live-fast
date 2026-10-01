@@ -49,10 +49,14 @@ export function AdminSiteSettingsManager() {
       if (snap.exists()) {
         const cloudSettings = snap.data() as SiteSettings;
         if (cloudSettings) {
+          const cleanLogo = cloudSettings.logoUrl ? normalizeLogoUrl(cloudSettings.logoUrl) : undefined;
           setSettings((prev) => ({
             ...prev,
             ...cloudSettings,
-            logoUrl: normalizeLogoUrl(cloudSettings.logoUrl || prev.logoUrl || '/site-logo.png')
+            logoUrl:
+              (prev.logoUrl?.startsWith('data:image/') && (!cleanLogo || cleanLogo === '/site-logo.png'))
+                ? prev.logoUrl
+                : (cleanLogo || prev.logoUrl || '/site-logo.png')
           }));
         }
       }
@@ -105,7 +109,8 @@ export function AdminSiteSettingsManager() {
             ...prev,
             ...data.settings,
             logoUrl:
-              prev.logoUrl?.startsWith('data:image/') && cleanLogo.startsWith('/api/store/thumbnails/')
+              (prev.logoUrl?.startsWith('data:image/') || prev.logoUrl?.startsWith('http')) &&
+              (!cleanLogo || cleanLogo === '/site-logo.png' || cleanLogo.startsWith('/api/store/thumbnails/'))
                 ? prev.logoUrl
                 : cleanLogo
           }));
@@ -220,7 +225,7 @@ export function AdminSiteSettingsManager() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        const freshLogoUrl = data.logoUrl || optimizedDataUrl;
+        const freshLogoUrl = optimizedDataUrl;
         const updatedSettings: SiteSettings = {
           ...settings,
           logoUrl: freshLogoUrl
@@ -248,6 +253,7 @@ export function AdminSiteSettingsManager() {
           await setDoc(doc(db, 'site_images', 'apk_icon'), { ...imageDoc, id: 'apk_icon' }, { merge: true });
           await setDoc(doc(db, 'site_images', 'website_logo'), { ...imageDoc, id: 'website_logo' }, { merge: true });
           await setDoc(doc(db, 'site_settings', 'general'), updatedSettings, { merge: true });
+          await setDoc(doc(db, 'config', 'site_settings'), updatedSettings, { merge: true });
         } catch (e) {
           console.warn('Firestore write warning:', e);
         }

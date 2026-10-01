@@ -1,5 +1,5 @@
 // Service Worker for hosting-live-fast PWA
-const CACHE_NAME = 'hlf-pwa-cache-v2';
+const CACHE_NAME = 'hlf-pwa-cache-v4';
 const PRECACHE_URLS = [
   '/',
   '/index.html'
@@ -33,11 +33,18 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Never cache API requests, websockets, or APK downloads
+  // Never cache API requests, websockets, APK downloads, or dynamic branding icons (logo, PWA icons, manifest)
   if (
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/APK_DOWNLOAD/') ||
     url.pathname.startsWith('/socket.io/') ||
+    url.pathname === '/site-logo.png' ||
+    url.pathname === '/site-logo.jpg' ||
+    url.pathname.startsWith('/pwa-') ||
+    url.pathname.startsWith('/favicon') ||
+    url.pathname === '/apple-touch-icon.png' ||
+    url.pathname === '/manifest.webmanifest' ||
+    url.pathname === '/manifest.json' ||
     event.request.method !== 'GET'
   ) {
     return;

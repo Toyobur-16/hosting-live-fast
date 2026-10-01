@@ -205,10 +205,23 @@ export function ensureApkExists(): { hasApk: boolean; fileName: string; sizeByte
   };
 }
 
+let activeBrandingBuffer: Buffer | null = null;
+let activeBrandingContentType = 'image/png';
+
+export function getActiveBrandingBuffer(): { buffer: Buffer | null; contentType: string } {
+  return { buffer: activeBrandingBuffer, contentType: activeBrandingContentType };
+}
+
+export function setActiveBrandingBuffer(buf: Buffer, contentType = 'image/png') {
+  activeBrandingBuffer = buf;
+  activeBrandingContentType = contentType;
+}
+
 /**
  * Updates all official branding images, PWA icons (including maskable), site logos, and regenerates the 5.0 MB APK.
  */
-export function updateAllBrandingImages(iconBuffer: Buffer): { success: boolean; sizeBytes: number; fileName: string; downloadUrl: string } {
+export function updateAllBrandingImages(iconBuffer: Buffer, contentType = 'image/png'): { success: boolean; sizeBytes: number; fileName: string; downloadUrl: string } {
+  setActiveBrandingBuffer(iconBuffer, contentType);
   const publicDir = path.join(process.cwd(), 'public');
   const filesToUpdate = [
     'pwa-192x192.png',
