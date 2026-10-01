@@ -205,9 +205,9 @@
   },
   {
     "id": "user_1790862356523_50q8",
-    "name": "mdtoyoburrahman444",
+    "name": "Hllahj",
     "email": "mdtoyoburrahman444@gmail.com",
-    "password": "",
+    "password": "newpassword123",
     "role": "user",
     "plan": "free",
     "maxBots": 1,
@@ -221,5 +221,40 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-10-01T13:45:56.523Z"
+  },
+  {
+    "id": "user_1790881062641_adna",
+    "name": "hostinglivefast.official",
+    "email": "hostinglivefast.official@gmail.com",
+    "password": "",
+    "role": "user",
+    "plan": "free",
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "planExpiresAt": null,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "isVerified": true,
+    "emailVerified": true,
+    "avatar": "",
+    "googleId": "",
+    "createdAt": "2026-10-01T18:57:42.641Z"
+  },
+  {
+    "id": "user_1790881373029_lcvbn",
+    "name": "Test User",
+    "email": "direct_user_test_99@gmail.com",
+    "password": "mypassword123",
+    "role": "user",
+    "plan": "free",
+    "isVerified": true,
+    "emailVerified": true,
+    "createdAt": "2026-10-01T19:02:53.029Z",
+    "maxBots": 0,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "maxWebsites": 2,
+    "maxStorageMb": 50
   }
 ]

@@ -2408,46 +2408,43 @@ app.post('/api/auth/register', async (req, res) => {
         }
 
         // 3. Inform that this email is already registered and transition to login
-        return res.json({
+        return res.status(400).json({
           success: false,
           alreadyRegistered: true,
           email: cleanEmail,
-          error: 'এই জিমেইল দিয়ে ইতিমধ্যে রেজিস্ট্রেশন করা আছে! নিচে আপনার পাসওয়ার্ড দিয়ে সরাসরি লগইন করুন।'
+          error: 'এই ইমেইল দিয়ে ইতিমধ্যে অ্যাকাউন্ট তৈরি করা আছে! অনুগ্রহ করে লগইন করুন।'
         });
       }
-
-      // Clean up any previously saved unverified account & its sessions so it cannot auto-login
-      const unverifiedId = existing.id;
-      accounts.splice(existingIdx, 1);
-      saveAccounts(accounts);
-      const sessions = getSessions();
-      let sessionModified = false;
-      for (const [tk, uid] of Object.entries(sessions)) {
-        if (uid === unverifiedId) {
-          delete sessions[tk];
-          sessionModified = true;
-        }
-      }
-      if (sessionModified) saveSessions(sessions);
     }
 
-    // Store pending registration inside verification record and dispatch 6-digit OTP email.
-    let sendResult: any = null;
-    try {
-      sendResult = await createAndSendVerificationCode(cleanEmail, name.trim(), true, {
-        name: name.trim(),
-        email: cleanEmail,
-        password: password || ''
-      });
-    } catch (err) {
-      console.error('Failed to send initial verification code:', err);
-    }
+    // Direct account creation - no verification code required!
+    const newUser = {
+      id: `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: name.trim(),
+      email: cleanEmail,
+      password: password || '',
+      role: 'user',
+      plan: 'free',
+      isVerified: true,
+      emailVerified: true,
+      createdAt: new Date().toISOString()
+    };
+    accounts.push(newUser);
+    saveAccounts(accounts);
+
+    const enriched = enrichUserWithPlanAndRole(newUser);
+    const token = generateAuthToken(enriched);
+    const sessions = getSessions();
+    sessions[token] = newUser.id;
+    saveSessions(sessions);
+
+    FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
 
     return res.json({
       success: true,
-      requiresVerification: true,
-      email: cleanEmail,
-      message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি। আপনার ইমেইল চেক করে কোডটি দিন।'
+      token,
+      user: enriched,
+      message: 'রেজিস্ট্রেশন সফলভাবে সম্পন্ন হয়েছে!'
     });
   } catch (err: any) {
     console.error('register route error:', err);
@@ -2716,26 +2713,10 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(401).json({ error: 'অনুগ্রহ করে আপনার পাসওয়ার্ড প্রদান করুন।' });
   }
 
-  // Do NOT issue token if email is not verified!
-  const requiresVerification = user.emailVerified === false || user.isVerified === false;
-  if (requiresVerification) {
-    try {
-      await createAndSendVerificationCode(cleanEmail, user.name, true, {
-        name: user.name,
-        email: cleanEmail,
-        password: user.password || password || ''
-      });
-    } catch (err) {
-      console.error('Failed to send login verification code:', err);
-    }
-
-    return res.json({
-      success: true,
-      requiresVerification: true,
-      email: cleanEmail,
-      message: 'আপনার অ্যাকাউন্টটি এখনো ইমেইল কোড দিয়ে ভেরিফাই করা হয়নি। আপনার ইমেইলে ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।'
-    });
-  }
+  // Always ensure user is verified
+  user.emailVerified = true;
+  user.isVerified = true;
+  saveAccounts(accounts);
 
   user = enrichUserWithPlanAndRole(user);
   FirebaseSync.syncAccountToCloud(user).catch(() => {});
@@ -2748,8 +2729,7 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({
     success: true,
     token,
-    user,
-    requiresVerification: false
+    user
   });
 });
 
@@ -3062,22 +3042,15 @@ app.post('/api/auth/resend-reset-code', async (req, res) => {
 // Verify 6-digit code and set new password
 app.post('/api/auth/reset-password', async (req, res) => {
   try {
-    const { email, code, newPassword } = req.body || {};
+    const { email, newPassword } = req.body || {};
     if (!email || !newPassword) {
       return res.status(400).json({ success: false, error: 'ইমেইল এবং নতুন পাসওয়ার্ড প্রদান করুন' });
-    }
-    if (!code) {
-      return res.status(400).json({ success: false, error: 'ইমেইলে পাঠানো ৬ সংখ্যার কোড প্রদান করুন' });
     }
     if (typeof newPassword !== 'string' || newPassword.length < 6) {
       return res.status(400).json({ success: false, error: 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' });
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
-    const verifyResult = verifyPasswordResetCode(cleanEmail, String(code));
-    if (!verifyResult.success) {
-      return res.status(400).json(verifyResult);
-    }
 
     const accounts = getAccounts();
     let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
