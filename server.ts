@@ -132,7 +132,7 @@ if (typeof (dns as any).setDefaultResultOrder === 'function') {
 }
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = 3000;
 
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
@@ -2747,55 +2747,144 @@ app.get('/api/auth/me', (req, res) => {
   });
 });
 
-// Google Sign-In & Registration with permanent Firebase Firestore sync
+// Google Sign-In & Registration with permanent Firebase Firestore sync & JWT support
 app.post('/api/auth/google', async (req, res) => {
   try {
-    const { email, name, picture, googleId } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'গুগল ইমেইল এড্রেস আবশ্যক' });
-    }
-    const cleanEmail = email.trim().toLowerCase();
-    const accounts = getAccounts();
-    let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+    const { credential, userInfo, email: directEmail, name: directName, picture: directPicture, googleId: directGoogleId } = req.body;
+    let email = '';
+    let name = '';
+    let picture = '';
+    let googleId = '';
 
-    if (!user) {
-      // Check cloud accounts in Firebase Firestore
-      const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
-      if (cloudUser && cloudUser.email) {
-        user = cloudUser;
-        accounts.push(user);
-      } else {
-        const isAdmin = isUserAdmin({ email: cleanEmail });
-        user = {
-          id: `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          name: (name || cleanEmail.split('@')[0]).trim(),
-          email: cleanEmail,
-          role: isAdmin ? 'admin' : 'user',
-          plan: 'free',
-          maxBots: isAdmin ? 999 : 1,
-          maxWebsites: isAdmin ? 999 : 2,
-          maxStorageMb: isAdmin ? 500 : 50,
-          planExpiresAt: null,
-          balanceBdt: 0,
-          balanceUsd: 0,
-          isVerified: true,
-          emailVerified: true,
-          avatar: picture || '',
-          googleId: googleId || '',
-          createdAt: new Date().toISOString()
-        };
-        accounts.push(user);
+    // If credential was passed and is a Google JWT token
+    if (credential && typeof credential === 'string') {
+      try {
+        const parts = credential.split('.');
+        if (parts.length >= 2) {
+          let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+          while (base64.length % 4) base64 += '=';
+          const payloadJson = Buffer.from(base64, 'base64').toString('utf-8');
+          const payload = JSON.parse(payloadJson);
+          email = payload.email || '';
+          name = payload.name || payload.given_name || (payload.email ? payload.email.split('@')[0] : '');
+          picture = payload.picture || '';
+          googleId = payload.sub || '';
+        }
+      } catch (err) {
+        // Not a standard JWT token, will fall back to other fields
       }
     }
 
-    if (name && (!user.name || user.name === cleanEmail.split('@')[0])) {
-      user.name = name.trim();
+    // Fall back to direct or userInfo object fields
+    if (!email && userInfo?.email) {
+      email = userInfo.email;
+      if (!name && userInfo.name) name = userInfo.name;
+      if (!picture && (userInfo.picture || userInfo.avatar)) picture = userInfo.picture || userInfo.avatar;
+      if (!googleId && userInfo.googleId) googleId = userInfo.googleId;
     }
-    if (picture && !user.avatar) {
-      user.avatar = picture;
+
+    if (!email && directEmail) {
+      email = String(directEmail).trim();
+      if (!name && directName) name = directName;
+      if (!picture && directPicture) picture = directPicture;
+      if (!googleId && directGoogleId) googleId = directGoogleId;
     }
-    user.emailVerified = true;
-    user.isVerified = true;
+
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ error: 'সঠিক গুগল ইমেইল এড্রেস আবশ্যক (Email is required)' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    name = (name || cleanEmail.split('@')[0]).trim();
+
+    const accounts = getAccounts();
+    let user = accounts.find((a) =>
+      (a.email && a.email.trim().toLowerCase() === cleanEmail) ||
+      (googleId && a.googleId && a.googleId === googleId)
+    );
+
+    // If not found in local memory, check Firebase Firestore cloud accounts
+    if (!user) {
+      try {
+        const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
+        if (cloudUser && cloudUser.email) {
+          user = cloudUser;
+          accounts.push(user);
+        }
+      } catch (err) {
+        console.warn('Firebase cloud account lookup error:', err);
+      }
+    }
+
+    const isAdmin = isUserAdmin({ email: cleanEmail });
+    let isExistingAccount = Boolean(user);
+
+    if (!user) {
+      user = {
+        id: `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name,
+        email: cleanEmail,
+        role: isAdmin ? 'admin' : 'user',
+        plan: 'free',
+        maxBots: isAdmin ? 999 : 1,
+        maxWebsites: isAdmin ? 999 : 2,
+        maxStorageMb: isAdmin ? 500 : 50,
+        planExpiresAt: null,
+        balanceBdt: 0,
+        balanceUsd: 0,
+        isVerified: true,
+        emailVerified: true,
+        avatar: picture || '',
+        googleId: googleId || '',
+        createdAt: new Date().toISOString()
+      };
+      accounts.push(user);
+    } else {
+      isExistingAccount = true;
+      if (googleId && user.googleId !== googleId) {
+        user.googleId = googleId;
+      }
+      if (picture && !user.avatar) {
+        user.avatar = picture;
+      }
+      if (name && (!user.name || user.name === cleanEmail.split('@')[0])) {
+        user.name = name;
+      }
+      if (isAdmin && user.role !== 'admin') {
+        user.role = 'admin';
+        user.maxBots = 999;
+      }
+      user.isVerified = true;
+      user.emailVerified = true;
+      if (!user.plan || user.plan === 'none') {
+        user.plan = 'free';
+        user.maxBots = user.role === 'admin' ? 999 : 1;
+      }
+      const uIdx = accounts.findIndex((a) => a.id === user.id);
+      if (uIdx !== -1) {
+        accounts[uIdx] = { ...accounts[uIdx], ...user };
+      }
+    }
+
+    // Reconcile bot ownership for this email
+    try {
+      const reg = getRegistry();
+      let regChanged = false;
+      for (const bot of reg) {
+        if (bot.ownerEmail && bot.ownerEmail.trim().toLowerCase() === cleanEmail) {
+          if (bot.ownerId !== user.id || bot.owner !== user.id) {
+            bot.ownerId = user.id;
+            bot.owner = user.id;
+            regChanged = true;
+          }
+        }
+      }
+      if (regChanged) {
+        saveRegistry(reg);
+      }
+    } catch (err) {
+      console.warn('Bot ownership reconciliation error:', err);
+    }
 
     saveAccounts(accounts);
     user = enrichUserWithPlanAndRole(user);
@@ -2811,7 +2900,11 @@ app.post('/api/auth/google', async (req, res) => {
     res.json({
       success: true,
       token,
-      user
+      user,
+      isExistingAccount,
+      message: isExistingAccount
+        ? 'আপনার অ্যাকাউন্টে গুগল দিয়ে সফলভাবে লগইন হয়েছে।'
+        : 'গুগল দিয়ে সফলভাবে নতুন অ্যাকাউন্ট তৈরি ও লগইন হয়েছে।'
     });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Google sign-in error' });
@@ -3463,181 +3556,6 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
-// Google Direct Login route (Seamlessly links with any previously registered account matching email)
-app.post('/api/auth/google', (req, res) => {
-  try {
-    const { credential, email: directEmail, name: directName, picture: directPicture, googleId: directGoogleId } = req.body;
-    let email = '';
-    let name = '';
-    let picture = '';
-    let googleId = '';
-
-    if (credential && typeof credential === 'string') {
-      try {
-        const parts = credential.split('.');
-        if (parts.length >= 2) {
-          let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-          while (base64.length % 4) base64 += '=';
-          const payloadJson = Buffer.from(base64, 'base64').toString('utf-8');
-          const payload = JSON.parse(payloadJson);
-          email = payload.email || '';
-          name = payload.name || payload.given_name || (payload.email ? payload.email.split('@')[0] : '');
-          picture = payload.picture || '';
-          googleId = payload.sub || '';
-        }
-      } catch (err) {
-        console.error('Failed to parse Google JWT:', err);
-      }
-    }
-
-    if (!email && directEmail) {
-      email = String(directEmail).trim();
-      name = directName || email.split('@')[0];
-      picture = directPicture || '';
-      googleId = directGoogleId || '';
-    }
-
-    if (!email) {
-      return res.status(400).json({ error: 'গুগল সাইন-ইন থেকে কোনো সঠিক ইমেইল এড্রেস পাওয়া যায়নি' });
-    }
-
-    email = email.trim().toLowerCase();
-    name = (name || email.split('@')[0]).trim();
-
-    const accounts = getAccounts();
-    // Look up existing account by email OR googleId
-    let user = accounts.find((a) =>
-      (a.email && a.email.trim().toLowerCase() === email) ||
-      (googleId && a.googleId && a.googleId === googleId)
-    );
-
-    const isAdmin =
-      email === 'toyoburrahman83@gmail.com' ||
-      email === 'mdtayburrahman1111@gmail.com' ||
-      email === 'badsharahmanbd@gmail.com' ||
-      email === 'badsharahman250@gmail.com' ||
-      email === 'toyoburrahman9090@gmail.com' ||
-      email === 'toyoburrahman526@gmail.com' ||
-      email === 'toyobur@telegram.bot' ||
-      (user && user.role === 'admin');
-
-    let isExistingAccount = false;
-
-    if (!user) {
-      // Create new account if none exists with this email
-      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-      user = {
-        id: userId,
-        name,
-        email,
-        avatar: picture || '',
-        googleId,
-        role: isAdmin ? 'admin' : 'user',
-        plan: 'free',
-        maxBots: isAdmin ? 999 : 1,
-        maxWebsites: isAdmin ? 999 : 2,
-        maxStorageMb: isAdmin ? 500 : 50,
-        planExpiresAt: null,
-        balanceBdt: 0,
-        balanceUsd: 0,
-        isVerified: true,
-        emailVerified: true,
-        createdAt: new Date().toISOString()
-      };
-      accounts.push(user);
-      saveAccounts(accounts);
-    } else {
-      // PREVIOUS ACCOUNT EXISTS: Link Google login seamlessly to this exact registered account
-      isExistingAccount = true;
-      let changed = false;
-
-      // Link googleId to their existing account
-      if (googleId && user.googleId !== googleId) {
-        user.googleId = googleId;
-        changed = true;
-      }
-
-      // Link avatar if not set
-      if (picture && !user.avatar) {
-        user.avatar = picture;
-        changed = true;
-      }
-
-      // Update name if current name is empty or default handle
-      if ((!user.name || user.name === email.split('@')[0]) && name) {
-        user.name = name;
-        changed = true;
-      }
-
-      // Admin role preservation
-      if (isAdmin && user.role !== 'admin') {
-        user.role = 'admin';
-        user.maxBots = 999;
-        changed = true;
-      }
-
-      // Mark verified (both isVerified and emailVerified)
-      if (!user.isVerified || !user.emailVerified) {
-        user.isVerified = true;
-        user.emailVerified = true;
-        changed = true;
-      }
-
-      // Ensure plan exists
-      if (!user.plan || user.plan === 'none') {
-        user.plan = 'free';
-        user.maxBots = user.role === 'admin' ? 999 : 1;
-        changed = true;
-      }
-
-      if (changed) {
-        const uIdx = accounts.findIndex((a) => a.id === user.id);
-        if (uIdx !== -1) {
-          accounts[uIdx] = { ...accounts[uIdx], ...user };
-        }
-        saveAccounts(accounts);
-      }
-
-      // Ensure all bots created under this email are connected to this user ID
-      try {
-        const reg = getRegistry();
-        let regChanged = false;
-        for (const bot of reg) {
-          if (bot.ownerEmail && bot.ownerEmail.trim().toLowerCase() === email) {
-            if (bot.ownerId !== user.id || bot.owner !== user.id) {
-              bot.ownerId = user.id;
-              bot.owner = user.id;
-              regChanged = true;
-            }
-          }
-        }
-        if (regChanged) {
-          saveRegistry(reg);
-        }
-      } catch (err) {
-        console.error('Error reconciling bot ownership on Google login:', err);
-      }
-    }
-
-    user = enrichUserWithPlanAndRole(user);
-    const token = generateAuthToken(user);
-    const sessions = getSessions();
-    sessions[token] = user.id;
-    saveSessions(sessions);
-
-    return res.json({
-      success: true,
-      token,
-      user,
-      isExistingAccount,
-      message: isExistingAccount
-        ? 'আপনার পূর্বের রেজিস্ট্রেশন করা অ্যাকাউন্টে সফলভাবে গুগল দিয়ে লগইন হয়েছে।'
-        : 'গুগল দিয়ে সফলভাবে নতুন অ্যাকাউন্ট তৈরি ও লগইন হয়েছে।'
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Google login failed' });
-  }
-});
 
 // Hosting Plans & Payment Endpoints
 app.get('/api/plans', (req, res) => {

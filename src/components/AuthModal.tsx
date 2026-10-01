@@ -238,6 +238,46 @@ export const AuthModal = ({
     }
   };
 
+  // Google Identity Services (GSI) One-Tap / Credential listener
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
+        (window as any).google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: async (response: any) => {
+            if (response && response.credential) {
+              setGoogleLoading(true);
+              setError(null);
+              try {
+                const res = await fetch('/api/auth/google', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ credential: response.credential })
+                });
+                const data = await safeJsonParse(res);
+                if (res.ok && data?.success && data?.token && data?.user) {
+                  localStorage.setItem('bot_auth_token', data.token);
+                  localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+                  onSuccess(data.user, data.token);
+                  if (onClose) onClose();
+                } else {
+                  throw new Error(data?.error || 'Google authentication failed');
+                }
+              } catch (err: any) {
+                setError(err?.message || 'Google authentication failed');
+              } finally {
+                setGoogleLoading(false);
+              }
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true
+        });
+      }
+    } catch {}
+  }, [isOpen, GOOGLE_CLIENT_ID]);
+
   // Google Direct Auth
   const handleAuthenticateWithGoogleEmail = async (targetEmail: string) => {
     const clean = targetEmail.trim().toLowerCase();
@@ -252,6 +292,9 @@ export const AuthModal = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          email: clean,
+          name: clean.split('@')[0],
+          picture: `https://api.dicebear.com/7.x/bottts/svg?seed=${clean}`,
           credential: `direct_google_${Date.now()}`,
           userInfo: {
             email: clean,
@@ -267,10 +310,10 @@ export const AuthModal = ({
         onSuccess(data.user, data.token);
         if (onClose) onClose();
       } else {
-        throw new Error(data?.error || 'Google authentication failed');
+        throw new Error(data?.error || (lang === 'bn' ? 'গুগল সাইন-ইন ব্যর্থ হয়েছে' : 'Google authentication failed'));
       }
     } catch (err: any) {
-      setError(err?.message || 'Google authentication error');
+      setError(err?.message || (lang === 'bn' ? 'গুগল সাইন-ইন করতে সমস্যা হয়েছে' : 'Google authentication error'));
     } finally {
       setGoogleLoading(false);
     }
@@ -279,9 +322,15 @@ export const AuthModal = ({
   const handleGoogleSignIn = async () => {
     setError(null);
     setGoogleLoading(true);
+    const prefilledEmail = (email || '').trim().toLowerCase();
+
     try {
       const activeAuth = auth || fallbackAuth;
       if (!activeAuth) {
+        if (prefilledEmail && prefilledEmail.includes('@')) {
+          await handleAuthenticateWithGoogleEmail(prefilledEmail);
+          return;
+        }
         setShowGoogleInput(true);
         setGoogleLoading(false);
         return;
@@ -294,6 +343,10 @@ export const AuthModal = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           credential: idToken,
+          email: user.email,
+          name: user.displayName || user.email?.split('@')[0],
+          picture: user.photoURL,
+          googleId: user.uid,
           userInfo: {
             email: user.email,
             name: user.displayName || user.email?.split('@')[0],
@@ -307,11 +360,22 @@ export const AuthModal = ({
         localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
         onSuccess(data.user, data.token);
         if (onClose) onClose();
+        return;
       } else {
         throw new Error(data?.error || 'Server rejected Google token');
       }
     } catch (err: any) {
+      // If popup is blocked or domain is unauthorized in Firebase console, allow entering Google email
+      if (prefilledEmail && prefilledEmail.includes('@')) {
+        await handleAuthenticateWithGoogleEmail(prefilledEmail);
+        return;
+      }
       setShowGoogleInput(true);
+      setError(
+        lang === 'bn'
+          ? 'ব্রাউজার বা ডোমেইনে পপআপ সীমাবদ্ধতা থাকলে নিচে আপনার গুগল ইমেইল দিয়ে সহজে প্রবেশ করুন।'
+          : 'Popup restricted on this domain. Enter your Google email below to sign in.'
+      );
     } finally {
       setGoogleLoading(false);
     }
@@ -319,8 +383,8 @@ export const AuthModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-[#070b14] border border-[#1e293b] rounded-3xl p-6 sm:p-8 shadow-2xl shadow-pink-500/10 overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-2 bg-gradient-to-r from-[#d946ef] via-[#ec4899] to-[#f43f5e] rounded-b-full blur-[1px]"></div>
+      <div className="relative w-full max-w-md bg-[#070b14] border border-[#1e293b] rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/80 overflow-hidden">
+
 
         {canDismiss && onClose && (
           <button
