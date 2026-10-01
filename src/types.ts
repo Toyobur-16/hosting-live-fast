@@ -236,6 +236,8 @@ export interface DepositRequest {
   userEmail: string;
   amount: number;
   currency: 'USD' | 'BDT';
+  bdtAmount?: number;
+  rateToBdt?: number;
   method: 'binance' | 'bkash' | 'nagad' | 'rocket' | string;
   senderIdentifier: string;
   transactionId: string;
@@ -268,6 +270,8 @@ export interface PlanRequest {
   durationDays: number;
   amount: number;
   currency: string;
+  bdtAmount?: number;
+  rateToBdt?: number;
   method: string;
   senderNumber: string;
   senderIdentifier?: string;

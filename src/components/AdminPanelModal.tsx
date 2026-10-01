@@ -1505,8 +1505,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 {req.planName}
                               </span>
                               <span className="font-black text-emerald-400 text-sm">
-                                ${req.amount} USDT
+                                ${req.amount} USD
                               </span>
+                              {req.bdtAmount && (
+                                <span className="px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 font-bold text-[10px] border border-pink-500/30">
+                                  ৳{req.bdtAmount} BDT (১$ = {req.rateToBdt || 120}৳)
+                                </span>
+                              )}
                               <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 uppercase font-bold text-[10px]">
                                 {req.method}
                               </span>

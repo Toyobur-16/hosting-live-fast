@@ -132,6 +132,8 @@ export function DepositStorePage({
     currency: string;
     method: string;
     trxId: string;
+    bdtAmount?: number;
+    rateToBdt?: number;
   } | null>(null);
 
   // Auto-sync & User Balance
@@ -268,7 +270,12 @@ export function DepositStorePage({
     return Math.round(parsedAmountUsd * rate);
   }, [parsedAmountUsd, selectedMethod]);
 
-  const isBdtMethod = selectedMethod?.currency === 'BDT' || selectedMethod?.category === 'mfs';
+  const isBdtMethod = selectedMethod?.currency === 'BDT' || 
+    selectedMethod?.category === 'mfs' || 
+    selectedMethod?.id === 'bkash' || 
+    selectedMethod?.id === 'nagad' || 
+    selectedMethod?.logoType === 'bkash' || 
+    selectedMethod?.logoType === 'nagad';
 
   // Copy helper
   const handleCopy = (text: string, fieldId: string) => {
@@ -315,7 +322,9 @@ export function DepositStorePage({
       const cleanTrx = transactionId.trim().toUpperCase();
       const reqId = `dep_${orderIdGen}`;
       const effectiveSender = senderIdentifier.trim() || user.email || 'User';
-      const effectiveNote = note.trim() || `Deposit (${selectedMethod.name} - $${parsedAmountUsd} ${selectedMethod.currency || 'USD'})`;
+      const effectiveRate = selectedMethod.rateToBdt || BDT_RATE;
+      const effectiveBdtAmount = isBdtMethod ? calculatedBdt : undefined;
+      const effectiveNote = note.trim() || `Deposit (${selectedMethod.name} - $${parsedAmountUsd} USD${isBdtMethod ? ` / ৳${effectiveBdtAmount} BDT @ 1$=${effectiveRate}৳` : ''})`;
 
       // 1. Direct write to Firestore for instant cloud persistence
       try {
@@ -326,9 +335,11 @@ export function DepositStorePage({
           userName: user.name || (user.email ? user.email.split('@')[0] : 'User'),
           userEmail: user.email,
           planId: 'wallet_deposit',
-          planName: `ওয়ালেট ডিপোজিট (${parsedAmountUsd} ${selectedMethod.currency || 'USD'})`,
-          amount: parsedAmountUsd,
-          currency: selectedMethod.currency || 'USD',
+          planName: `ওয়ালেট ডিপোজিট ($${parsedAmountUsd} USD)`,
+          amount: parsedAmountUsd, // Dollar amount!
+          currency: 'USD', // ALWAYS 'USD' so dollars get credited to user wallet
+          bdtAmount: effectiveBdtAmount,
+          rateToBdt: isBdtMethod ? effectiveRate : undefined,
           method: selectedMethod.name,
           senderNumber: effectiveSender,
           senderIdentifier: effectiveSender,
@@ -356,8 +367,10 @@ export function DepositStorePage({
           userId: user.id,
           userEmail: user.email,
           userName: user.name,
-          amount: parsedAmountUsd,
-          currency: selectedMethod.currency || 'USD',
+          amount: parsedAmountUsd, // Dollar amount
+          currency: 'USD', // ALWAYS USD!
+          bdtAmount: effectiveBdtAmount,
+          rateToBdt: isBdtMethod ? effectiveRate : undefined,
           method: selectedMethod.name,
           senderIdentifier: effectiveSender,
           transactionId: cleanTrx,
@@ -372,9 +385,11 @@ export function DepositStorePage({
         setSubmittedReceipt({
           orderId: orderIdGen,
           amount: parsedAmountUsd,
-          currency: selectedMethod.currency || 'USD',
+          currency: 'USD',
           method: selectedMethod.name,
-          trxId: transactionId.trim().toUpperCase()
+          trxId: transactionId.trim().toUpperCase(),
+          bdtAmount: effectiveBdtAmount,
+          rateToBdt: isBdtMethod ? effectiveRate : undefined
         });
         setShowSuccessModal(true);
         setTransactionId('');
@@ -583,13 +598,13 @@ export function DepositStorePage({
 
           {/* Amount Preset Chips and Custom Input (Matching Screenshot) */}
           <div className="p-4 sm:p-5 rounded-2xl bg-[#0d1424] border border-[#1e2e42] space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-1">
               <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <span>💰</span> ডিপোজিট এমাউন্ট সিলেক্ট করুন (Select Amount):
+                <span>💰</span> ডিপোজিট এমাউন্ট সিলেক্ট করুন (Dollar Amount):
               </label>
               {isBdtMethod && (
-                <span className="text-[11px] font-bold text-amber-400">
-                  ১ USDT = ১২০ ৳ (BDT)
+                <span className="text-[11px] font-black text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/25">
+                  ১ ডলার = {selectedMethod?.rateToBdt || BDT_RATE} টাকা (BDT)
                 </span>
               )}
             </div>
@@ -632,19 +647,30 @@ export function DepositStorePage({
                   className="w-full pl-8 pr-16 py-2.5 rounded-xl bg-[#0a0f1d] border border-slate-700 text-sm font-black text-white focus:outline-none focus:border-amber-400"
                 />
                 <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
-                  USDT
+                  USD
                 </span>
               </div>
 
               {isBdtMethod && (
-                <div className="px-4 py-2 rounded-xl bg-[#0a0f1d] border border-slate-800 flex sm:flex-col justify-between sm:justify-center items-center sm:items-end min-w-[120px]">
-                  <span className="text-[10px] text-slate-400 block font-bold">পরিশোধ করতে হবে:</span>
-                  <span className="text-sm font-black text-[#00d293]">
+                <div className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-500/10 to-orange-500/10 border border-pink-500/30 flex sm:flex-col justify-between sm:justify-center items-center sm:items-end min-w-[150px]">
+                  <span className="text-[10px] text-slate-300 block font-bold">
+                    {selectedMethod?.name}-এ পাঠাতে হবে:
+                  </span>
+                  <span className="text-sm font-black text-pink-400">
                     ৳{calculatedBdt.toLocaleString()} BDT
+                  </span>
+                  <span className="text-[9px] text-emerald-400 font-bold hidden sm:block">
+                    ✓ ওয়ালেটে যোগ হবে: ${parsedAmountUsd.toFixed(2)} USD
                   </span>
                 </div>
               )}
             </div>
+
+            {isBdtMethod && (
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 flex items-center justify-between">
+                <span>💡 ১ ডলারে বাংলার {selectedMethod?.rateToBdt || BDT_RATE} টাকা। আপনার ওয়ালেটে সরাসরি <strong>${parsedAmountUsd.toFixed(2)} ডলার (USD)</strong> জমা হবে।</span>
+              </div>
+            )}
           </div>
 
           {/* DEPOSIT DETAILS & SUBMISSION FORM */}
@@ -656,8 +682,8 @@ export function DepositStorePage({
                   <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                     <span>💎</span> {selectedMethod.name} ডিপোজিট নির্দেশিকা
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#00d293]/20 text-[#00d293] font-bold">
-                    {isBdtMethod ? '১ USDT = ১২০ টাকা' : `${selectedMethod.subtitle || 'Crypto'}`}
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#00d293]/20 text-[#00d293] font-bold">
+                    {isBdtMethod ? `১ ডলার = ${selectedMethod?.rateToBdt || BDT_RATE} টাকা (BDT)` : `${selectedMethod.subtitle || 'Crypto'}`}
                   </span>
                 </div>
 
@@ -955,13 +981,21 @@ export function DepositStorePage({
                 <span className="text-white font-mono font-bold">#{submittedReceipt.orderId.slice(-8)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">পরিমাণ:</span>
+                <span className="text-slate-400">ওয়ালেটে জমা হবে:</span>
                 <span className="text-[#00d293] font-black text-sm">
-                  ${submittedReceipt.amount.toFixed(2)} {submittedReceipt.currency}
+                  ${submittedReceipt.amount.toFixed(2)} USD
                 </span>
               </div>
+              {submittedReceipt.bdtAmount && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">পরিশোধিত টাকা:</span>
+                  <span className="text-pink-400 font-bold">
+                    ৳{submittedReceipt.bdtAmount.toLocaleString()} BDT (১$ = {submittedReceipt.rateToBdt || 120}৳)
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
-                <span className="text-slate-400">মেথড:</span>
+                <span className="text-slate-400">পেমেন্ট মেথড:</span>
                 <span className="text-amber-400 font-bold">{submittedReceipt.method}</span>
               </div>
               <div className="flex justify-between">

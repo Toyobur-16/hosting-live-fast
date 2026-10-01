@@ -3768,6 +3768,26 @@ app.post('/api/plans/purchase', (req, res) => {
   });
 });
 
+// Helper to get exchange rate for 1 USD to BDT from deposit methods or settings
+function getMethodRateToBdt(methodNameOrId?: string): number {
+  try {
+    const methods = getDepositMethods();
+    const clean = (methodNameOrId || '').trim().toLowerCase();
+    const matched = methods.find(
+      (m) =>
+        m.id.toLowerCase() === clean ||
+        m.name.toLowerCase() === clean ||
+        (clean.includes('bkash') && m.id === 'bkash') ||
+        (clean.includes('nagad') && m.id === 'nagad') ||
+        (clean.includes('rocket') && m.id === 'rocket')
+    );
+    if (matched && typeof matched.rateToBdt === 'number' && matched.rateToBdt > 0) {
+      return matched.rateToBdt;
+    }
+  } catch {}
+  return 120; // Default fallback rate: 1 USD = 120 BDT
+}
+
 // Wallet Deposit Submission Endpoint
 app.post('/api/wallet/deposit', async (req, res) => {
   let user = getAuthUser(req);
@@ -3794,7 +3814,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
     return res.status(401).json({ error: 'ডিপোজিট করতে প্রথমে লগইন করুন (Please login to deposit)' });
   }
 
-  const { amount, currency, method, senderIdentifier, transactionId, note, orderId } = req.body;
+  const { amount, currency, method, senderIdentifier, transactionId, note, orderId, bdtAmount, rateToBdt } = req.body;
   const numAmount = parseFloat(amount);
   if (!numAmount || numAmount <= 0) {
     return res.status(400).json({ error: 'সঠিক ডিপোজিট পরিমাণ (Amount) লিখুন' });
@@ -3822,6 +3842,33 @@ app.post('/api/wallet/deposit', async (req, res) => {
     });
   }
 
+  const effectiveRate = Number(rateToBdt) || getMethodRateToBdt(method) || 120;
+  const isLocalBdtPayment = currency === 'BDT' || 
+    String(method).toLowerCase().includes('bkash') || 
+    String(method).toLowerCase().includes('nagad') || 
+    String(method).toLowerCase().includes('rocket') ||
+    String(method).toLowerCase().includes('upay');
+
+  // Convert to USD so DOLLARS are always stored and credited to user balance
+  let finalUsdAmount = numAmount;
+  let finalBdtPaid = Number(bdtAmount) || 0;
+
+  if (isLocalBdtPayment) {
+    // If currency was marked as BDT and amount looks like BDT (e.g. >= effectiveRate):
+    if (currency === 'BDT' && numAmount >= effectiveRate) {
+      finalUsdAmount = Math.round((numAmount / effectiveRate) * 100) / 100;
+      finalBdtPaid = numAmount;
+    } else {
+      // Amount is already in USD (e.g. $5 USD)
+      finalUsdAmount = numAmount;
+      if (!finalBdtPaid) {
+        finalBdtPaid = Math.round(finalUsdAmount * effectiveRate);
+      }
+    }
+  }
+
+  finalUsdAmount = Math.max(0.01, Math.round(finalUsdAmount * 100) / 100);
+
   const reqId = orderId ? `dep_${String(orderId).replace(/[^a-zA-Z0-9_-]/g, '_')}` : `dep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const newRequest: any = {
     id: reqId,
@@ -3830,9 +3877,11 @@ app.post('/api/wallet/deposit', async (req, res) => {
     userName: user.name || (user.email ? user.email.split('@')[0] : 'User'),
     userEmail: user.email,
     planId: 'wallet_deposit',
-    planName: `ওয়ালেট ডিপোজিট (${numAmount} ${currency || 'USD'})`,
-    amount: numAmount,
-    currency: currency === 'BDT' ? 'BDT' : 'USD',
+    planName: `ওয়ালেট ডিপোজিট ($${finalUsdAmount} USD)`,
+    amount: finalUsdAmount, // ALWAYS USD DOLLARS!
+    currency: 'USD', // ALWAYS USD!
+    bdtAmount: isLocalBdtPayment ? finalBdtPaid : undefined,
+    rateToBdt: isLocalBdtPayment ? effectiveRate : undefined,
     method: method || 'binance',
     senderNumber: effectiveSender,
     senderIdentifier: effectiveSender,
@@ -4864,26 +4913,36 @@ app.post('/api/admin/plan-requests/:id/approve', async (req, res) => {
 
   if (targetUser) {
     if (request.type === 'deposit') {
-      // Wallet deposit approval (credit balance in USDT or BDT via modifyUserWallet ledger)
-      const depAmount = Number(request.amount || 0);
-      const depCurrency: 'USD' | 'BDT' = request.currency === 'BDT' ? 'BDT' : 'USD';
+      // Wallet deposit approval (Always credit balance in USD Dollars, no Bangla Taka added to balance)
+      const rawAmount = Number(request.amount || 0);
+      const methodRate = Number(request.rateToBdt) || getMethodRateToBdt(request.method) || 120;
+
+      // If legacy or BDT request, calculate USD from BDT rate
+      let creditUsd = rawAmount;
+      if (request.currency === 'BDT') {
+        creditUsd = Math.round((rawAmount / methodRate) * 100) / 100;
+      }
+      creditUsd = Math.max(0.01, Math.round(creditUsd * 100) / 100);
+
+      const bdtInfo = request.bdtAmount
+        ? ` (৳${request.bdtAmount} BDT @ 1$=${methodRate}৳)`
+        : (request.currency === 'BDT' ? ` (৳${rawAmount} BDT @ 1$=${methodRate}৳)` : '');
+
       const modResult = modifyUserWallet(
         targetUser.id,
-        depAmount,
+        creditUsd,
         'deposit',
-        `Approved Deposit: ${request.method || 'Manual'} (${depCurrency === 'BDT' ? '৳' : '$'}${depAmount} ${depCurrency})`,
+        `Approved Deposit: ${request.method || 'Manual'} ($${creditUsd} USD)${bdtInfo}`,
         request.method || 'manual_deposit',
         request.transactionId,
-        depCurrency
+        'USD' // Always credit in USD Dollars
       );
 
       // Reload accounts fresh from disk to guarantee fresh credited balance
       const freshAccounts = getAccounts();
       const freshUser = freshAccounts.find((a) => a.id === targetUser.id || (request.userEmail && a.email && a.email.toLowerCase() === request.userEmail.toLowerCase())) || targetUser;
-      if (depCurrency === 'USD' && typeof modResult.newBalanceUsd === 'number') {
+      if (typeof modResult.newBalanceUsd === 'number') {
         freshUser.balanceUsd = modResult.newBalanceUsd;
-      } else if (depCurrency === 'BDT' && typeof modResult.newBalanceBdt === 'number') {
-        freshUser.balanceBdt = modResult.newBalanceBdt;
       }
       freshUser.updatedAt = Date.now();
       saveAccounts(freshAccounts);
@@ -4902,7 +4961,11 @@ app.post('/api/admin/plan-requests/:id/approve', async (req, res) => {
               balanceUsd: freshUser.balanceUsd,
               balanceBdt: freshUser.balanceBdt
             },
-            request,
+            {
+              ...request,
+              amount: creditUsd,
+              currency: 'USD'
+            },
             'approved'
           );
         } catch (emailErr) {

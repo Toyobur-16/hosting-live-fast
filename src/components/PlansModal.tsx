@@ -228,6 +228,9 @@ export const PlansModal: React.FC<PlansModalProps> = ({
       const reqId = `dep_${orderIdGen}`;
       const effectiveSender = senderIdentifier.trim() || user.email || 'User';
 
+      const isLocalMfs = depositMethod === 'bkash' || depositMethod === 'nagad';
+      const bdtPaid = isLocalMfs ? Math.round(amountNum * 120) : undefined;
+
       // 1. Direct write to Firestore for instant cloud persistence
       try {
         const firestorePayload = {
@@ -237,9 +240,11 @@ export const PlansModal: React.FC<PlansModalProps> = ({
           userName: user.name || (user.email ? user.email.split('@')[0] : 'User'),
           userEmail: user.email,
           planId: 'wallet_deposit',
-          planName: `ওয়ালেট ডিপোজিট (${amountNum} ${depositCurrency})`,
+          planName: `ওয়ালেট ডিপোজিট ($${amountNum} USD)`,
           amount: amountNum,
-          currency: depositCurrency,
+          currency: 'USD',
+          bdtAmount: bdtPaid,
+          rateToBdt: isLocalMfs ? 120 : undefined,
           method: depositMethod,
           senderNumber: effectiveSender,
           senderIdentifier: effectiveSender,
@@ -268,7 +273,9 @@ export const PlansModal: React.FC<PlansModalProps> = ({
           userEmail: user.email,
           userName: user.name,
           amount: amountNum,
-          currency: depositCurrency,
+          currency: 'USD',
+          bdtAmount: bdtPaid,
+          rateToBdt: isLocalMfs ? 120 : undefined,
           method: depositMethod,
           senderIdentifier: effectiveSender,
           transactionId: cleanTrx,
@@ -844,6 +851,12 @@ export const PlansModal: React.FC<PlansModalProps> = ({
                         {depositCurrency}
                       </span>
                     </div>
+                    {depositMethod !== 'binance' && (
+                      <div className="mt-1.5 p-2 rounded-lg bg-pink-500/10 border border-pink-500/20 text-[11px] flex items-center justify-between">
+                        <span className="text-amber-400 font-bold">১ ডলার = ১২০ টাকা</span>
+                        <span className="text-pink-400 font-black">পাঠাতে হবে: ৳{Math.round((parseFloat(depositAmount) || 0) * 120)} BDT</span>
+                      </div>
+                    )}
                   </div>
 
                   <div>
