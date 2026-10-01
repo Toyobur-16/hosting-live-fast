@@ -15,7 +15,8 @@ import {
   Upload,
   Mail,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { db, doc, setDoc } from '../lib/firebase';
@@ -31,6 +32,7 @@ interface ProfilePageProps {
   onOpenAdminModal: () => void;
   onUserUpdate?: (user: AuthUser) => void;
   lang?: 'bn' | 'en';
+  onOpenInstallApp?: () => void;
 }
 
 function formatPlanName(plan: string | undefined, lang: 'bn' | 'en'): string {
@@ -83,7 +85,8 @@ export function ProfilePage({
   isAdmin,
   onOpenAdminModal,
   onUserUpdate,
-  lang = 'bn'
+  lang = 'bn',
+  onOpenInstallApp
 }: ProfilePageProps) {
   // Edit Profile States
   const [isEditing, setIsEditing] = useState(false);
@@ -601,6 +604,39 @@ export function ProfilePage({
           </button>
         </div>
       </div>
+
+      {/* Official App Download & Install Card */}
+      {onOpenInstallApp && (
+        <div className="p-4 rounded-3xl bg-gradient-to-br from-[#0c1c2e] to-[#08121f] border border-[#1e3450] shadow-xl flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#00d293] to-sky-500 p-0.5 shadow-md shrink-0 flex items-center justify-center">
+              <img
+                src="/pwa-192x192.png"
+                alt="App Icon"
+                className="w-full h-full object-cover rounded-[14px]"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                }}
+              />
+            </div>
+            <div className="truncate">
+              <div className="text-sm font-black text-white flex items-center gap-1.5">
+                <span>{lang === 'bn' ? 'অফিসিয়াল অ্যাপস ডাউনলোড' : 'Download Official App'}</span>
+              </div>
+              <div className="text-xs text-slate-400 truncate">
+                {lang === 'bn' ? 'হোমস্ক্রিন ইনস্টল ও অফিশিয়াল লোগো APK' : 'Official Logo, 1-Click Install & APK'}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onOpenInstallApp}
+            className="px-4 py-2.5 rounded-xl bg-[#00d293] hover:bg-[#00be84] text-slate-950 font-black text-xs shrink-0 cursor-pointer shadow-md flex items-center gap-1.5 transition-transform hover:scale-102"
+          >
+            <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>{lang === 'bn' ? 'ডাউনলোড' : 'Install'}</span>
+          </button>
+        </div>
+      )}
 
       {/* Logout button */}
       <button

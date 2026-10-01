@@ -20,7 +20,9 @@ import {
   Globe,
   Share2,
   Film,
-  HelpCircle
+  HelpCircle,
+  Smartphone,
+  Download
 } from 'lucide-react';
 import { AuthUser, SiteSettings } from '../types';
 import { normalizeLogoUrl } from '../utils/logoUrl';
@@ -43,6 +45,7 @@ interface SidebarDrawerProps {
   onToggleTheme?: () => void;
   onToggleLang?: () => void;
   siteSettings?: SiteSettings;
+  onOpenInstallApp?: () => void;
 }
 
 export function SidebarDrawer({
@@ -62,7 +65,8 @@ export function SidebarDrawer({
   theme,
   onToggleTheme,
   onToggleLang,
-  siteSettings
+  siteSettings,
+  onOpenInstallApp
 }: SidebarDrawerProps) {
   if (!isOpen) return null;
 
@@ -78,6 +82,14 @@ export function SidebarDrawer({
       icon: Home,
       badge: null,
       color: 'emerald'
+    },
+    {
+      id: 'install_app',
+      label: lang === 'bn' ? 'অ্যাপ ডাউনলোড ও ইন্সটল' : 'Install & Download App',
+      icon: Smartphone,
+      badge: lang === 'bn' ? 'APK/PWA' : 'APK/PWA',
+      color: 'emerald',
+      isInstallAction: true
     },
     {
       id: 'plans',
@@ -306,8 +318,39 @@ export function SidebarDrawer({
               )}
             </div>
 
+            {/* Install / Download App Quick Action Card */}
+            {onOpenInstallApp && (
+              <div className="px-3 pt-3 pb-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenInstallApp();
+                  }}
+                  className="w-full p-2.5 rounded-xl bg-gradient-to-r from-[#00d293]/15 via-emerald-500/10 to-teal-500/15 hover:from-[#00d293]/25 hover:to-teal-500/25 border border-[#00d293]/40 flex items-center justify-between text-left transition shadow-xs group cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8.5 h-8.5 rounded-xl bg-[#00d293] text-slate-950 flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                      <Download className="w-4.5 h-4.5 stroke-[2.5]" />
+                    </div>
+                    <div className="truncate">
+                      <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>{lang === 'bn' ? 'অ্যাপস ডাউনলোড ও ইন্সটল' : 'Download & Install App'}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                        {lang === 'bn' ? 'লোগোসহ ১-ক্লিক ইন্সটল ও APK' : 'Official Logo & 1-Click Install'}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md bg-[#00d293] text-slate-950 text-[10px] font-black shrink-0 shadow-xs">
+                    {lang === 'bn' ? 'ইন্সটল' : 'Install'}
+                  </span>
+                </button>
+              </div>
+            )}
+
             {/* Navigation List */}
-            <div className="py-3 px-3 space-y-1.5">
+            <div className="py-2.5 px-3 space-y-1.5">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -316,7 +359,9 @@ export function SidebarDrawer({
                     key={item.id}
                     onClick={() => {
                       onClose();
-                      if (item.isAction) {
+                      if ((item as any).isInstallAction) {
+                        if (onOpenInstallApp) onOpenInstallApp();
+                      } else if (item.isAction) {
                         onDeployNewBot();
                       } else {
                         onSelectTab(item.id);

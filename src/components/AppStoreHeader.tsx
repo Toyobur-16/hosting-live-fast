@@ -15,7 +15,8 @@ import {
   Headphones,
   Film,
   HelpCircle,
-  Globe
+  Globe,
+  Download
 } from 'lucide-react';
 import { AuthUser, SiteSettings } from '../types';
 import { normalizeLogoUrl } from '../utils/logoUrl';
@@ -36,6 +37,7 @@ interface AppStoreHeaderProps {
   botsCount?: number;
   pendingCount?: number;
   siteSettings?: SiteSettings;
+  onOpenInstallApp?: () => void;
 }
 
 export function AppStoreHeader({
@@ -53,7 +55,8 @@ export function AppStoreHeader({
   hasActivePlan,
   botsCount = 0,
   pendingCount = 0,
-  siteSettings
+  siteSettings,
+  onOpenInstallApp
 }: AppStoreHeaderProps) {
   const [unreadNotifications, setUnreadNotifications] = useState<number>(0);
 
@@ -270,6 +273,20 @@ export function AppStoreHeader({
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
           </button>
+
+          {/* In-App Install & Download Button */}
+          {onOpenInstallApp && (
+            <button
+              id="header-install-app-btn"
+              type="button"
+              onClick={onOpenInstallApp}
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl bg-gradient-to-r from-[#00d293]/15 to-emerald-500/15 hover:from-[#00d293]/25 hover:to-emerald-500/25 border border-[#00d293]/40 text-emerald-600 dark:text-[#00d293] font-bold text-xs cursor-pointer transition-all shadow-xs shrink-0 min-h-[34px] hover:scale-102"
+              title={lang === 'bn' ? 'অফিসিয়াল অ্যাপ ইন্সটল ও ডাউনলোড' : 'Install & Download App'}
+            >
+              <Download className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
+              <span className="hidden xs:inline text-[11px] font-black">{lang === 'bn' ? 'অ্যাপস' : 'App'}</span>
+            </button>
+          )}
 
           {/* Notification Bell */}
           <button

@@ -21,7 +21,8 @@ import {
   ExternalLink,
   Code2,
   Globe,
-  Share2
+  Share2,
+  Download
 } from 'lucide-react';
 import { StoreBanner, AuthUser, SiteSettings } from '../types';
 import { normalizeLogoUrl } from '../utils/logoUrl';
@@ -51,6 +52,7 @@ interface StoreHomePageProps {
   lang: 'bn' | 'en';
   botsCount?: number;
   siteSettings?: SiteSettings;
+  onOpenInstallApp?: () => void;
 }
 
 export function StoreHomePage({
@@ -68,7 +70,8 @@ export function StoreHomePage({
   hasActivePlan,
   lang,
   botsCount = 0,
-  siteSettings
+  siteSettings,
+  onOpenInstallApp
 }: StoreHomePageProps) {
   const isAdmin = Boolean(user && (user.role === 'admin' || user.email === 'toyoburrahman9090@gmail.com'));
   const [banners, setBanners] = useState<StoreBanner[]>([]);
@@ -531,6 +534,44 @@ export function StoreHomePage({
           </span>
         </div>
       </div>
+
+      {/* Official App Download & Install Banner */}
+      {onOpenInstallApp && (
+        <div className="rounded-3xl border border-[#00d293]/40 bg-gradient-to-r from-[#00d293]/15 via-emerald-500/10 to-teal-500/15 p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 transition-all">
+          <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#00d293] to-sky-500 p-0.5 shadow-md shrink-0 flex items-center justify-center">
+              <img
+                src="/pwa-192x192.png"
+                alt="App Logo"
+                className="w-full h-full object-cover rounded-[14px]"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                }}
+              />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <span>{lang === 'bn' ? 'অফিসিয়াল অ্যাপস ডাউনলোড ও ইন্সটল' : 'Install & Download Official App'}</span>
+                <span className="px-2 py-0.5 rounded-full bg-[#00d293] text-slate-950 text-[10px] font-black">
+                  {lang === 'bn' ? 'ফ্রি' : 'FREE'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                {lang === 'bn'
+                  ? 'আপনার মোবাইলে লোগোসহ অফিসিয়াল অ্যাপ ইনস্টল করুন অথবা APK ফাইল ডাউনলোড করুন।'
+                  : 'Install the official app with full brand logo or download the APK directly.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onOpenInstallApp}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#00d293] to-[#00be84] text-slate-950 font-black text-xs shrink-0 cursor-pointer shadow-md hover:scale-102 transition-transform flex items-center justify-center gap-2"
+          >
+            <Download className="w-4 h-4 stroke-[2.5]" />
+            <span>{lang === 'bn' ? 'ইন্সটল ও APK ডাউনলোড' : 'Install / Download APK'}</span>
+          </button>
+        </div>
+      )}
 
       {/* 5. Key Platform Features */}
       <div className="rounded-3xl border border-slate-200 dark:border-[#1e2d48] bg-white dark:bg-[#0d1527] p-6 shadow-xl transition-colors space-y-4">

@@ -137,6 +137,60 @@ app.use((req, res, next) => {
 
 app.use('/APK_DOWNLOAD', express.static(path.join(process.cwd(), 'APK_DOWNLOAD')));
 
+const APK_DOWNLOAD_DIR = path.join(process.cwd(), 'APK_DOWNLOAD');
+if (!fs.existsSync(APK_DOWNLOAD_DIR)) {
+  try {
+    fs.mkdirSync(APK_DOWNLOAD_DIR, { recursive: true });
+  } catch {}
+}
+
+// PWA Web App Manifest endpoint with exact Content-Type headers
+app.get(['/manifest.webmanifest', '/manifest.json'], (req, res) => {
+  const manifestPath = path.join(process.cwd(), 'public', 'manifest.webmanifest');
+  if (fs.existsSync(manifestPath)) {
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.sendFile(manifestPath);
+  }
+  res.status(404).json({ error: 'Manifest not found' });
+});
+
+// PWA Service Worker endpoint with Service-Worker-Allowed header
+app.get('/sw.js', (req, res) => {
+  const swPath = path.join(process.cwd(), 'public', 'sw.js');
+  if (fs.existsSync(swPath)) {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Service-Worker-Allowed', '/');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.sendFile(swPath);
+  }
+  res.status(404).end();
+});
+
+// App Download & APK Info endpoint
+app.get('/api/app-download/info', (req, res) => {
+  try {
+    if (!fs.existsSync(APK_DOWNLOAD_DIR)) {
+      return res.json({ hasApk: false });
+    }
+    const files = fs.readdirSync(APK_DOWNLOAD_DIR).filter((f) => f.toLowerCase().endsWith('.apk'));
+    if (files.length > 0) {
+      const latestApk = files[0];
+      const stats = fs.statSync(path.join(APK_DOWNLOAD_DIR, latestApk));
+      return res.json({
+        hasApk: true,
+        fileName: latestApk,
+        downloadUrl: `/APK_DOWNLOAD/${encodeURIComponent(latestApk)}`,
+        sizeBytes: stats.size,
+        updatedAt: stats.mtime
+      });
+    }
+    return res.json({ hasApk: false });
+  } catch (err: any) {
+    return res.json({ hasApk: false, error: err.message });
+  }
+});
+
 const HOSTED_BOTS_DIR = path.join(process.cwd(), 'hosted_bots');
 const REGISTRY_FILE = path.join(HOSTED_BOTS_DIR, 'registry.json');
 const ACCOUNTS_FILE = path.join(HOSTED_BOTS_DIR, 'accounts.json');
@@ -5373,6 +5427,42 @@ app.get('/api/admin/site-settings', (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
   res.json({ success: true, settings: getSiteSettings() });
+});
+
+app.post('/api/admin/app-download/upload', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const { fileName, fileBase64 } = req.body;
+  if (!fileName || !fileBase64) {
+    return res.status(400).json({ error: 'fileName and fileBase64 required' });
+  }
+  try {
+    const cleanName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const dest = path.join(APK_DOWNLOAD_DIR, cleanName);
+    fs.writeFileSync(dest, Buffer.from(fileBase64, 'base64'));
+    return res.json({ success: true, fileName: cleanName, downloadUrl: `/APK_DOWNLOAD/${encodeURIComponent(cleanName)}` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/app-download/:fileName', (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  try {
+    const cleanName = path.basename(req.params.fileName);
+    const dest = path.join(APK_DOWNLOAD_DIR, cleanName);
+    if (fs.existsSync(dest)) {
+      fs.unlinkSync(dest);
+    }
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/admin/site-settings', (req, res) => {
