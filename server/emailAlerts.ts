@@ -51,7 +51,7 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
   host: 'smtp.gmail.com',
   port: 587,
   user: 'badsharahmanbd@gmail.com',
-  pass: '', // Google App Password must be configured by admin
+  pass: 'rrnnccwizhwotwjx',
   from: 'hosting live fast <badsharahmanbd@gmail.com>',
   secure: false
 };

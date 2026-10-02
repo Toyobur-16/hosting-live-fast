@@ -69,7 +69,6 @@ export const AuthModal = ({
 
   const [step, setStep] = useState<'form' | 'otp'>('form');
   const [otpCode, setOtpCode] = useState('');
-  const [backupCode, setBackupCode] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
 
   const GOOGLE_CLIENT_ID =
@@ -86,7 +85,6 @@ export const AuthModal = ({
     setMode(targetMode);
     setStep('form');
     setOtpCode('');
-    setBackupCode(null);
     setCooldown(0);
     setName('');
     setEmail(initialEmail || '');
@@ -106,15 +104,12 @@ export const AuthModal = ({
       setMode(initialMode === 'reset' ? 'reset' : (initialMode || 'login'));
       setStep('form');
       setOtpCode('');
-      setBackupCode(null);
       setCooldown(0);
       setEmail(initialEmail || '');
       setError(null);
       setSuccessMessage(null);
     }
   }, [isOpen, initialEmail, initialMode]);
-
-  if (!isOpen) return null;
 
   const handleResendCode = async () => {
     if (cooldown > 0 || loading) return;
@@ -132,8 +127,7 @@ export const AuthModal = ({
       if (!res.ok || (data && !data.success)) {
         throw new Error(data?.error || (lang === 'bn' ? 'কোড পুনরায় পাঠাতে সমস্যা হয়েছে' : 'Failed to resend code'));
       }
-      if (data?.code) setBackupCode(data.code);
-      setSuccessMessage(lang === 'bn' ? '✅ নতুন কোড পাঠানো হয়েছে! ইনবক্স চেক করুন।' : 'New code sent! Check your inbox.');
+      setSuccessMessage(lang === 'bn' ? '✅ নতুন কোড আপনার ইমেইলে পাঠানো হয়েছে! ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।' : 'New code sent to your email! Check your inbox or spam folder.');
       setCooldown(45);
     } catch (err: any) {
       setError(err?.message || (lang === 'bn' ? 'কোড পাঠাতে ব্যর্থ হয়েছে' : 'Failed to resend code'));
@@ -229,12 +223,11 @@ export const AuthModal = ({
             throw new Error(data?.error || (lang === 'bn' ? 'ভেরিফিকেশন কোড পাঠাতে সমস্যা হয়েছে' : 'Failed to send verification code'));
           }
 
-          if (data?.code) setBackupCode(data.code);
           setStep('otp');
           setSuccessMessage(
             lang === 'bn'
-              ? `📩 ${cleanEmail} ঠিকানায় ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।`
-              : `A 6-digit code has been sent to ${cleanEmail}.`
+              ? `📩 ${cleanEmail} ঠিকানায় ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। আপনার ইমেইল ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।`
+              : `A 6-digit code has been sent to ${cleanEmail}. Please check your inbox or spam folder.`
           );
           setCooldown(45);
         } catch (err: any) {
@@ -358,12 +351,11 @@ export const AuthModal = ({
           throw new Error(data?.error || (lang === 'bn' ? 'পাসওয়ার্ড রিসেট রিকোয়েস্ট ব্যর্থ হয়েছে' : 'Failed to request password reset'));
         }
 
-        if (data?.code) setBackupCode(data.code);
         setStep('otp');
         setSuccessMessage(
           lang === 'bn'
-            ? `📩 ${cleanEmail} ঠিকানায় ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে।`
-            : `A 6-digit reset code has been sent to ${cleanEmail}.`
+            ? `📩 ${cleanEmail} ঠিকানায় ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠানো হয়েছে। আপনার ইমেইল ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।`
+            : `A 6-digit reset code has been sent to ${cleanEmail}. Please check your inbox or spam folder.`
         );
         setCooldown(45);
       } catch (err: any) {
@@ -560,6 +552,8 @@ export const AuthModal = ({
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-md bg-[#070b14] border border-[#1e293b] rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/80 overflow-hidden">
@@ -587,8 +581,8 @@ export const AuthModal = ({
                 </h2>
                 <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                   {lang === 'bn'
-                    ? `${email} এ পাঠানো ৬ সংখ্যার কোড এবং নতুন পাসওয়ার্ড দিন:`
-                    : `Enter the 6-digit code sent to ${email} and your new password:`}
+                    ? `${email} এ পাঠানো ৬ সংখ্যার কোড এবং নতুন পাসওয়ার্ড দিন (ইনবক্স ও স্প্যাম ফোল্ডার দেখুন):`
+                    : `Enter the 6-digit code sent to ${email} (check inbox & spam) and your new password:`}
                 </p>
               </div>
 
@@ -603,28 +597,6 @@ export const AuthModal = ({
                 <div className="mb-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-rose-300 text-xs flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
                   <span className="flex-1">{error}</span>
-                </div>
-              )}
-
-              {/* Instant Backup Code Banner for delayed email delivery */}
-              {backupCode && (
-                <div className="mb-4 p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-orange-500/15 border border-amber-500/30 flex items-center justify-between gap-2 shadow-sm animate-in fade-in">
-                  <div className="flex items-center gap-2 text-xs">
-                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                    <div>
-                      <p className="font-bold text-[11px] text-amber-300">
-                        {lang === 'bn' ? 'ইনস্ট্যান্ট ব্যাকআপ রিসেট কোড:' : 'Instant Backup Reset Code:'}
-                      </p>
-                      <span className="font-mono text-base font-extrabold tracking-widest text-amber-200">{backupCode}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setOtpCode(backupCode)}
-                    className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-[11px] rounded-lg transition-colors cursor-pointer shrink-0"
-                  >
-                    {lang === 'bn' ? 'কোড বসান' : 'Auto Fill'}
-                  </button>
                 </div>
               )}
 
@@ -718,7 +690,6 @@ export const AuthModal = ({
                   onClick={() => {
                     setStep('form');
                     setOtpCode('');
-                    setBackupCode(null);
                     setError(null);
                   }}
                   className="hover:text-white transition-colors cursor-pointer"
@@ -816,8 +787,8 @@ export const AuthModal = ({
               </h2>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                 {lang === 'bn'
-                  ? `${email} ঠিকানায় ৬ সংখ্যার কোড পাঠানো হয়েছে। কোডটি নিচে লিখুন:`
-                  : `A 6-digit code has been sent to ${email}. Enter it below:`}
+                  ? `${email} ঠিকানায় ৬ সংখ্যার কোড পাঠানো হয়েছে। আপনার ইমেইল ইনবক্স বা স্প্যাম ফোল্ডার চেক করে কোডটি লিখুন:`
+                  : `A 6-digit code has been sent to ${email}. Check your inbox or spam folder and enter it below:`}
               </p>
             </div>
 
@@ -832,28 +803,6 @@ export const AuthModal = ({
               <div className="mb-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-rose-300 text-xs flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
                 <span className="flex-1">{error}</span>
-              </div>
-            )}
-
-            {/* Instant Backup Activation Code */}
-            {backupCode && (
-              <div className="mb-4 p-3 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-cyan-500/15 border border-emerald-500/30 flex items-center justify-between gap-2 shadow-sm animate-in fade-in">
-                <div className="flex items-center gap-2 text-xs">
-                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <div>
-                    <p className="font-bold text-[11px] text-emerald-300">
-                      {lang === 'bn' ? 'ইনস্ট্যান্ট অ্যাক্টিভেশন কোড:' : 'Instant Activation Code:'}
-                    </p>
-                    <span className="font-mono text-base font-extrabold tracking-widest text-emerald-200">{backupCode}</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setOtpCode(backupCode)}
-                  className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-bold text-[11px] rounded-lg transition-colors cursor-pointer shrink-0"
-                >
-                  {lang === 'bn' ? 'কোড বসান' : 'Auto Fill'}
-                </button>
               </div>
             )}
 
@@ -905,7 +854,6 @@ export const AuthModal = ({
                 onClick={() => {
                   setStep('form');
                   setOtpCode('');
-                  setBackupCode(null);
                   setError(null);
                 }}
                 className="hover:text-white transition-colors cursor-pointer"

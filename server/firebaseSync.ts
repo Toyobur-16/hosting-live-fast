@@ -6,7 +6,15 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import crypto from 'crypto';
+import dns from 'dns';
 import AdmZip from 'adm-zip';
+
+// Enforce IPv4 priority globally to eliminate ENETUNREACH in containers lacking IPv6 routes
+if (typeof (dns as any).setDefaultResultOrder === 'function') {
+  try {
+    (dns as any).setDefaultResultOrder('ipv4first');
+  } catch (e) {}
+}
 
 let configProjectId = '';
 let configDbId = '';
@@ -275,23 +283,19 @@ export class FirebaseSync {
       const resById = await fetch(urlById, {
         method: 'PATCH',
         headers,
-        body: bodyStr
-      }).catch((e) => {
-        console.warn('syncAccountToCloud fetch error by id:', e?.message || e);
-        return null;
-      });
+        body: bodyStr,
+        signal: AbortSignal.timeout(6000)
+      }).catch(() => null);
 
-      // 2. Save by Email for instant direct lookup
-      const emailDocId = encodeURIComponent(cleanEmail);
+      // 2. Save by Email for instant direct lookup using safe valid Firestore document ID
+      const emailDocId = `email_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
       const urlByEmail = `${BASE_URL}/accounts/${emailDocId}?key=${API_KEY}`;
       const resByEmail = await fetch(urlByEmail, {
         method: 'PATCH',
         headers,
-        body: bodyStr
-      }).catch((e) => {
-        console.warn('syncAccountToCloud fetch error by email:', e?.message || e);
-        return null;
-      });
+        body: bodyStr,
+        signal: AbortSignal.timeout(6000)
+      }).catch(() => null);
 
       // 3. Also sync to Firebase Auth if password exists
       if (cleanUser.password) {
@@ -379,9 +383,9 @@ export class FirebaseSync {
       };
 
       // 1. Direct lookup by email document ID in Firestore
-      const emailDocId = encodeURIComponent(cleanEmail);
+      const emailDocId = `email_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
       const urlDirect = `${BASE_URL}/accounts/${emailDocId}?key=${API_KEY}`;
-      const resDirect = await fetch(urlDirect, { headers }).catch(() => null);
+      const resDirect = await fetch(urlDirect, { headers, signal: AbortSignal.timeout(6000) }).catch(() => null);
       if (resDirect && resDirect.ok) {
         const docData: any = await resDirect.json();
         if (docData && docData.fields) {
@@ -600,11 +604,9 @@ export class FirebaseSync {
       const res1 = await fetch(url1, {
         method: 'PATCH',
         headers,
-        body: bodyStr
-      }).catch((e) => {
-        console.warn('syncPlanRequestToCloud fetch error (/plan_requests):', e?.message || e);
-        return null;
-      });
+        body: bodyStr,
+        signal: AbortSignal.timeout(6000)
+      }).catch(() => null);
 
       // 2. If it's a deposit request, also sync to /deposits collection for 100% redundancy
       let res2Ok = true;
@@ -613,7 +615,8 @@ export class FirebaseSync {
         const res2 = await fetch(url2, {
           method: 'PATCH',
           headers,
-          body: bodyStr
+          body: bodyStr,
+          signal: AbortSignal.timeout(6000)
         }).catch(() => null);
         res2Ok = Boolean(res2 && res2.ok);
       }

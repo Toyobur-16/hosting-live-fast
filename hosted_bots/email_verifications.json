@@ -1,8 +1,9 @@
 {
   "badsharahmanbd@gmail.com": {
     "email": "badsharahmanbd@gmail.com",
-    "codeHash": "d3f4adfdd63ac570752357e3cfd9221f298febdd56441eb85f8392395f8e5994",
+    "codeHash": "c4767932f96b14e50593e6de541fc31a166e6dda4bb85017e63ad74d032aae0d",
     "validCodeHashes": [
+      "c4767932f96b14e50593e6de541fc31a166e6dda4bb85017e63ad74d032aae0d",
       "d3f4adfdd63ac570752357e3cfd9221f298febdd56441eb85f8392395f8e5994",
       "8e1e291db9908d6408b886fb11d4d3d99ee7aff7cc034e65d198ef1764b46d53",
       "ff807bb99ebdf303458ce9e8a01b1acdaaa5d09e8b510ebc628b0d990a403d36",
@@ -10,14 +11,14 @@
       "713c7f1cc9584cdceb6c1536dddfbcfc357fd11dc016665467deb91d3b7922bd",
       "ecc7ee3ecc3f7099559f781084c39e2c0c97440c276d61ff4d8ddfb218c89951"
     ],
-    "expiresAt": 1790865721147,
+    "expiresAt": 1790973093995,
     "attempts": 0,
-    "lastSentAt": 1790863921147,
+    "lastSentAt": 1790971293995,
     "createdAt": 1790453645177,
     "pendingRegistration": {
-      "name": "Badsha",
+      "name": "Badsha Test",
       "email": "badsharahmanbd@gmail.com",
-      "password": "password123"
+      "password": "testpassword123"
     }
   },
   "auto_firebase_test_1790679233456@gmail.com": {

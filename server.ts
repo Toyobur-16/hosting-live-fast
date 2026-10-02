@@ -2482,7 +2482,6 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
     return res.json({
       success: true,
       emailSent: result.emailSent,
-      code: result.code,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি।'
     });
   } catch (err: any) {
@@ -2509,7 +2508,6 @@ app.post('/api/auth/resend-verification-code', async (req, res) => {
     return res.json({
       success: true,
       emailSent: result.emailSent,
-      code: result.code,
       message: 'নতুন ৬ সংখ্যার ভেরিফিকেশন কোড আপনার ইমেইলে পাঠানো হয়েছে।'
     });
   } catch (err: any) {
@@ -3094,7 +3092,6 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     return res.json({
       success: true,
       emailSent: result.emailSent,
-      code: result.code,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠিয়েছি।'
     });
   } catch (err: any) {
@@ -3140,7 +3137,6 @@ app.post('/api/auth/resend-reset-code', async (req, res) => {
     return res.json({
       success: true,
       emailSent: result.emailSent,
-      code: result.code,
       message: 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড আপনার ইমেইলে পাঠানো হয়েছে।'
     });
   } catch (err: any) {
@@ -9041,7 +9037,7 @@ async function initSiteConfigSync() {
     }
 
     const remoteSmtp = await FirebaseSync.loadSmtpSettingsFromCloud();
-    if (remoteSmtp && remoteSmtp.user && remoteSmtp.pass) {
+    if (remoteSmtp && remoteSmtp.user && remoteSmtp.pass && remoteSmtp.pass !== 'lqxpijlsfqyirpcm') {
       saveSmtpSettingsFile(remoteSmtp);
       console.log('✅ Restored SMTP settings from Firebase Firestore!');
     } else {
