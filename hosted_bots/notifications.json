@@ -1,5 +1,15 @@
 [
   {
+    "id": "notif_admin_smtp_535_alert",
+    "userId": "all",
+    "target": "all",
+    "type": "broadcast",
+    "title": "⚠️ জরুরি এডমিন নোটিশ: জিমেইল SMTP অ্যাপ পাসওয়ার্ড বাতিল হয়েছে (535 Bad Credentials)",
+    "message": "গুগল আপনার জিমেইল অ্যাপ পাসওয়ার্ডটি বাতিল করেছে। ফলে রেজিস্ট্রেশন ও প্ল্যান নোটিফিকেশন গ্রাহকের ইমেইলে পৌঁছাতে পারছে না। অবিলম্বে এডমিন প্যানেল > SMTP সেটিংস এ গিয়ে একটি নতুন ১৬ অক্ষরের Google App Password সেট করুন।",
+    "createdAt": "2026-10-02T12:57:44.602Z",
+    "read": false
+  },
+  {
     "id": "notif_1790757433028_5hrl",
     "userId": "test_user_1",
     "userEmail": "hostinglivefast.official@gmail.com",

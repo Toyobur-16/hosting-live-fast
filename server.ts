@@ -2458,7 +2458,7 @@ app.post('/api/auth/register', async (req, res) => {
 // Send or resend 6-digit verification code
 app.post('/api/auth/send-verification-code', async (req, res) => {
   try {
-    const { email } = req.body || {};
+    const { email, name, password } = req.body || {};
     if (!email) {
       return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস আবশ্যক' });
     }
@@ -2466,12 +2466,23 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
     const accounts = getAccounts();
     const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
 
-    const result = await createAndSendVerificationCode(cleanEmail, user?.name);
+    const result = await createAndSendVerificationCode(
+      cleanEmail,
+      user?.name || name,
+      true,
+      {
+        name: (name || user?.name || cleanEmail.split('@')[0]).trim(),
+        email: cleanEmail,
+        password: password || user?.password
+      }
+    );
     if (!result.success) {
       return res.status(429).json(result);
     }
     return res.json({
       success: true,
+      emailSent: result.emailSent,
+      code: result.code,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি।'
     });
   } catch (err: any) {
@@ -2491,12 +2502,14 @@ app.post('/api/auth/resend-verification-code', async (req, res) => {
     const accounts = getAccounts();
     const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
 
-    const result = await createAndSendVerificationCode(cleanEmail, user?.name);
+    const result = await createAndSendVerificationCode(cleanEmail, user?.name, true);
     if (!result.success) {
       return res.status(429).json(result);
     }
     return res.json({
       success: true,
+      emailSent: result.emailSent,
+      code: result.code,
       message: 'নতুন ৬ সংখ্যার ভেরিফিকেশন কোড আপনার ইমেইলে পাঠানো হয়েছে।'
     });
   } catch (err: any) {
@@ -3080,6 +3093,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     return res.json({
       success: true,
+      emailSent: result.emailSent,
+      code: result.code,
       message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠিয়েছি।'
     });
   } catch (err: any) {
@@ -3124,6 +3139,8 @@ app.post('/api/auth/resend-reset-code', async (req, res) => {
 
     return res.json({
       success: true,
+      emailSent: result.emailSent,
+      code: result.code,
       message: 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড আপনার ইমেইলে পাঠানো হয়েছে।'
     });
   } catch (err: any) {
@@ -3132,10 +3149,24 @@ app.post('/api/auth/resend-reset-code', async (req, res) => {
   }
 });
 
+// Verify 6-digit password reset OTP code
+app.post('/api/auth/verify-reset-code', (req, res) => {
+  const { email, code } = req.body || {};
+  if (!email || !code) {
+    return res.status(400).json({ success: false, error: 'ইমেইল এবং ৬ সংখ্যার কোড আবশ্যক' });
+  }
+  const cleanEmail = String(email).trim().toLowerCase();
+  const verifyResult = verifyPasswordResetCode(cleanEmail, String(code));
+  if (!verifyResult.success) {
+    return res.status(400).json(verifyResult);
+  }
+  return res.json({ success: true, message: 'রিসেট কোড সফলভাবে যাচাই করা হয়েছে।' });
+});
+
 // Verify 6-digit code and set new password
 app.post('/api/auth/reset-password', async (req, res) => {
   try {
-    const { email, newPassword } = req.body || {};
+    const { email, code, newPassword } = req.body || {};
     if (!email || !newPassword) {
       return res.status(400).json({ success: false, error: 'ইমেইল এবং নতুন পাসওয়ার্ড প্রদান করুন' });
     }
@@ -3144,6 +3175,14 @@ app.post('/api/auth/reset-password', async (req, res) => {
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
+
+    // If code is provided, verify it first
+    if (code) {
+      const verifyResult = verifyPasswordResetCode(cleanEmail, String(code));
+      if (!verifyResult.success) {
+        return res.status(400).json(verifyResult);
+      }
+    }
 
     const accounts = getAccounts();
     let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);

@@ -51,10 +51,12 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
   host: 'smtp.gmail.com',
   port: 587,
   user: 'badsharahmanbd@gmail.com',
-  pass: 'lqxpijlsfqyirpcm',
+  pass: '', // Google App Password must be configured by admin
   from: 'hosting live fast <badsharahmanbd@gmail.com>',
   secure: false
 };
+
+export let lastSmtpAuthFailedUntil = 0;
 
 const STATIC_SMTP_BRIDGE_URLS = [
   process.env.SMTP_BRIDGE_URL,
@@ -405,6 +407,10 @@ export function startCloudSmtpRelayWorker(): void {
           : [];
 
         if (docs.length > 0) {
+          if (Date.now() < lastSmtpAuthFailedUntil) {
+            isProcessing = false;
+            return;
+          }
           const transporter = (await getTransporterAsync()) || getTransporter();
           if (transporter) {
             const fileConfig = loadSmtpSettingsFile();
@@ -438,7 +444,18 @@ export function startCloudSmtpRelayWorker(): void {
 
                 console.log(`[FIRESTORE WORKER] Sent queued email for ${to} | MsgId: ${info.messageId}`);
               } catch (sendErr: any) {
-                console.warn(`[FIRESTORE WORKER] Error sending email to ${to}:`, sendErr?.message || sendErr);
+                const isAuthError = sendErr?.message?.includes('535') || sendErr?.code === 'EAUTH' || sendErr?.message?.includes('BadCredentials') || sendErr?.message?.includes('Username and Password not accepted');
+                if (isAuthError) {
+                  lastSmtpAuthFailedUntil = Date.now() + 60 * 60 * 1000;
+                  console.warn(`[FIRESTORE WORKER] Gmail SMTP password rejected (535 Bad Credentials). Worker paused until updated in Admin Panel.`);
+                  await fetch(`https://firestore.googleapis.com/v1/${docName}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${idToken}` }
+                  }).catch(() => {});
+                  break;
+                } else {
+                  console.warn(`[FIRESTORE WORKER] Notice for ${to}:`, sendErr?.message || sendErr);
+                }
               }
 
               // Always delete processed doc so it does not repeat
@@ -468,11 +485,13 @@ export function loadSmtpSettingsFile(): SmtpSettingsData {
         if (!rawHost || rawHost === 'smtp.host.com' || rawHost.includes('host.com') || rawHost.includes('example.com')) {
           rawHost = 'smtp.gmail.com';
         }
+        const rawPass = String(data.pass || DEFAULT_SMTP_SETTINGS.pass || '').replace(/\s+/g, '');
+        const cleanPass = rawPass === 'lqxpijlsfqyirpcm' ? '' : rawPass;
         const merged: SmtpSettingsData = {
           host: rawHost,
           port: Number(data.port) || DEFAULT_SMTP_SETTINGS.port,
           user: (data.user || DEFAULT_SMTP_SETTINGS.user).trim(),
-          pass: String(data.pass || DEFAULT_SMTP_SETTINGS.pass).replace(/\s+/g, ''),
+          pass: cleanPass,
           from: (data.from || DEFAULT_SMTP_SETTINGS.from).trim(),
           secure: data.secure !== undefined ? Boolean(data.secure) : false
         };
@@ -505,9 +524,10 @@ export function saveSmtpSettingsFile(data: Partial<SmtpSettingsData>): boolean {
       merged.pass = merged.pass.replace(/\s+/g, '');
     }
     fs.writeFileSync(SMTP_SETTINGS_FILE, JSON.stringify(merged, null, 2), 'utf-8');
-    // Invalidate cached transporter
+    // Invalidate cached transporter & clear auth backoff
     cachedTransporter = null;
     lastTransporterConfigKey = '';
+    lastSmtpAuthFailedUntil = 0;
     return true;
   } catch (err) {
     console.error('Error saving smtp_settings.json:', err);
@@ -1404,7 +1424,8 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
     }
   }
 
-  const transporter = (await getTransporterAsync()) || getTransporter();
+  const canTryDirectSmtp = Date.now() >= lastSmtpAuthFailedUntil;
+  const transporter = canTryDirectSmtp ? ((await getTransporterAsync()) || getTransporter()) : null;
 
   if (transporter) {
     try {
@@ -1439,6 +1460,7 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
 
       const isAuthError = err?.message?.includes('535') || err?.code === 'EAUTH' || err?.message?.includes('BadCredentials') || err?.message?.includes('Username and Password not accepted');
       if (isAuthError) {
+        lastSmtpAuthFailedUntil = Date.now() + 15 * 60 * 1000;
         try {
           const notifList = getStoredNotifications();
           const hasExisting = notifList.some((n) => n.id === 'notif_admin_smtp_535_alert' || (n.title && n.title.includes('SMTP অ্যাপ পাসওয়ার্ড')));

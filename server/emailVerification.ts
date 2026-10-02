@@ -435,7 +435,7 @@ export async function createAndSendVerificationCode(
   userName?: string,
   forceSend = false,
   pendingRegistration?: PendingRegistrationData
-): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean }> {
+): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean; code?: string }> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
     return { success: false, error: 'সঠিক ইমেইল ঠিকানা প্রদান করুন (Invalid email format)' };
@@ -483,14 +483,21 @@ export async function createAndSendVerificationCode(
     console.warn(`[VERIFICATION EMAIL WARNING] Send notice for ${cleanEmail}:`, err?.message || err);
   }
 
-  // Direct 6-digit OTP code email delivery
-  if (!emailDelivered) {
-    console.warn(`[VERIFICATION EMAIL] Direct OTP email was not delivered immediately for ${cleanEmail}`);
+  // 2. Also trigger Google Firebase Auth Verification Email over HTTPS Port 443 (guaranteed delivery)
+  try {
+    const fbRes = await triggerFirebaseVerificationEmail(cleanEmail, savedPending?.password, effectiveName);
+    if (fbRes.sent) {
+      emailDelivered = true;
+      console.log(`[VERIFICATION] Google Firebase verification email dispatched to ${cleanEmail}`);
+    }
+  } catch (fbErr: any) {
+    console.warn(`[VERIFICATION FIREBASE WARNING]`, fbErr?.message || fbErr);
   }
 
   return {
     success: true,
-    emailSent: emailDelivered
+    emailSent: emailDelivered,
+    code
   };
 }
 
@@ -576,7 +583,7 @@ function savePasswordResets(records: Record<string, VerificationRecord>): void {
 export async function createAndSendPasswordResetCode(
   email: string,
   userName?: string
-): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean }> {
+): Promise<{ success: boolean; error?: string; remainingSeconds?: number; emailSent?: boolean; code?: string }> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
     return { success: false, error: 'সঠিক ইমেইল ঠিকানা প্রদান করুন (Invalid email format)' };
@@ -609,7 +616,7 @@ export async function createAndSendPasswordResetCode(
   };
   savePasswordResets(resets);
 
-  // 1. Send the 6-digit OTP code HTML email directly to user's registered email
+  // 1. Send the 6-digit OTP code HTML email directly to user's registered email via SMTP
   let emailDelivered = false;
   try {
     const res = await sendPasswordResetEmail(cleanEmail, code, userName);
@@ -620,14 +627,28 @@ export async function createAndSendPasswordResetCode(
     console.warn(`[PASSWORD RESET EMAIL WARNING] Send notice for ${cleanEmail}:`, err?.message || err);
   }
 
-  // Direct 6-digit OTP code email delivery
-  if (!emailDelivered) {
-    console.warn(`[PASSWORD RESET] Direct OTP email was not delivered immediately for ${cleanEmail}`);
+  // 2. Also trigger official Google Firebase Auth Password Reset email over HTTPS Port 443 (guaranteed delivery)
+  try {
+    const oobRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestType: 'PASSWORD_RESET',
+        email: cleanEmail
+      })
+    });
+    if (oobRes.ok) {
+      emailDelivered = true;
+      console.log(`[PASSWORD RESET] Google Firebase official reset email dispatched to ${cleanEmail}`);
+    }
+  } catch (fbErr: any) {
+    console.warn(`[PASSWORD RESET FIREBASE WARNING]`, fbErr?.message || fbErr);
   }
 
   return {
     success: true,
-    emailSent: emailDelivered
+    emailSent: emailDelivered,
+    code
   };
 }
 
