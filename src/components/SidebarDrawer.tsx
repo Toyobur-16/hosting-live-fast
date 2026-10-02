@@ -27,6 +27,7 @@ import {
 import { AuthUser, SiteSettings } from '../types';
 import { normalizeLogoUrl } from '../utils/logoUrl';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { UserAvatar } from './UserAvatar';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -221,24 +222,11 @@ export function SidebarDrawer({
             <div className="p-5 border-b border-slate-200 dark:border-[#162035] flex items-center justify-between">
               {user ? (
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-[#1e293b] border-2 border-[#00d293] flex items-center justify-center text-slate-900 dark:text-white font-black text-base shadow-md overflow-hidden shrink-0">
-                    {user.avatar ? (
-                      <img
-                        src={user.avatar}
-                        alt={user.name || 'User'}
-                        className="w-full h-full object-cover rounded-full"
-                        onError={(e) => {
-                          const target = e.currentTarget as HTMLImageElement;
-                          target.style.display = 'none';
-                          if (target.parentElement) {
-                            target.parentElement.textContent = getUserInitial();
-                          }
-                        }}
-                      />
-                    ) : (
-                      getUserInitial()
-                    )}
-                  </div>
+                  <UserAvatar
+                    user={user}
+                    size="lg"
+                    className="bg-slate-100 dark:bg-[#1e293b] border-2 border-[#00d293] shadow-md"
+                  />
                   <div className="flex flex-col">
                     <span className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
                       {user.name || 'User'}

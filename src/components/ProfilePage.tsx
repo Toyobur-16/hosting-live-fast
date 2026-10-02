@@ -95,6 +95,7 @@ export function ProfilePage({
   const [editName, setEditName] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarImgFailed, setAvatarImgFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -106,6 +107,7 @@ export function ProfilePage({
       setEditName(user.name || '');
       setEditAvatar(user.avatar || '');
       setAvatarPreview(user.avatar || null);
+      setAvatarImgFailed(false);
     }
   }, [user?.id, user?.email, user?.name, user?.avatar]);
 
@@ -343,11 +345,14 @@ export function ProfilePage({
           <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#1e293b] to-[#0f172a] border-3 border-[#00d293] flex items-center justify-center text-white font-black text-2xl shadow-lg overflow-hidden">
             {uploadingImage ? (
               <Loader2 className="w-6 h-6 text-[#00d293] animate-spin" />
-            ) : avatarPreview || user.avatar ? (
+            ) : (avatarPreview || user.avatar) && !avatarImgFailed ? (
               <img
                 src={avatarPreview || user.avatar}
                 alt="Avatar"
                 className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={() => setAvatarImgFailed(true)}
               />
             ) : (
               (user.name || user.email || 'U').charAt(0).toUpperCase()

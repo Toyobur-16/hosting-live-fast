@@ -29,7 +29,7 @@ import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 import { checkIsAdmin } from './utils/adminCheck';
 import { normalizeLogoUrl } from './utils/logoUrl';
-import { db, doc, onSnapshot, setDoc } from './lib/firebase';
+import { db, doc, onSnapshot, setDoc, auth, fallbackAuth, signOut } from './lib/firebase';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'wallet' | 'support' | 'profile' | 'plans' | 'bots' | 'terminal' | 'deposit-store' | 'websites' | 'rewards' | 'guide' | 'faq'>('home');
@@ -517,7 +517,7 @@ export default function App() {
         const cloudData = snap.data();
         if (cloudData) {
           setCurrentUser((prev: any) => {
-            if (!prev) return cloudData as AuthUser;
+            if (!prev) return null;
             const hasChanged =
               cloudData.balanceUsd !== prev.balanceUsd ||
               cloudData.balanceBdt !== prev.balanceBdt ||
@@ -648,13 +648,23 @@ export default function App() {
     } catch {}
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('bot_auth_token');
-    localStorage.removeItem('bot_auth_user');
+  const handleLogout = async () => {
     try {
+      localStorage.removeItem('bot_auth_token');
+      localStorage.removeItem('bot_auth_user');
       localStorage.removeItem('bot_registered_email');
     } catch {}
+
+    try {
+      if (auth) await signOut(auth);
+    } catch {}
+    try {
+      if (fallbackAuth) await signOut(fallbackAuth);
+    } catch {}
+
     setCurrentUser(null);
+    setActiveTab('home');
+    setIsSidebarOpen(false);
     setAuthModalKey((prev) => prev + 1);
     setToastMessage(lang === 'bn' ? 'সফলভাবে লগআউট করা হয়েছে' : 'Logged out successfully');
   };

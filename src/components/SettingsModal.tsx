@@ -193,11 +193,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="p-4 bg-gradient-to-r from-slate-50 dark:from-[#1e293b]/70 to-blue-50/50 dark:to-blue-950/30 border border-[#e2e8f0] dark:border-[#1f293d] rounded-2xl flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-11 h-11 rounded-2xl bg-[#0088cc] text-white flex items-center justify-center font-bold text-base shadow-sm">
-                        {currentUser.name.charAt(0).toUpperCase()}
+                        {(currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-[#1e293b] dark:text-white">{currentUser.name}</h4>
+                          <h4 className="text-sm font-bold text-[#1e293b] dark:text-white">{currentUser.name || currentUser.email || 'User'}</h4>
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800">
                             {lang === 'bn' ? 'সক্রিয় একাউন্ট' : 'Active Account'}
                           </span>

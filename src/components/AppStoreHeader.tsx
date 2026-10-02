@@ -21,6 +21,7 @@ import {
 import { AuthUser, SiteSettings } from '../types';
 import { normalizeLogoUrl } from '../utils/logoUrl';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { UserAvatar } from './UserAvatar';
 
 interface AppStoreHeaderProps {
   user: AuthUser | null;
@@ -313,22 +314,7 @@ export function AppStoreHeader({
               className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-200 dark:bg-[#1e293b] border-2 border-[#00d293] flex items-center justify-center text-slate-900 dark:text-white font-black text-xs sm:text-sm shadow-md hover:scale-105 cursor-pointer transition-transform shrink-0 overflow-hidden"
               title={`${user.name || user.email} (${lang === 'bn' ? 'প্রোফাইল দেখুন' : 'View Profile'})`}
             >
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.name || 'User'}
-                  className="w-full h-full object-cover rounded-full"
-                  onError={(e) => {
-                    const target = e.currentTarget as HTMLImageElement;
-                    target.style.display = 'none';
-                    if (target.parentElement) {
-                      target.parentElement.textContent = getUserInitial();
-                    }
-                  }}
-                />
-              ) : (
-                getUserInitial()
-              )}
+              <UserAvatar user={user} size="md" />
             </button>
           ) : (
             <button
