@@ -2417,7 +2417,7 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
-    // Direct registration without OTP is disabled. New accounts must be verified with 6-digit email OTP.
+    // Direct registration without OTP is completely disabled. All registrations MUST be verified with 6-digit email OTP.
     const result = await createAndSendVerificationCode(
       cleanEmail,
       name,

@@ -265,6 +265,7 @@ export const AuthModal = ({
           setLoading(false);
         }
       }
+      return;
     }
   };
 
