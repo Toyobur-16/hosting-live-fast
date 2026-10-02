@@ -129,5 +129,21 @@
     "attempts": 0,
     "lastSentAt": 1790945862765,
     "createdAt": 1790945862765
+  },
+  "test_otp_verify_user@gmail.com": {
+    "email": "test_otp_verify_user@gmail.com",
+    "codeHash": "c6f2586b9079ee94da1467501f18198f0e7788b4a440ad57cc81be9360e55089",
+    "validCodeHashes": [
+      "c6f2586b9079ee94da1467501f18198f0e7788b4a440ad57cc81be9360e55089"
+    ],
+    "expiresAt": 1790974609763,
+    "attempts": 0,
+    "lastSentAt": 1790972809763,
+    "createdAt": 1790972809763,
+    "pendingRegistration": {
+      "name": "Test User",
+      "email": "test_otp_verify_user@gmail.com",
+      "password": "testpassword123"
+    }
   }
 }

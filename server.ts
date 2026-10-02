@@ -132,7 +132,7 @@ if (typeof (dns as any).setDefaultResultOrder === 'function') {
 }
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
@@ -2417,34 +2417,27 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
-    // Direct account creation - no verification code required!
-    const newUser = {
-      id: `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      name: name.trim(),
-      email: cleanEmail,
-      password: password || '',
-      role: 'user',
-      plan: 'free',
-      isVerified: true,
-      emailVerified: true,
-      createdAt: new Date().toISOString()
-    };
-    accounts.push(newUser);
-    saveAccounts(accounts);
+    // Direct registration without OTP is disabled. New accounts must be verified with 6-digit email OTP.
+    const result = await createAndSendVerificationCode(
+      cleanEmail,
+      name,
+      true,
+      {
+        name: name.trim(),
+        email: cleanEmail,
+        password: password || ''
+      }
+    );
 
-    const enriched = enrichUserWithPlanAndRole(newUser);
-    const token = generateAuthToken(enriched);
-    const sessions = getSessions();
-    sessions[token] = newUser.id;
-    saveSessions(sessions);
-
-    FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
 
     return res.json({
       success: true,
-      token,
-      user: enriched,
-      message: 'রেজিস্ট্রেশন সফলভাবে সম্পন্ন হয়েছে!'
+      requiresOtp: true,
+      emailSent: result.emailSent,
+      message: 'রেজিস্ট্রেশন সম্পন্ন করতে আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।'
     });
   } catch (err: any) {
     console.error('register route error:', err);

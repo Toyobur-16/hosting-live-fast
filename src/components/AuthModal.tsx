@@ -14,8 +14,7 @@ import {
   KeyRound,
   Gift,
   ArrowLeft,
-  ShieldCheck,
-  Sparkles
+  ShieldCheck
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { auth, fallbackAuth, googleProvider, signInWithPopup, firebaseAppletConfig } from '../lib/firebase';
@@ -266,63 +265,6 @@ export const AuthModal = ({
           setLoading(false);
         }
       }
-    }
-  };
-
-  // Direct instant registration without waiting for email OTP
-  const handleDirectRegister = async () => {
-    setError(null);
-    setSuccessMessage(null);
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setError(lang === 'bn' ? 'সঠিক ইমেইল এড্রেস লিখুন' : 'Please enter a valid email address');
-      return;
-    }
-    if (!name.trim()) {
-      setError(lang === 'bn' ? 'আপনার নাম লিখুন' : 'Please enter your name');
-      return;
-    }
-    if (password.length < 6) {
-      setError(lang === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' : 'Password must be at least 6 characters');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError(lang === 'bn' ? 'পাসওয়ার্ড দুটি মিলছে না! একই পাসওয়ার্ড দিন।' : 'Passwords do not match!');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: cleanEmail, password })
-      });
-      const data = await safeJsonParse(res);
-      if (data?.alreadyRegistered) {
-        setMode('login');
-        setStep('form');
-        setError(null);
-        setSuccessMessage(
-          lang === 'bn'
-            ? '✅ এই ইমেইল দিয়ে ইতিমধ্যে অ্যাকাউন্ট তৈরি করা আছে! নিচে আপনার পাসওয়ার্ড দিয়ে সরাসরি লগইন করুন।'
-            : '✅ This email is already registered! Please sign in below with your password.'
-        );
-        return;
-      }
-      if (!res.ok || (data && !data.success)) {
-        throw new Error(data?.error || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
-      }
-      if (data?.token && data?.user) {
-        localStorage.setItem('bot_auth_token', data.token);
-        localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
-        onSuccess(data.user, data.token);
-        if (onClose) onClose();
-      }
-    } catch (err: any) {
-      setError(err?.message || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -861,20 +803,6 @@ export const AuthModal = ({
                 {lang === 'bn' ? 'ইমেইল পরিবর্তন' : 'Change Email'}
               </button>
             </div>
-
-            {/* Instant Direct Registration Fallback Button */}
-            <div className="mt-4 pt-3 border-t border-[#1f2d48] text-center">
-              <button
-                type="button"
-                onClick={handleDirectRegister}
-                disabled={loading}
-                className="text-[11px] text-emerald-400 hover:text-emerald-300 font-medium hover:underline cursor-pointer"
-              >
-                {lang === 'bn'
-                  ? '⚡ ওটিপি ছাড়াই সরাসরি অ্যাকাউন্ট তৈরি করতে চান? এখানে ক্লিক করুন'
-                  : '⚡ Want to activate without OTP? Click here'}
-              </button>
-            </div>
           </div>
         ) : (
           /* STANDARD LOGIN & REGISTRATION STEP 1 */
@@ -1020,18 +948,6 @@ export const AuthModal = ({
                   <span>{lang === 'bn' ? 'ভেরিফিকেশন কোড পাঠান' : 'Send Verification Code'}</span>
                 )}
               </button>
-
-              {mode === 'register' && (
-                <button
-                  type="button"
-                  onClick={handleDirectRegister}
-                  disabled={loading}
-                  className="w-full py-2.5 px-3 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-emerald-400 hover:text-emerald-300 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{lang === 'bn' ? '⚡ সরাসরি অ্যাকাউন্ট খুলুন (ওটিপি ছাড়া)' : '⚡ Direct Register (No OTP)'}</span>
-                </button>
-              )}
             </form>
 
             <div className="text-center mt-5">

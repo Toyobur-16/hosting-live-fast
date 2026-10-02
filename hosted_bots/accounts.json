@@ -17,7 +17,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-26T23:16:07.898Z",
-    "updatedAt": 1790945957166
+    "updatedAt": 1790971859682
   },
   {
     "id": "user_1790454329125_a498",
@@ -29,17 +29,17 @@
     "emailVerified": true,
     "isVerified": true,
     "balanceBdt": 0,
-    "balanceUsd": 1228.62,
+    "balanceUsd": 1181.62,
     "maxWebsites": 999,
     "maxStorageMb": 100,
     "hasClaimedFreeTrial": true,
     "hasClaimedFreePlan": true,
     "freeTrialClaimedAt": "2026-09-27T10:23:43.621Z",
-    "planExpiresAt": 2015576623621,
+    "planExpiresAt": 2117528623621,
     "googleId": "cbfl45Dm70TVmiRs3unHWKGzhGC2",
     "avatar": "/api/store/thumbnails/avatar_user_1790454329125_a498_1790860415728_avatar_user_1790454329125_a498_1790860415069.jpg",
     "password": "",
-    "updatedAt": 1790945957163
+    "updatedAt": 1790971861280
   },
   {
     "id": "user_1790504693014_zdxr",
@@ -62,13 +62,13 @@
     "hasClaimedFreeTrial": true,
     "hasClaimedFreePlan": true,
     "freeTrialClaimedAt": "2026-09-29T13:11:51.522Z",
-    "updatedAt": 1790945960866
+    "updatedAt": 1790971861674
   },
   {
     "id": "user_1790505060123_bmdw",
     "name": "badsharahmanbd",
     "email": "badsharahmanbd@gmail.com",
-    "password": "123456",
+    "password": "111111",
     "role": "admin",
     "plan": "free",
     "maxBots": 999,
@@ -82,7 +82,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-27T10:31:00.123Z",
-    "updatedAt": 1790945957163
+    "updatedAt": 1790971862229
   },
   {
     "id": "user_1790722647223_0tla",
@@ -101,7 +101,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-29T22:57:27.223Z",
-    "updatedAt": 1790945961571
+    "updatedAt": 1790971862878
   },
   {
     "id": "user_1790719658531_shjk",
@@ -120,7 +120,7 @@
     "avatar": "https://lh3.googleusercontent.com/a/ACg8ocK69vVNjNnDUnTcXHo7ShEigU5dRCByy6G_z9XaH_gfXnOdlw=s96-c",
     "googleId": "DMSrybHBWkPnEsxqhNaxBrn6Mdp1",
     "createdAt": "2026-09-29T22:07:38.531Z",
-    "updatedAt": 1790945961908,
+    "updatedAt": 1790971863414,
     "password": ""
   },
   {
@@ -140,7 +140,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-30T09:17:28.940Z",
-    "updatedAt": 1790945961951
+    "updatedAt": 1790971385507
   },
   {
     "id": "user_1790765588049_6j2k",
@@ -159,7 +159,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-30T10:53:08.049Z",
-    "updatedAt": 1790945962267
+    "updatedAt": 1790971864348
   },
   {
     "id": "user_1790845355808_111g",
@@ -178,7 +178,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-10-01T09:02:35.808Z",
-    "updatedAt": 1790945962624
+    "updatedAt": 1790971386242
   },
   {
     "id": "user_1790852731315_949h",
@@ -201,7 +201,7 @@
     "hasClaimedFreeTrial": true,
     "hasClaimedFreePlan": true,
     "freeTrialClaimedAt": "2026-10-01T11:06:29.611Z",
-    "updatedAt": 1790945963027
+    "updatedAt": 1790971865387
   },
   {
     "id": "user_1790862356523_50q8",
@@ -221,7 +221,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-10-01T13:45:56.523Z",
-    "updatedAt": 1790945963403
+    "updatedAt": 1790971386977
   },
   {
     "id": "user_1790881062641_adna",
@@ -241,7 +241,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-10-01T18:57:42.641Z",
-    "updatedAt": 1790945963767
+    "updatedAt": 1790971866450
   },
   {
     "id": "user_1790881373029_lcvbn",
@@ -258,6 +258,103 @@
     "balanceUsd": 0,
     "maxWebsites": 2,
     "maxStorageMb": 50,
-    "updatedAt": 1790945963810
+    "updatedAt": 1790971387382
+  },
+  {
+    "id": "user_1790945888293_z8ta",
+    "name": "Test User",
+    "email": "test_user_1790945881162@testdomain.com",
+    "password": "NewPassword123!",
+    "role": "user",
+    "plan": "free",
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "isVerified": true,
+    "emailVerified": true,
+    "avatar": "",
+    "googleId": "",
+    "createdAt": "2026-10-02T12:58:08.293Z",
+    "updatedAt": 1790971868335
+  },
+  {
+    "id": "user_1790945908265_prhpi",
+    "name": "Direct User",
+    "email": "direct_user_1790945907879@testdomain.com",
+    "password": "Password123!",
+    "role": "user",
+    "plan": "free",
+    "isVerified": true,
+    "emailVerified": true,
+    "createdAt": "2026-10-02T12:58:28.265Z",
+    "maxBots": 0,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "updatedAt": 1790971869464
+  },
+  {
+    "id": "user_1790946309391_i50cb",
+    "name": "Direct",
+    "email": "direct_1790946308180@testdomain.com",
+    "password": "Password123!",
+    "role": "user",
+    "plan": "free",
+    "isVerified": true,
+    "emailVerified": true,
+    "createdAt": "2026-10-02T13:05:09.391Z",
+    "maxBots": 0,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "updatedAt": 1790971869996
+  },
+  {
+    "email": "badsharahman255@gmail.com",
+    "password": "",
+    "balanceUsd": 0,
+    "balanceBdt": 0,
+    "emailVerified": false,
+    "isVerified": false
+  },
+  {
+    "id": "user_1790946308178_a9g3",
+    "name": "Auto Check",
+    "email": "auto_check_1790946305555@testdomain.com",
+    "password": "Password123!",
+    "role": "user",
+    "plan": "free",
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "isVerified": true,
+    "emailVerified": true,
+    "avatar": "",
+    "googleId": "",
+    "createdAt": "2026-10-02T13:05:08.178Z",
+    "updatedAt": 1790971870523
+  },
+  {
+    "id": "user_1790971859180_9cmau",
+    "name": "Toyobur Rahman",
+    "email": "toyoburrahman560@gmail.com",
+    "password": "123456",
+    "role": "admin",
+    "plan": "free",
+    "isVerified": true,
+    "emailVerified": true,
+    "createdAt": "2026-10-02T20:10:59.180Z",
+    "maxBots": 999,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "maxWebsites": 999,
+    "maxStorageMb": 500,
+    "updatedAt": 1790971871646
   }
 ]
