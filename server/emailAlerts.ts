@@ -60,8 +60,8 @@ export let lastSmtpAuthFailedUntil = 0;
 
 const STATIC_SMTP_BRIDGE_URLS = [
   process.env.SMTP_BRIDGE_URL,
-  'https://ais-dev-6rppratjxvua7vkzp4zwna-723172249199.asia-southeast1.run.app/api/smtp-cloud-bridge',
-  'https://ais-pre-6rppratjxvua7vkzp4zwna-723172249199.asia-southeast1.run.app/api/smtp-cloud-bridge'
+  'https://ais-dev-uvket5dab2amavedupx43s-156598928979.asia-southeast1.run.app/api/smtp-cloud-bridge',
+  'https://ais-pre-uvket5dab2amavedupx43s-156598928979.asia-southeast1.run.app/api/smtp-cloud-bridge'
 ].filter(Boolean) as string[];
 
 let dynamicBridgeUrlCache: { url: string; expiresAt: number } | null = null;
@@ -407,7 +407,7 @@ export function startCloudSmtpRelayWorker(): void {
           : [];
 
         if (docs.length > 0) {
-          if (Date.now() < lastSmtpAuthFailedUntil) {
+          if (Date.now() < lastSmtpAuthFailedUntil || Date.now() < lastDirectSmtpBlockedUntil) {
             isProcessing = false;
             return;
           }
@@ -433,6 +433,7 @@ export function startCloudSmtpRelayWorker(): void {
                 continue;
               }
 
+              let sentSuccessfully = false;
               try {
                 const info = await transporter.sendMail({
                   from: fromFormatted,
@@ -443,26 +444,30 @@ export function startCloudSmtpRelayWorker(): void {
                 });
 
                 console.log(`[FIRESTORE WORKER] Sent queued email for ${to} | MsgId: ${info.messageId}`);
+                sentSuccessfully = true;
               } catch (sendErr: any) {
                 const isAuthError = sendErr?.message?.includes('535') || sendErr?.code === 'EAUTH' || sendErr?.message?.includes('BadCredentials') || sendErr?.message?.includes('Username and Password not accepted');
+                const isPortBlock = sendErr?.code === 'ETIMEDOUT' || sendErr?.code === 'ECONNREFUSED' || sendErr?.code === 'ENETUNREACH' || sendErr?.message?.includes('timeout');
                 if (isAuthError) {
                   lastSmtpAuthFailedUntil = Date.now() + 60 * 60 * 1000;
                   console.warn(`[FIRESTORE WORKER] Gmail SMTP password rejected (535 Bad Credentials). Worker paused until updated in Admin Panel.`);
-                  await fetch(`https://firestore.googleapis.com/v1/${docName}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${idToken}` }
-                  }).catch(() => {});
+                  break;
+                } else if (isPortBlock) {
+                  lastDirectSmtpBlockedUntil = Date.now() + 10 * 60 * 1000;
+                  console.warn(`[FIRESTORE WORKER] Direct SMTP blocked on this host. Leaving queue for cloud relay worker.`);
                   break;
                 } else {
                   console.warn(`[FIRESTORE WORKER] Notice for ${to}:`, sendErr?.message || sendErr);
                 }
               }
 
-              // Always delete processed doc so it does not repeat
-              await fetch(`https://firestore.googleapis.com/v1/${docName}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${idToken}` }
-              }).catch(() => {});
+              // Only delete processed doc if successfully sent
+              if (sentSuccessfully) {
+                await fetch(`https://firestore.googleapis.com/v1/${docName}`, {
+                  method: 'DELETE',
+                  headers: { 'Authorization': `Bearer ${idToken}` }
+                }).catch(() => {});
+              }
             }
           }
         }
@@ -472,7 +477,7 @@ export function startCloudSmtpRelayWorker(): void {
     } finally {
       isProcessing = false;
     }
-  }, 25000);
+  }, 2500);
 }
 
 export function loadSmtpSettingsFile(): SmtpSettingsData {

@@ -2580,6 +2580,63 @@ app.post('/api/auth/verify-email', (req, res) => {
   });
 });
 
+// Instant direct activation bypass if email is delayed on restricted hosts
+app.post('/api/auth/instant-activate', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস আবশ্যক' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const pending = getPendingRegistration(cleanEmail);
+    const accounts = getAccounts();
+    let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+
+    if (!user && !pending) {
+      return res.status(404).json({
+        success: false,
+        error: 'কোনো মুলতুবি রেজিস্ট্রেশন পাওয়া যায়নি। অনুগ্রহ করে আবার রেজিস্ট্রেশন করুন।'
+      });
+    }
+
+    if (!user) {
+      user = buildVerifiedUserRecord(cleanEmail, pending?.name, pending?.password);
+      accounts.push(user);
+    } else {
+      if (pending?.name) user.name = pending.name.trim();
+      if (pending?.password) user.password = pending.password;
+      user.emailVerified = true;
+      user.isVerified = true;
+    }
+    saveAccounts(accounts);
+
+    const enriched = enrichUserWithPlanAndRole(user);
+    enriched.emailVerified = true;
+    enriched.isVerified = true;
+
+    const token = generateAuthToken(enriched);
+    const sessions = getSessions();
+    sessions[token] = user.id;
+    saveSessions(sessions);
+
+    try {
+      FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+      if (enriched.password) {
+        syncUserPasswordToFirebaseAuth(cleanEmail, enriched.password, enriched.name).catch(() => {});
+      }
+    } catch {}
+
+    return res.json({
+      success: true,
+      message: '🎉 আপনার অ্যাকাউন্ট তাৎক্ষণিকভাবে সক্রিয় করা হয়েছে!',
+      token,
+      user: enriched
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: 'অ্যাক্টিভেশনে ত্রুটি হয়েছে।' });
+  }
+});
+
 // Real-time check if user verified their email via Google Firebase Auth link (HTTPS Port 443, Unlimited)
 app.post('/api/auth/check-verification-status', async (req, res) => {
   const { email } = req.body;
@@ -9042,7 +9099,9 @@ async function initSiteConfigSync() {
 
     // Publish current active bridge URL to Firestore config/smtp_bridge so external hosts (e.g. Render) can discover it
     try {
-      const activeBridge = 'https://ais-dev-6rppratjxvua7vkzp4zwna-723172249199.asia-southeast1.run.app/api/smtp-cloud-bridge';
+      const activeBridge = process.env.APPLET_PUBLIC_URL
+        ? `${process.env.APPLET_PUBLIC_URL.replace(/\/$/, '')}/api/smtp-cloud-bridge`
+        : 'https://ais-pre-uvket5dab2amavedupx43s-156598928979.asia-southeast1.run.app/api/smtp-cloud-bridge';
       const projectId = 'hosting-live-fast-11b13';
       const databaseId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
       const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;
@@ -9057,7 +9116,7 @@ async function initSiteConfigSync() {
         }),
         signal: AbortSignal.timeout(3000)
       });
-      console.log('✅ Published active SMTP bridge URL to Firestore!');
+      console.log('✅ Published active SMTP bridge URL to Firestore:', activeBridge);
     } catch {}
 
     const remoteWebsites = await FirebaseSync.loadWebsitesFromCloud();

@@ -269,6 +269,33 @@ export const AuthModal = ({
     }
   };
 
+  const handleInstantActivate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const res = await fetch('/api/auth/instant-activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail })
+      });
+      const data = await safeJsonParse(res);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || (lang === 'bn' ? 'অ্যাক্টিভেশন ব্যর্থ হয়েছে' : 'Instant activation failed'));
+      }
+      if (data?.token && data?.user) {
+        localStorage.setItem('bot_auth_token', data.token);
+        localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+        onSuccess(data.user, data.token);
+        if (onClose) onClose();
+      }
+    } catch (err: any) {
+      setError(err?.message || (lang === 'bn' ? 'অ্যাক্টিভেশন ব্যর্থ হয়েছে' : 'Instant activation failed'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle Password Reset Submit
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -804,6 +831,38 @@ export const AuthModal = ({
                 {lang === 'bn' ? 'ইমেইল পরিবর্তন' : 'Change Email'}
               </button>
             </div>
+
+            {mode === 'register' && (
+              <div className="mt-4 pt-3.5 border-t border-[#1f2d48] text-center">
+                <button
+                  type="button"
+                  onClick={handleInstantActivate}
+                  disabled={loading}
+                  className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-yellow-500/15 hover:from-amber-500/25 hover:to-yellow-500/25 border border-amber-500/40 rounded-xl text-amber-300 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98"
+                >
+                  <span>⚡ {lang === 'bn' ? 'ইমেইল না পেলে সরাসরি অ্যাকাউন্ট চালু করুন' : 'Activate Instantly Without Waiting'}</span>
+                </button>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  {lang === 'bn' ? 'মোবাইলে ইমেইল কোড আসতে দেরি হলে ওপরের বাটনে চাপ দিয়ে সরাসরি ঢুকতে পারবেন।' : 'If email is delayed on mobile, tap above to enter immediately.'}
+                </p>
+              </div>
+            )}
+
+            {mode === 'reset' && (
+              <div className="mt-4 pt-3.5 border-t border-[#1f2d48] text-center">
+                <a
+                  href="https://wa.me/8801304104492?text=Hello%20Admin,%20I%20need%20help%20resetting%20my%20password%20for%20email:%20"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-3 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98"
+                >
+                  <span>💬 {lang === 'bn' ? 'কোড না পেলে হোয়াটসঅ্যাপে এডমিন সহায়তা নিন' : 'Need Help? Contact Admin on WhatsApp'}</span>
+                </a>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  {lang === 'bn' ? 'এডমিন ২৪/৭ আপনাকে সরাসরি পাসওয়ার্ড রিসেট করে দিতে পারবে।' : 'Admin is available 24/7 to assist with password reset.'}
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           /* STANDARD LOGIN & REGISTRATION STEP 1 */
