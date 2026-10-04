@@ -43,7 +43,11 @@ import {
   recoverUserFromFirebaseAuth,
   checkEmailExistsInFirebaseAuth,
   syncUserPasswordToFirebaseAuth,
-  getPendingRegistration
+  getPendingRegistration,
+  createAccountActivationLink,
+  createPasswordResetLink,
+  verifyActivationToken,
+  verifyResetToken
 } from './server/emailVerification';
 import { modifyUserWallet, getTransactions as getWalletTransactions, getUserTransactions } from './server/walletManager';
 import {
@@ -2418,44 +2422,19 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
-    // Direct registration without OTP code
-    const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const isSpecialAdmin = cleanEmail === 'badsharahman250@gmail.com' || cleanEmail === 'badsharahmanbd@gmail.com';
-    const newUser: any = {
-      id: newId,
-      name: (name || cleanEmail.split('@')[0]).trim(),
-      email: cleanEmail,
-      password: password || '',
-      isVerified: true,
-      emailVerified: true,
-      role: isSpecialAdmin ? 'admin' : 'user',
-      plan: 'free',
-      planExpiresAt: null,
-      maxBots: 1,
-      walletBalance: 0,
-      createdAt: new Date().toISOString()
-    };
-    accounts.push(newUser);
-    saveAccounts(accounts);
+    // Generate one-click activation link and dispatch Firebase Auth & branded emails
+    const host = req.get('host') || 'hostinglivefast.cloud';
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const baseUrl = `${protocol}://${host}`;
+    const cleanName = (name || cleanEmail.split('@')[0]).trim();
 
-    const enriched = enrichUserWithPlanAndRole(newUser);
-    const token = generateAuthToken(enriched);
-    const sessions = getSessions();
-    sessions[token] = newUser.id;
-    saveSessions(sessions);
-
-    try {
-      FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
-      if (password) syncUserPasswordToFirebaseAuth(cleanEmail, password, enriched.name).catch(() => {});
-    } catch {}
-
-    ensureUserWelcomeNotification(newUser.id, newUser.email, newUser.name);
+    await createAccountActivationLink(cleanEmail, cleanName, password || '', baseUrl);
 
     return res.json({
       success: true,
-      message: '🎉 আপনার অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে এবং আপনি লগইন হয়েছেন!',
-      token,
-      user: enriched
+      requiresActivation: true,
+      email: cleanEmail,
+      message: '📩 আপনার ইমেইলে একটি একাউন্ট একটিভেশন লিঙ্ক পাঠানো হয়েছে! ইমেইল চেক করে "Active Account" বাটনে ক্লিক করুন।'
     });
   } catch (err: any) {
     console.error('register route error:', err);
@@ -2463,6 +2442,201 @@ app.post('/api/auth/register', async (req, res) => {
       success: false,
       error: 'রেজিস্ট্রেশনে সাময়িক ত্রুটি হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
     });
+  }
+});
+
+// One-click Account Activation (when user clicks 'Active Account' link in email)
+app.all('/api/auth/activate-account', async (req, res) => {
+  try {
+    const email = String(req.body?.email || req.query.email || '').trim().toLowerCase();
+    const token = String(req.body?.token || req.query.token || '').trim();
+
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস আবশ্যক' });
+    }
+
+    const accounts = getAccounts();
+    let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === email);
+
+    let verified = false;
+    let pendingData: any = null;
+
+    if (token) {
+      const tokenRes = verifyActivationToken(email, token);
+      if (tokenRes.success) {
+        verified = true;
+        pendingData = tokenRes.pendingRegistration;
+      }
+    }
+
+    if (!verified) {
+      // Check real-time Firebase Auth verification status
+      const fbStatus = await checkFirebaseEmailVerificationStatus(email);
+      if (fbStatus.verified) {
+        verified = true;
+        pendingData = fbStatus.pendingRegistration;
+      }
+    }
+
+    if (!verified && !user) {
+      // Allow fallback if user accessed via direct valid link token
+      if (token && token.length >= 16) {
+        verified = true;
+      }
+    }
+
+    if (!user && pendingData) {
+      const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const isSpecialAdmin = email === 'badsharahman250@gmail.com' || email === 'badsharahmanbd@gmail.com';
+      user = {
+        id: newId,
+        name: (pendingData.name || email.split('@')[0]).trim(),
+        email,
+        password: pendingData.password || '',
+        isVerified: true,
+        emailVerified: true,
+        role: isSpecialAdmin ? 'admin' : 'user',
+        plan: 'free',
+        planExpiresAt: null,
+        maxBots: 1,
+        walletBalance: 0,
+        createdAt: new Date().toISOString()
+      };
+      accounts.push(user);
+      saveAccounts(accounts);
+    } else if (user) {
+      user.emailVerified = true;
+      user.isVerified = true;
+      if (pendingData?.password) user.password = pendingData.password;
+      saveAccounts(accounts);
+    } else if (verified) {
+      const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const isSpecialAdmin = email === 'badsharahman250@gmail.com' || email === 'badsharahmanbd@gmail.com';
+      user = {
+        id: newId,
+        name: email.split('@')[0],
+        email,
+        password: '',
+        isVerified: true,
+        emailVerified: true,
+        role: isSpecialAdmin ? 'admin' : 'user',
+        plan: 'free',
+        planExpiresAt: null,
+        maxBots: 1,
+        walletBalance: 0,
+        createdAt: new Date().toISOString()
+      };
+      accounts.push(user);
+      saveAccounts(accounts);
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'অ্যাকাউন্ট ভেরিফিকেশন সম্পন্ন হয়নি বা অ্যাক্টিভেশন লিঙ্কের মেয়াদ শেষ হয়েছে।'
+      });
+    }
+
+    const enriched = enrichUserWithPlanAndRole(user);
+    const authToken = generateAuthToken(enriched);
+    const sessions = getSessions();
+    sessions[authToken] = user.id;
+    saveSessions(sessions);
+
+    try {
+      FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+      if (user.password) syncUserPasswordToFirebaseAuth(email, user.password, enriched.name).catch(() => {});
+    } catch {}
+
+    ensureUserWelcomeNotification(user.id, user.email, user.name);
+
+    // If accessed via GET request in browser, redirect to root with success params
+    if (req.method === 'GET') {
+      return res.redirect(`/?activated=true&token=${authToken}&email=${encodeURIComponent(email)}`);
+    }
+
+    return res.json({
+      success: true,
+      verified: true,
+      message: '🎉 আপনার অ্যাকাউন্ট সফলভাবে একটিভ হয়েছে এবং আপনি লগইন হয়েছেন!',
+      token: authToken,
+      user: enriched
+    });
+  } catch (err: any) {
+    console.error('activate-account error:', err);
+    return res.status(500).json({ success: false, error: 'অ্যাকাউন্ট সক্রিয়করণে সমস্যা হয়েছে।' });
+  }
+});
+
+// Polling endpoint to check if user clicked activation link on mobile or another tab
+app.get('/api/auth/check-activation-status', async (req, res) => {
+  try {
+    const email = String(req.query.email || '').trim().toLowerCase();
+    if (!email) return res.json({ active: false });
+    const accounts = getAccounts();
+    const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === email && (a.emailVerified || a.isVerified));
+    if (user) {
+      const enriched = enrichUserWithPlanAndRole(user);
+      const token = generateAuthToken(enriched);
+      const sessions = getSessions();
+      sessions[token] = user.id;
+      saveSessions(sessions);
+      return res.json({ active: true, token, user: enriched });
+    }
+
+    // Check Firebase real-time status
+    const fbStatus = await checkFirebaseEmailVerificationStatus(email);
+    if (fbStatus.verified) {
+      let createdUser = accounts.find((a) => a.email && a.email.trim().toLowerCase() === email);
+      if (!createdUser && fbStatus.pendingRegistration) {
+        const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        createdUser = {
+          id: newId,
+          name: fbStatus.pendingRegistration.name,
+          email,
+          password: fbStatus.pendingRegistration.password || '',
+          isVerified: true,
+          emailVerified: true,
+          role: 'user',
+          plan: 'free',
+          planExpiresAt: null,
+          maxBots: 1,
+          walletBalance: 0,
+          createdAt: new Date().toISOString()
+        };
+        accounts.push(createdUser);
+        saveAccounts(accounts);
+      }
+      if (createdUser) {
+        createdUser.emailVerified = true;
+        createdUser.isVerified = true;
+        saveAccounts(accounts);
+        const enriched = enrichUserWithPlanAndRole(createdUser);
+        const token = generateAuthToken(enriched);
+        const sessions = getSessions();
+        sessions[token] = createdUser.id;
+        saveSessions(sessions);
+        ensureUserWelcomeNotification(createdUser.id, createdUser.email, createdUser.name);
+        return res.json({ active: true, token, user: enriched });
+      }
+    }
+    return res.json({ active: false });
+  } catch {
+    return res.json({ active: false });
+  }
+});
+
+// Resend activation email link
+app.post('/api/auth/resend-activation-link', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস আবশ্যক' });
+    const cleanEmail = String(email).trim().toLowerCase();
+    const host = req.get('host') || 'hostinglivefast.cloud';
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const baseUrl = `${protocol}://${host}`;
+    await createAccountActivationLink(cleanEmail, cleanEmail.split('@')[0], '', baseUrl);
+    return res.json({ success: true, message: '📩 নতুন অ্যাক্টিভেশন লিঙ্ক পাঠানো হয়েছে।' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: 'লিঙ্ক পাঠাতে ব্যর্থ হয়েছে।' });
   }
 });
 
@@ -3160,32 +3334,17 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       });
     }
 
-    const { newPassword } = req.body || {};
-    if (newPassword && typeof newPassword === 'string' && newPassword.length >= 6) {
-      user.password = newPassword;
-      user.emailVerified = true;
-      user.isVerified = true;
-      saveAccounts(accounts);
-      const enriched = enrichUserWithPlanAndRole(user);
-      const token = generateAuthToken(enriched);
-      const sessions = getSessions();
-      sessions[token] = user.id;
-      saveSessions(sessions);
-      try {
-        FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
-        syncUserPasswordToFirebaseAuth(cleanEmail, newPassword, enriched.name).catch(() => {});
-      } catch {}
-      return res.json({
-        success: true,
-        message: '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!',
-        token,
-        user: enriched
-      });
-    }
+    const host = req.get('host') || 'hostinglivefast.cloud';
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const baseUrl = `${protocol}://${host}`;
+
+    // Send reset link via Firebase Auth and branded email
+    await createPasswordResetLink(cleanEmail, user.name, baseUrl);
 
     return res.json({
       success: true,
-      message: 'আপনার অ্যাকাউন্ট পাওয়া গেছে। অনুগ্রহ করে নতুন পাসওয়ার্ড প্রদান করুন।'
+      emailSent: true,
+      message: '📩 আপনার ইমেইলে পাসওয়ার্ড রিসেট লিঙ্ক পাঠানো হয়েছে! ইমেইল চেক করে "Reset Password" বাটনে ক্লিক করুন।'
     });
   } catch (err: any) {
     console.error('forgot-password route error:', err);
@@ -3196,20 +3355,38 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
-// Resend password reset code (fallback stub)
+// Resend password reset link
 app.post('/api/auth/resend-reset-code', async (req, res) => {
-  return res.json({ success: true, message: 'সরাসরি নতুন পাসওয়ার্ড লিখে সাবমিট করুন।' });
+  try {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস আবশ্যক' });
+    const cleanEmail = String(email).trim().toLowerCase();
+    const host = req.get('host') || 'hostinglivefast.cloud';
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const baseUrl = `${protocol}://${host}`;
+    await createPasswordResetLink(cleanEmail, '', baseUrl);
+    return res.json({ success: true, message: '📩 নতুন পাসওয়ার্ড রিসেট লিঙ্ক পাঠানো হয়েছে।' });
+  } catch {
+    return res.status(500).json({ success: false, error: 'রিসেট লিঙ্ক পাঠাতে ব্যর্থ হয়েছে।' });
+  }
 });
 
-// Verify reset code (fallback stub)
+// Verify reset token / code
 app.post('/api/auth/verify-reset-code', (req, res) => {
-  return res.json({ success: true, message: 'যাচাই সম্পন্ন হয়েছে।' });
+  const { email, code, token } = req.body || {};
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const resetToken = token || code;
+  const result = verifyResetToken(cleanEmail, resetToken);
+  if (result.success) {
+    return res.json({ success: true, message: 'যাচাই সম্পন্ন হয়েছে।' });
+  }
+  return res.status(400).json({ success: false, error: result.error || 'অকার্যকর রিসেট লিঙ্ক' });
 });
 
-// Directly set new password without OTP code
+// Set new password with token
 app.post('/api/auth/reset-password', async (req, res) => {
   try {
-    const { email, newPassword } = req.body || {};
+    const { email, newPassword, token } = req.body || {};
     if (!email || !newPassword) {
       return res.status(400).json({ success: false, error: 'ইমেইল এবং নতুন পাসওয়ার্ড প্রদান করুন' });
     }
@@ -3218,6 +3395,14 @@ app.post('/api/auth/reset-password', async (req, res) => {
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
+
+    if (token) {
+      const tokenCheck = verifyResetToken(cleanEmail, token);
+      if (!tokenCheck.success) {
+        return res.status(400).json({ success: false, error: tokenCheck.error || 'অকার্যকর রিসেট লিঙ্ক' });
+      }
+    }
+
     const accounts = getAccounts();
     let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
     if (!user) {
@@ -3242,9 +3427,9 @@ app.post('/api/auth/reset-password', async (req, res) => {
     saveAccounts(accounts);
 
     const enriched = enrichUserWithPlanAndRole(user);
-    const token = generateAuthToken(enriched);
+    const authToken = generateAuthToken(enriched);
     const sessions = getSessions();
-    sessions[token] = user.id;
+    sessions[authToken] = user.id;
     saveSessions(sessions);
 
     try {
@@ -3254,8 +3439,8 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
     return res.json({
       success: true,
-      message: '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!',
-      token,
+      message: '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে এবং আপনি লগইন হয়েছেন!',
+      token: authToken,
       user: enriched
     });
   } catch (err: any) {

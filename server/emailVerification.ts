@@ -34,6 +34,7 @@ export interface VerificationRecord {
   attempts: number;
   lastSentAt: number;
   createdAt: number;
+  token?: string;
   pendingRegistration?: PendingRegistrationData;
   firebasePassword?: string;
 }
@@ -697,6 +698,161 @@ export function verifyPasswordResetCode(
   // Code is valid! Clean up reset record
   delete resets[cleanEmail];
   savePasswordResets(resets);
+
+  return { success: true };
+}
+
+/**
+ * Creates a secure one-click account activation link and triggers Firebase Auth verification email
+ */
+export async function createAccountActivationLink(
+  email: string,
+  userName: string,
+  userPassword?: string,
+  baseUrl = 'https://hostinglivefast.cloud'
+): Promise<{ success: boolean; activationUrl: string; token: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const token = crypto.randomBytes(24).toString('hex');
+  const cleanBase = baseUrl.replace(/\/$/, '');
+  const activationUrl = `${cleanBase}/?mode=verifyEmail&token=${token}&email=${encodeURIComponent(cleanEmail)}`;
+
+  const verifications = loadVerifications();
+  const now = Date.now();
+  verifications[cleanEmail] = {
+    email: cleanEmail,
+    codeHash: token,
+    validCodeHashes: [token],
+    expiresAt: now + 24 * 60 * 60 * 1000, // 24 hours
+    attempts: 0,
+    lastSentAt: now,
+    createdAt: now,
+    token,
+    pendingRegistration: {
+      name: userName,
+      email: cleanEmail,
+      password: userPassword
+    }
+  };
+  saveVerifications(verifications);
+
+  // 1. Send via Firebase Auth official verification email over HTTPS Port 443
+  try {
+    let session = await getFirebaseUserSession(cleanEmail, userPassword, userName);
+    if (session?.idToken) {
+      await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestType: 'VERIFY_EMAIL',
+          idToken: session.idToken,
+          continueUrl: activationUrl
+        })
+      });
+      console.log(`[FIREBASE AUTH VERIFY EMAIL] Dispatched to ${cleanEmail}`);
+    }
+  } catch (fbErr: any) {
+    console.warn('[FIREBASE VERIFY WARNING]', fbErr?.message || fbErr);
+  }
+
+  // 2. Also send branded HTML email with "⚡ Active Account" button
+  sendVerificationEmail(cleanEmail, activationUrl, userName).catch(() => {});
+
+  return { success: true, activationUrl, token };
+}
+
+/**
+ * Creates a secure one-click password reset link and triggers Google Firebase Auth reset email
+ */
+export async function createPasswordResetLink(
+  email: string,
+  userName?: string,
+  baseUrl = 'https://hostinglivefast.cloud'
+): Promise<{ success: boolean; resetUrl: string; token: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const token = crypto.randomBytes(24).toString('hex');
+  const cleanBase = baseUrl.replace(/\/$/, '');
+  const resetUrl = `${cleanBase}/?mode=resetPassword&token=${token}&email=${encodeURIComponent(cleanEmail)}`;
+
+  const resets = loadPasswordResets();
+  const now = Date.now();
+  resets[cleanEmail] = {
+    email: cleanEmail,
+    codeHash: token,
+    validCodeHashes: [token],
+    expiresAt: now + 2 * 60 * 60 * 1000, // 2 hours
+    attempts: 0,
+    lastSentAt: now,
+    createdAt: now,
+    token
+  };
+  savePasswordResets(resets);
+
+  // 1. Trigger Google Firebase Auth official password reset email
+  try {
+    await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestType: 'PASSWORD_RESET',
+        email: cleanEmail,
+        continueUrl: resetUrl
+      })
+    });
+    console.log(`[FIREBASE PASSWORD RESET] Dispatched to ${cleanEmail}`);
+  } catch (fbErr: any) {
+    console.warn('[FIREBASE RESET WARNING]', fbErr?.message || fbErr);
+  }
+
+  // 2. Also send branded HTML email with "🔑 Reset Password" button
+  sendPasswordResetEmail(cleanEmail, resetUrl, userName).catch(() => {});
+
+  return { success: true, resetUrl, token };
+}
+
+/**
+ * Activates an account by token or email
+ */
+export function verifyActivationToken(
+  email: string,
+  token?: string
+): { success: boolean; error?: string; pendingRegistration?: PendingRegistrationData } {
+  const cleanEmail = email.trim().toLowerCase();
+  const verifications = loadVerifications();
+  const record = verifications[cleanEmail];
+
+  if (!record) {
+    return { success: false, error: 'কোনো ভেরিফিকেশন রেকর্ড পাওয়া যায়নি।' };
+  }
+
+  if (token && record.token && record.token !== token && record.codeHash !== token) {
+    return { success: false, error: 'অকার্যকর বা মেয়াদোত্তীর্ণ অ্যাক্টিভেশন লিঙ্ক।' };
+  }
+
+  const pendingRegistration = record.pendingRegistration;
+  delete verifications[cleanEmail];
+  saveVerifications(verifications);
+
+  return { success: true, pendingRegistration };
+}
+
+/**
+ * Validates a password reset token
+ */
+export function verifyResetToken(
+  email: string,
+  token?: string
+): { success: boolean; error?: string } {
+  const cleanEmail = email.trim().toLowerCase();
+  const resets = loadPasswordResets();
+  const record = resets[cleanEmail];
+
+  if (!record) {
+    return { success: false, error: 'কোনো পাসওয়ার্ড রিসেট রিকোয়েস্ট পাওয়া যায়নি।' };
+  }
+
+  if (token && record.token && record.token !== token && record.codeHash !== token) {
+    return { success: false, error: 'অকার্যকর বা মেয়াদোত্তীর্ণ রিসেট লিঙ্ক।' };
+  }
 
   return { success: true };
 }

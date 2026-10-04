@@ -13,7 +13,7 @@ import { BotList } from './components/BotList';
 import { LiveConsole } from './components/LiveConsole';
 import { NewBotModal } from './components/NewBotModal';
 import { SettingsModal } from './components/SettingsModal';
-import { AuthModal } from './components/AuthModal';
+import { AuthModal, AuthMode } from './components/AuthModal';
 import { TokenCheckModal } from './components/TokenCheckModal';
 import { SafeUploadModal } from './components/SafeUploadModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
@@ -319,8 +319,14 @@ export default function App() {
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalKey, setAuthModalKey] = useState(0);
+  const [authModalMode, setAuthModalMode] = useState<AuthMode>('login');
+  const [authModalEmail, setAuthModalEmail] = useState('');
+  const [authModalResetToken, setAuthModalResetToken] = useState('');
 
-  const openAuthModal = () => {
+  const openAuthModal = (targetMode: AuthMode = 'login', targetEmail = '') => {
+    setAuthModalMode(targetMode);
+    setAuthModalEmail(targetEmail);
+    setAuthModalResetToken('');
     setAuthModalKey((prev) => prev + 1);
     setShowAuthModal(true);
   };
@@ -467,6 +473,75 @@ export default function App() {
       window.removeEventListener('popstate', checkAdminRoute);
     };
   }, [currentUser, isAdmin, lang]);
+
+  // Handle Email Action Links (?mode=verifyEmail, ?mode=resetPassword, ?token=...)
+  useEffect(() => {
+    const handleEmailActions = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const mode = params.get('mode');
+        const token = params.get('token') || '';
+        const email = params.get('email') || '';
+        const oobCode = params.get('oobCode') || '';
+        const isActivated = params.get('activated') === 'true';
+
+        // 1. Activate Account Link Clicked
+        if (mode === 'verifyEmail' || isActivated) {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('mode');
+          cleanUrl.searchParams.delete('token');
+          cleanUrl.searchParams.delete('email');
+          cleanUrl.searchParams.delete('oobCode');
+          cleanUrl.searchParams.delete('apiKey');
+          cleanUrl.searchParams.delete('activated');
+          window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+
+          try {
+            const res = await fetch('/api/auth/activate-account', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, token, oobCode })
+            });
+            const data = await res.json();
+            if (data && data.success && data.token && data.user) {
+              localStorage.setItem('bot_auth_token', data.token);
+              localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+              setCurrentUser(data.user);
+              setShowAuthModal(false);
+              setToastMessage(
+                lang === 'bn'
+                  ? `🎉 অভিনন্দন! আপনার অ্যাকাউন্ট সফলভাবে একটিভ হয়েছে!`
+                  : `🎉 Congratulations! Your account has been activated!`
+              );
+              setShowNotificationsModal(true);
+              fetchBots();
+            } else {
+              setToastMessage(data?.error || (lang === 'bn' ? 'অ্যাকাউন্ট সক্রিয়করণ সম্পন্ন হয়নি।' : 'Activation incomplete.'));
+            }
+          } catch {}
+        }
+
+        // 2. Reset Password Link Clicked
+        if (mode === 'resetPassword') {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('mode');
+          cleanUrl.searchParams.delete('token');
+          cleanUrl.searchParams.delete('email');
+          cleanUrl.searchParams.delete('oobCode');
+          cleanUrl.searchParams.delete('apiKey');
+          window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+
+          setAuthModalMode('reset');
+          setAuthModalEmail(email);
+          setAuthModalResetToken(token || oobCode || '');
+          setAuthModalKey((prev) => prev + 1);
+          setShowAuthModal(true);
+        }
+      } catch {}
+    };
+
+    handleEmailActions();
+  }, [lang]);
 
   const fetchBots = async () => {
     try {
@@ -1024,6 +1099,9 @@ export default function App() {
         key={`auth-modal-${authModalKey}`}
         isOpen={showAuthModal}
         canDismiss={true}
+        initialMode={authModalMode}
+        initialEmail={authModalEmail}
+        resetToken={authModalResetToken}
         onClose={() => setShowAuthModal(false)}
         onSuccess={(user) => {
           setCurrentUser(user);

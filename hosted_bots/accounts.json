@@ -17,7 +17,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-26T23:16:07.898Z",
-    "updatedAt": 1790974844763
+    "updatedAt": 1791112295228
   },
   {
     "id": "user_1790454329125_a498",
@@ -68,7 +68,7 @@
     "id": "user_1790505060123_bmdw",
     "name": "badsharahmanbd",
     "email": "badsharahmanbd@gmail.com",
-    "password": "111111",
+    "password": "123456",
     "role": "admin",
     "plan": "free",
     "maxBots": 999,
@@ -140,7 +140,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-30T09:17:28.940Z",
-    "updatedAt": 1790974854262
+    "updatedAt": 1791112298924
   },
   {
     "id": "user_1790765588049_6j2k",
@@ -159,7 +159,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-30T10:53:08.049Z",
-    "updatedAt": 1790974854961
+    "updatedAt": 1791112299678
   },
   {
     "id": "user_1790845355808_111g",
@@ -178,7 +178,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-10-01T09:02:35.808Z",
-    "updatedAt": 1790974855662
+    "updatedAt": 1791112300243
   },
   {
     "id": "user_1790852731315_949h",
@@ -201,7 +201,7 @@
     "hasClaimedFreeTrial": true,
     "hasClaimedFreePlan": true,
     "freeTrialClaimedAt": "2026-10-01T11:06:29.611Z",
-    "updatedAt": 1790974856262
+    "updatedAt": 1791112300808
   },
   {
     "id": "user_1790862356523_50q8",
@@ -218,10 +218,10 @@
     "balanceUsd": 0,
     "isVerified": true,
     "emailVerified": true,
-    "avatar": "",
-    "googleId": "",
+    "avatar": "https://lh3.googleusercontent.com/a/ACg8ocIcpJKUF-8WpIDkdutEJeQPt5pr0Rf4rpDVJpFk9TG8--0jkw=s96-c",
+    "googleId": "vUpNYuLg9nNQK303FpLeh1MJt2W2",
     "createdAt": "2026-10-01T13:45:56.523Z",
-    "updatedAt": 1790974856862
+    "updatedAt": 1791112301367
   },
   {
     "id": "user_1790881062641_adna",
@@ -258,7 +258,7 @@
     "balanceUsd": 0,
     "maxWebsites": 2,
     "maxStorageMb": 50,
-    "updatedAt": 1790974859062
+    "updatedAt": 1791112302334
   },
   {
     "id": "user_1790945888293_z8ta",
@@ -277,7 +277,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-10-02T12:58:08.293Z",
-    "updatedAt": 1790974859660
+    "updatedAt": 1791112302883
   },
   {
     "id": "user_1790945908265_prhpi",
@@ -338,7 +338,7 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-10-02T13:05:08.178Z",
-    "updatedAt": 1790974862260
+    "updatedAt": 1791112304545
   },
   {
     "id": "user_1790971859180_9cmau",
@@ -355,6 +355,86 @@
     "balanceUsd": 0,
     "maxWebsites": 999,
     "maxStorageMb": 500,
-    "updatedAt": 1790974862962
+    "updatedAt": 1791112305074
+  },
+  {
+    "id": "user_1790976020096_rgso",
+    "name": "Badsha Rahman",
+    "email": "badsha30k@gmail.com",
+    "password": "123456",
+    "role": "user",
+    "plan": "free_trial_1m",
+    "maxBots": 999,
+    "maxWebsites": 999,
+    "maxStorageMb": 100,
+    "planExpiresAt": 1848432508795,
+    "balanceBdt": 0,
+    "balanceUsd": 474.55,
+    "isVerified": true,
+    "emailVerified": true,
+    "avatar": "/api/store/thumbnails/avatar_user_1790976020096_rgso_1790976689916_avatar_user_1790976020096_rgso_1790976688673.jpg",
+    "googleId": "",
+    "createdAt": "2026-10-02T21:20:20.096Z",
+    "updatedAt": 1791067550619,
+    "hasClaimedFreeTrial": true,
+    "hasClaimedFreePlan": true,
+    "freeTrialClaimedAt": "2026-10-02T21:28:42.543Z"
+  },
+  {
+    "id": "user_1790975825380_ql15",
+    "name": "Test Direct User",
+    "email": "testdirectuser2026@gmail.com",
+    "password": "testpassword123",
+    "role": "user",
+    "plan": "free",
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "isVerified": true,
+    "emailVerified": true,
+    "avatar": "",
+    "googleId": "",
+    "createdAt": "2026-10-02T21:17:05.380Z",
+    "updatedAt": 1791067550993
+  },
+  {
+    "id": "user_1790977406966_dr3p",
+    "name": "Toyobur",
+    "email": "toyoburrahman7777@gmail.com",
+    "password": "123456",
+    "role": "user",
+    "plan": "free",
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "balanceBdt": 0,
+    "balanceUsd": 500,
+    "isVerified": true,
+    "emailVerified": true,
+    "avatar": "https://lh3.googleusercontent.com/a/ACg8ocLvANgNrkkgW58tAm0_NV7Xbs08JU5kdHozaNce9bu3rKL0sQ=s96-c",
+    "googleId": "nqJzJfbcUAeCYBLs37Zt32mhKSG2",
+    "createdAt": "2026-10-02T21:43:26.966Z",
+    "updatedAt": 1791067551325
+  },
+  {
+    "id": "user_1791027113148_u7zp",
+    "name": "Bangladesh",
+    "email": "mdbadsharahman30k@gmail.com",
+    "password": "123456",
+    "role": "user",
+    "plan": "free",
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "isVerified": true,
+    "emailVerified": true,
+    "avatar": "",
+    "googleId": "",
+    "createdAt": "2026-10-03T11:31:53.148Z",
+    "updatedAt": 1791067551700
   }
 ]

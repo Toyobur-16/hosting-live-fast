@@ -12,12 +12,15 @@ import {
   RefreshCw,
   KeyRound,
   Gift,
-  ArrowLeft
+  ArrowLeft,
+  Sparkles,
+  Send,
+  ExternalLink
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { auth, fallbackAuth, googleProvider, signInWithPopup, firebaseAppletConfig } from '../lib/firebase';
 
-export type AuthMode = 'login' | 'register' | 'reset';
+export type AuthMode = 'login' | 'register' | 'forgot' | 'reset' | 'activation_pending';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -27,6 +30,7 @@ interface AuthModalProps {
   lang?: 'bn' | 'en';
   initialEmail?: string;
   initialMode?: AuthMode;
+  resetToken?: string;
 }
 
 async function safeJsonParse(res: Response): Promise<any> {
@@ -46,9 +50,10 @@ export const AuthModal = ({
   canDismiss = false,
   lang = 'bn',
   initialEmail = '',
-  initialMode = 'login'
+  initialMode = 'login',
+  resetToken = ''
 }: AuthModalProps) => {
-  const [mode, setMode] = useState<AuthMode>(initialMode === 'reset' ? 'reset' : (initialMode || 'login'));
+  const [mode, setMode] = useState<AuthMode>(initialMode || 'login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -60,6 +65,7 @@ export const AuthModal = ({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showGoogleInput, setShowGoogleInput] = useState(false);
   const [googleEmail, setGoogleEmail] = useState('');
@@ -70,14 +76,6 @@ export const AuthModal = ({
 
   const resetAllState = (targetMode: AuthMode) => {
     setMode(targetMode);
-    setName('');
-    setEmail(initialEmail || '');
-    setPassword('');
-    setConfirmPassword('');
-    setNewPassword('');
-    setConfirmNewPassword('');
-    setShowPassword(false);
-    setShowConfirmPassword(false);
     setError(null);
     setSuccessMessage(null);
     setLoading(false);
@@ -85,14 +83,36 @@ export const AuthModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      setMode(initialMode === 'reset' ? 'reset' : (initialMode || 'login'));
-      setEmail(initialEmail || '');
+      setMode(initialMode || 'login');
+      if (initialEmail) setEmail(initialEmail);
       setError(null);
       setSuccessMessage(null);
     }
   }, [isOpen, initialEmail, initialMode]);
 
-  // Handle Login & Direct Registration Submit
+  // Polling for email activation status while in 'activation_pending' mode
+  useEffect(() => {
+    if (!isOpen || mode !== 'activation_pending' || !email) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/auth/check-activation-status?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+        if (res.ok) {
+          const data = await safeJsonParse(res);
+          if (data && data.active && data.token && data.user) {
+            localStorage.setItem('bot_auth_token', data.token);
+            localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+            onSuccess(data.user, data.token);
+            if (onClose) onClose();
+          }
+        }
+      } catch {}
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [isOpen, mode, email, onSuccess, onClose]);
+
+  // Handle Login & Registration Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -130,11 +150,7 @@ export const AuthModal = ({
         }
       } catch (err: any) {
         const msg = err?.message || '';
-        if (msg.includes('Unexpected token') || msg.includes('<!DOCTYPE') || msg.includes('is not valid JSON')) {
-          setError(lang === 'bn' ? 'সার্ভার সংযোগে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' : 'Network connection issue. Please try again.');
-        } else {
-          setError(msg || (lang === 'bn' ? 'লগইন ব্যর্থ হয়েছে' : 'Login failed'));
-        }
+        setError(msg || (lang === 'bn' ? 'লগইন ব্যর্থ হয়েছে' : 'Login failed'));
       } finally {
         setLoading(false);
       }
@@ -174,17 +190,21 @@ export const AuthModal = ({
           return;
         }
         if (!res.ok || (data && !data.success)) {
-          throw new Error(data?.error || (lang === 'bn' ? 'অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে' : 'Registration failed'));
+          throw new Error(data?.error || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
         }
 
-        if (data?.token && data?.user) {
+        if (data?.requiresActivation) {
+          setMode('activation_pending');
+          setSuccessMessage(
+            data.message || (lang === 'bn'
+              ? '📩 আপনার ইমেইলে একটি একাউন্ট একটিভেশন লিঙ্ক পাঠানো হয়েছে!'
+              : '📩 Activation link sent to your email!')
+          );
+        } else if (data?.token && data?.user) {
           localStorage.setItem('bot_auth_token', data.token);
           localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
           onSuccess(data.user, data.token);
           if (onClose) onClose();
-        } else {
-          setMode('login');
-          setSuccessMessage(lang === 'bn' ? '🎉 অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে! এখন লগইন করুন।' : 'Account created successfully! Please sign in.');
         }
       } catch (err: any) {
         setError(err?.message || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
@@ -195,7 +215,43 @@ export const AuthModal = ({
     }
   };
 
-  // Handle Direct Password Reset Submit without code
+  // Handle Forgot Password Submit (Request Reset Link)
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setError(lang === 'bn' ? 'সঠিক ইমেইল এড্রেস লিখুন' : 'Please enter a valid email address');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail })
+      });
+      const data = await safeJsonParse(res);
+      if (!res.ok || (data && !data.success)) {
+        throw new Error(data?.error || (lang === 'bn' ? 'রিসেট লিঙ্ক পাঠাতে ব্যর্থ হয়েছে' : 'Failed to send reset link'));
+      }
+
+      setSuccessMessage(
+        data?.message || (lang === 'bn'
+          ? '📩 আপনার ইমেইলে পাসওয়ার্ড রিসেট লিঙ্ক পাঠানো হয়েছে! ইমেইল চেক করে "Reset Password" বাটনে ক্লিক করুন।'
+          : '📩 Password reset link sent to your email! Please check your inbox.')
+      );
+    } catch (err: any) {
+      setError(err?.message || (lang === 'bn' ? 'রিসেট লিঙ্ক পাঠাতে সমস্যা হয়েছে' : 'Failed to send reset link'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Password Reset Submit
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -221,7 +277,11 @@ export const AuthModal = ({
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, newPassword })
+        body: JSON.stringify({
+          email: cleanEmail,
+          newPassword,
+          token: resetToken
+        })
       });
       const data = await safeJsonParse(res);
       if (!res.ok || (data && !data.success)) {
@@ -236,7 +296,7 @@ export const AuthModal = ({
       } else {
         setMode('login');
         setPassword('');
-        setSuccessMessage(lang === 'bn' ? '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে! এখন লগইন করুন।' : 'Password changed! Please log in.');
+        setSuccessMessage(lang === 'bn' ? '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে! এখন লগইন করুন।' : 'Password changed! Please sign in.');
       }
     } catch (err: any) {
       setError(err?.message || (lang === 'bn' ? 'পাসওয়ার্ড সংরক্ষণে ত্রুটি হয়েছে' : 'Failed to reset password'));
@@ -245,96 +305,45 @@ export const AuthModal = ({
     }
   };
 
-  // Google Identity Services (GSI) One-Tap / Credential listener
-  useEffect(() => {
-    if (!isOpen) return;
-    try {
-      if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
-        (window as any).google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: async (response: any) => {
-            if (response && response.credential) {
-              setGoogleLoading(true);
-              setError(null);
-              try {
-                const res = await fetch('/api/auth/google', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ credential: response.credential })
-                });
-                const data = await safeJsonParse(res);
-                if (res.ok && data?.success && data?.token && data?.user) {
-                  localStorage.setItem('bot_auth_token', data.token);
-                  localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
-                  onSuccess(data.user, data.token);
-                  if (onClose) onClose();
-                } else {
-                  throw new Error(data?.error || 'Google authentication failed');
-                }
-              } catch (err: any) {
-                setError(err?.message || 'Google authentication failed');
-              } finally {
-                setGoogleLoading(false);
-              }
-            }
-          }
-        });
-      }
-    } catch {}
-  }, [isOpen, GOOGLE_CLIENT_ID, onSuccess, onClose]);
-
-  const handleAuthenticateWithGoogleEmail = async (targetEmail: string) => {
-    if (!targetEmail || !targetEmail.includes('@')) {
-      setError(lang === 'bn' ? 'সঠিক গুগল ইমেইল এড্রেস লিখুন' : 'Please enter a valid Google email address');
-      return;
-    }
-    setGoogleLoading(true);
+  // Handle Resending Activation Link
+  const handleResendActivationLink = async () => {
+    setResending(true);
     setError(null);
     try {
-      const cleanTarget = targetEmail.trim().toLowerCase();
-      const res = await fetch('/api/auth/google', {
+      const res = await fetch('/api/auth/resend-activation-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: cleanTarget,
-          name: cleanTarget.split('@')[0],
-          googleId: `google_${cleanTarget.replace(/[^a-zA-Z0-9]/g, '_')}`,
-          userInfo: { email: cleanTarget, name: cleanTarget.split('@')[0] }
-        })
+        body: JSON.stringify({ email: email.trim().toLowerCase() })
       });
       const data = await safeJsonParse(res);
-      if (res.ok && data?.success && data?.token && data?.user) {
-        localStorage.setItem('bot_auth_token', data.token);
-        localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
-        onSuccess(data.user, data.token);
-        if (onClose) onClose();
+      if (res.ok && data?.success) {
+        setSuccessMessage(lang === 'bn' ? '✅ নতুন অ্যাক্টিভেশন লিঙ্ক আপনার ইমেইলে পাঠানো হয়েছে।' : '✅ New activation link sent to your email.');
       } else {
-        throw new Error(data?.error || (lang === 'bn' ? 'গুগল সাইন-ইন সম্পন্ন হয়নি' : 'Google sign-in failed'));
+        throw new Error(data?.error || 'Failed to resend');
       }
     } catch (err: any) {
-      setError(err?.message || (lang === 'bn' ? 'গুগল সংযোগে ত্রুটি হয়েছে' : 'Google sign-in error'));
+      setError(err?.message || (lang === 'bn' ? 'লিঙ্ক পাঠাতে ব্যর্থ হয়েছে' : 'Failed to resend link'));
     } finally {
-      setGoogleLoading(false);
+      setResending(false);
     }
   };
 
+  // Google Sign-In with One-Tap / Popup
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError(null);
-    const prefilledEmail = (email || '').trim().toLowerCase();
     try {
       const activeAuth = auth || fallbackAuth;
       if (!activeAuth) {
-        if (prefilledEmail && prefilledEmail.includes('@')) {
-          await handleAuthenticateWithGoogleEmail(prefilledEmail);
-          return;
-        }
         setShowGoogleInput(true);
         setGoogleLoading(false);
         return;
       }
+
       const result = await signInWithPopup(activeAuth, googleProvider);
       const user = result.user;
+      if (!user) throw new Error('No user returned from Google popup');
+
       const idToken = await user.getIdToken();
       const res = await fetch('/api/auth/google', {
         method: 'POST',
@@ -342,14 +351,9 @@ export const AuthModal = ({
         body: JSON.stringify({
           credential: idToken,
           email: user.email,
-          name: user.displayName || user.email?.split('@')[0],
+          name: user.displayName,
           picture: user.photoURL,
-          googleId: user.uid,
-          userInfo: {
-            email: user.email,
-            name: user.displayName || user.email?.split('@')[0],
-            picture: user.photoURL
-          }
+          googleId: user.uid
         })
       });
       const data = await safeJsonParse(res);
@@ -358,21 +362,50 @@ export const AuthModal = ({
         localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
         onSuccess(data.user, data.token);
         if (onClose) onClose();
-        return;
       } else {
-        throw new Error(data?.error || 'Server rejected Google token');
+        throw new Error(data?.error || 'Google authentication failed');
       }
     } catch (err: any) {
-      if (prefilledEmail && prefilledEmail.includes('@')) {
-        await handleAuthenticateWithGoogleEmail(prefilledEmail);
-        return;
+      const errMsg = err?.message || '';
+      if (errMsg.includes('popup-blocked') || errMsg.includes('popup-closed-by-user') || errMsg.includes('network-request-failed')) {
+        setShowGoogleInput(true);
+      } else {
+        setError(errMsg || 'Google authentication failed');
       }
-      setShowGoogleInput(true);
-      setError(
-        lang === 'bn'
-          ? 'ব্রাউজার বা ডোমেইনে পপআপ সীমাবদ্ধতা থাকলে নিচে আপনার গুগল ইমেইল দিয়ে সহজে প্রবেশ করুন।'
-          : 'Popup restricted on this domain. Enter your Google email below to sign in.'
-      );
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleAuthenticateWithGoogleEmail = async (userProvidedEmail: string) => {
+    const cleanEmail = (userProvidedEmail || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setError(lang === 'bn' ? 'সঠিক গুগল ইমেইল এড্রেস লিখুন' : 'Please enter a valid Google email address');
+      return;
+    }
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          name: cleanEmail.split('@')[0],
+          googleId: `google_direct_${Date.now()}`
+        })
+      });
+      const data = await safeJsonParse(res);
+      if (res.ok && data?.success && data?.token && data?.user) {
+        localStorage.setItem('bot_auth_token', data.token);
+        localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+        onSuccess(data.user, data.token);
+        if (onClose) onClose();
+      } else {
+        throw new Error(data?.error || 'Google direct authentication failed');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Google direct sign in failed');
     } finally {
       setGoogleLoading(false);
     }
@@ -381,31 +414,194 @@ export const AuthModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-[#070b14] border border-[#1e293b] rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/80 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+      <div className="relative w-full max-w-md bg-[#070b14] border border-[#1e2d48] rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-32 bg-[#00d293]/15 rounded-full blur-3xl pointer-events-none" />
+
         {canDismiss && onClose && (
           <button
             onClick={onClose}
-            className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition-colors z-10 cursor-pointer"
+            className="absolute top-5 right-5 text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800/60 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         )}
 
-        {mode === 'reset' ? (
-          /* DIRECT PASSWORD RESET (NO OTP CODES) */
-          <div>
+        {/* 1. ACTIVATION PENDING VIEW (Check Your Email) */}
+        {mode === 'activation_pending' ? (
+          <div className="text-center py-2 animate-in fade-in">
+            <div className="relative w-18 h-18 mx-auto mb-4">
+              <div className="w-18 h-18 rounded-2xl bg-gradient-to-tr from-emerald-500/20 via-teal-500/20 to-cyan-500/20 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-[#00d293]">
+                <Mail className="w-9 h-9" />
+              </div>
+              <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#070b14]"></span>
+              </span>
+            </div>
+
+            <h2 className="text-xl font-bold text-white tracking-tight">
+              {lang === 'bn' ? 'ইমেইল চেক করুন (Check Email)' : 'Check Your Email'}
+            </h2>
+
+            <p className="text-xs text-slate-300 mt-2 leading-relaxed px-2">
+              {lang === 'bn' ? (
+                <>
+                  আমরা আপনার <strong className="text-emerald-400 font-semibold">{email}</strong> ইমেইলে একটি অ্যাকাউন্ট অ্যাক্টিভেশন লিঙ্ক পাঠিয়েছি।
+                </>
+              ) : (
+                <>
+                  We sent an activation link to <strong className="text-emerald-400 font-semibold">{email}</strong>.
+                </>
+              )}
+            </p>
+
+            <div className="my-5 p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl text-left space-y-2.5">
+              <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
+                <Sparkles className="w-4 h-4 shrink-0" />
+                <span>{lang === 'bn' ? 'অ্যাকাউন্ট চালু করার নিয়ম:' : 'How to Activate:'}</span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {lang === 'bn' ? (
+                  <>
+                    ১. আপনার জিমেইল / ইনবক্স খুলুন।<br />
+                    ২. ইমেইলে থাকা <strong className="text-emerald-300 font-bold">"Active Account"</strong> বাটনে ক্লিক করুন।<br />
+                    ৩. ক্লিক করার সাথে সাথে অ্যাকাউন্ট স্বয়ংক্রিয়ভাবে সক্রিয় হয়ে যাবে।
+                  </>
+                ) : (
+                  <>
+                    1. Open your inbox or Gmail.<br />
+                    2. Click the <strong className="text-emerald-300 font-bold">"Active Account"</strong> button inside.<br />
+                    3. Your account will instantly activate and log you in.
+                  </>
+                )}
+              </p>
+              <div className="pt-2 border-t border-emerald-500/20 flex items-center justify-between text-[11px] text-slate-400">
+                <span className="flex items-center gap-1.5 text-emerald-400/90 font-medium">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  {lang === 'bn' ? 'লিঙ্কে ক্লিক করার অপেক্ষায়...' : 'Waiting for activation...'}
+                </span>
+                <span className="text-[10px] text-slate-500">Auto-detects</span>
+              </div>
+            </div>
+
+            {successMessage && (
+              <div className="mb-4 p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{successMessage}</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="space-y-2 mt-4">
+              <button
+                type="button"
+                onClick={handleResendActivationLink}
+                disabled={resending}
+                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl text-slate-200 text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+              >
+                {resending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 text-emerald-400" />}
+                <span>{lang === 'bn' ? 'পুনরায় লিঙ্ক পাঠান (Resend Link)' : 'Resend Activation Link'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => resetAllState('login')}
+                className="w-full py-2 text-xs text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                {lang === 'bn' ? '← লগইনে ফিরে যান' : '← Back to Sign In'}
+              </button>
+            </div>
+          </div>
+        ) : mode === 'forgot' ? (
+          /* 2. FORGOT PASSWORD VIEW (Request Reset Link) */
+          <div className="animate-in fade-in">
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-500/20 to-indigo-500/20 border border-blue-500/30 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-blue-500/10 text-blue-400">
+                <KeyRound className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl font-bold text-white tracking-tight">
+                {lang === 'bn' ? 'পাসওয়ার্ড রিসেট লিঙ্ক' : 'Reset Password'}
+              </h2>
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                {lang === 'bn'
+                  ? 'আপনার নিবন্ধিত ইমেইল লিখুন। আপনার ইমেইলে রিসেট লিঙ্ক পাঠানো হবে:'
+                  : 'Enter your email to receive a password reset link:'}
+              </p>
+            </div>
+
+            {successMessage && (
+              <div className="mb-4 p-3.5 bg-blue-950/50 border border-blue-500/40 rounded-xl text-blue-200 text-xs flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-white">{lang === 'bn' ? 'ইমেইল পাঠানো হয়েছে!' : 'Email Sent!'}</p>
+                  <p className="leading-relaxed">{successMessage}</p>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-rose-300 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                <span className="flex-1">{error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleForgotPasswordSubmit} className="space-y-3.5">
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={lang === 'bn' ? 'আপনার নিবন্ধিত ইমেইল এড্রেস' : 'Your Registered Email'}
+                  className="w-full bg-[#0b1220] border border-[#1f2d48] focus:border-blue-500 rounded-xl text-white placeholder-slate-500 py-3 pl-10 pr-4 text-xs focus:outline-none transition-all"
+                  autoComplete="email"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
+              >
+                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <span>{lang === 'bn' ? 'রিসেট লিঙ্ক পাঠান (Send Reset Link)' : 'Send Reset Link'}</span>
+              </button>
+            </form>
+
+            <div className="text-center mt-5">
+              <button
+                type="button"
+                onClick={() => resetAllState('login')}
+                className="text-xs text-slate-400 hover:text-white transition flex items-center justify-center gap-1 mx-auto cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>{lang === 'bn' ? 'লগইনে ফিরে যান' : 'Back to Sign In'}</span>
+              </button>
+            </div>
+          </div>
+        ) : mode === 'reset' ? (
+          /* 3. SET NEW PASSWORD VIEW (Arrived from email link) */
+          <div className="animate-in fade-in">
             <div className="text-center mb-6">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-pink-500/20 to-purple-500/20 border border-pink-500/30 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-pink-500/10 text-pink-400">
                 <KeyRound className="w-7 h-7" />
               </div>
               <h2 className="text-xl font-bold text-white tracking-tight">
-                {lang === 'bn' ? 'পাসওয়ার্ড পরিবর্তন করুন' : 'Reset Password'}
+                {lang === 'bn' ? 'নতুন পাসওয়ার্ড সেট করুন' : 'Set New Password'}
               </h2>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                 {lang === 'bn'
-                  ? 'আপনার নিবন্ধিত ইমেইল ও নতুন পাসওয়ার্ড লিখে সরাসরি সেভ করুন:'
-                  : 'Enter your registered email and choose a new password:'}
+                  ? 'আপনার নতুন পাসওয়ার্ড লিখে সরাসরি সেভ করুন ও লগইন হন:'
+                  : 'Enter your new password to sign in:'}
               </p>
             </div>
 
@@ -482,57 +678,65 @@ export const AuthModal = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-[#d946ef] via-[#ec4899] to-[#f43f5e] hover:opacity-95 text-white font-bold text-xs rounded-xl shadow-lg shadow-pink-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4"
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-pink-600 via-rose-600 to-purple-600 hover:opacity-95 text-white font-bold text-xs rounded-xl shadow-lg shadow-pink-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4"
               >
-                {loading ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                ) : (
-                  <span>{lang === 'bn' ? 'পাসওয়ার্ড পরিবর্তন করুন' : 'Update Password'}</span>
-                )}
+                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                <span>{lang === 'bn' ? 'পাসওয়ার্ড সংরক্ষণ ও লগইন করুন' : 'Save Password & Sign In'}</span>
               </button>
             </form>
 
-            <div className="mt-4 pt-3.5 border-t border-[#1f2d48] text-center">
-              <a
-                href="https://wa.me/8801304104492?text=Hello%20Admin,%20I%20need%20help%20with%20my%20account%20password:%20"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-2.5 px-3 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98"
+            <div className="text-center mt-5">
+              <button
+                type="button"
+                onClick={() => resetAllState('login')}
+                className="text-xs text-slate-400 hover:text-white transition flex items-center justify-center gap-1 mx-auto cursor-pointer"
               >
-                <span>💬 {lang === 'bn' ? 'পাসওয়ার্ড সমস্যায় হোয়াটসঅ্যাপে এডমিন সহায়তা নিন' : 'Need Help? Contact Admin on WhatsApp'}</span>
-              </a>
-              <p className="text-[10px] text-slate-400 mt-1.5">
-                {lang === 'bn' ? 'এডমিন ২৪/৭ আপনাকে সরাসরি সহায়তা করতে প্রস্তুত।' : 'Admin is available 24/7 to assist.'}
-              </p>
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>{lang === 'bn' ? 'লগইনে ফিরে যান' : 'Back to Sign In'}</span>
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => resetAllState('login')}
-              className="w-full mt-4 py-2 text-xs text-slate-400 hover:text-white flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>{lang === 'bn' ? 'লগইনে ফিরে যান' : 'Back to Sign In'}</span>
-            </button>
           </div>
         ) : (
-          /* STANDARD LOGIN & DIRECT REGISTRATION (NO OTP CODES) */
+          /* 4. LOGIN & REGISTRATION VIEW */
           <div>
             <div className="text-center mb-6">
-              <div className="w-14 h-14 rounded-2xl bg-[#1e293b] border border-[#334155] flex items-center justify-center mx-auto mb-3 shadow-lg shadow-pink-500/10 text-pink-400">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#00d293]/20 to-teal-500/20 border border-[#00d293]/30 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-[#00d293]/10 text-[#00d293]">
                 <Bot className="w-7 h-7" />
               </div>
               <h2 className="text-xl font-bold text-white tracking-tight">
                 {mode === 'login'
-                  ? (lang === 'bn' ? 'লগইন করুন' : 'Sign In')
-                  : (lang === 'bn' ? 'অ্যাকাউন্ট তৈরি করুন' : 'Create Account')}
+                  ? lang === 'bn'
+                    ? 'অ্যাকাউন্টে লগইন করুন'
+                    : 'Sign In to Your Account'
+                  : lang === 'bn'
+                  ? 'নতুন অ্যাকাউন্ট তৈরি করুন'
+                  : 'Create an Account'}
               </h2>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                 {mode === 'login'
-                  ? (lang === 'bn' ? 'আপনার অ্যাকাউন্ট, বট ও ওয়েবসাইট পরিচালনা করতে লগইন করুন' : 'Manage your bots and websites')
-                  : (lang === 'bn' ? 'নতুন অ্যাকাউন্ট খুলে সরাসরি বট ও ওয়েবসাইট হোস্ট করুন' : 'Join to host free bots & websites')}
+                  ? lang === 'bn'
+                    ? 'আপনার ইমেইল ও পাসওয়ার্ড দিয়ে সহজে প্রবেশ করুন:'
+                    : 'Sign in to access your hosted bots & wallet'
+                  : lang === 'bn'
+                  ? 'নাম, ইমেইল ও পাসওয়ার্ড লিখে রেজিস্ট্রেশন সম্পন্ন করুন:'
+                  : 'Sign up to start hosting your bots & websites'}
               </p>
             </div>
+
+            {/* Free Trial Highlight */}
+            {mode === 'register' && (
+              <div className="mb-4 p-3 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-cyan-500/15 border border-emerald-500/30 flex items-center gap-2.5 shadow-sm">
+                <Gift className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div className="text-left flex-1">
+                  <p className="text-xs font-bold text-emerald-300">
+                    {lang === 'bn' ? '🎁 ১ মাসের ফ্রি ট্রায়াল অফার!' : '🎁 1-Month Free Trial Included!'}
+                  </p>
+                  <p className="text-[11px] text-slate-300">
+                    {lang === 'bn' ? 'রেজিস্ট্রেশনের পর ইমেইল অ্যাক্টিভ করে ফ্রি হোস্টিং শুরু করুন।' : 'Activate your account via email to start free hosting.'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {successMessage && (
               <div className="mb-4 p-3 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs flex items-start gap-2">
@@ -548,21 +752,7 @@ export const AuthModal = ({
               </div>
             )}
 
-            <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-cyan-500/15 border border-emerald-500/30 flex items-center gap-2.5 shadow-sm">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                <Gift className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-emerald-300">
-                  {lang === 'bn' ? '🎉 ফ্রি টেলিগ্রাম বট ও ওয়েবসাইট হোস্টিং!' : '🎉 Free Bot & Website Hosting!'}
-                </p>
-                <p className="text-[11px] text-slate-300 leading-tight mt-0.5">
-                  {lang === 'bn' ? 'তাৎক্ষণিক অ্যাকাউন্ট চালু ও ২৪/৭ নিরবচ্ছিন্ন সেবা।' : 'Instant account activation with 24/7 cloud support.'}
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-3.5" autoComplete="off">
+            <form onSubmit={handleSubmit} className="space-y-3.5">
               {mode === 'register' && (
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
@@ -571,8 +761,8 @@ export const AuthModal = ({
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder={lang === 'bn' ? 'আপনার নাম' : 'Full Name'}
-                    className="w-full bg-[#0b1220] border border-[#1f2d48] focus:border-[#ec4899] rounded-xl text-white placeholder-slate-500 py-3 pl-10 pr-4 text-xs focus:outline-none transition-all"
+                    placeholder={lang === 'bn' ? 'আপনার পুরো নাম' : 'Full Name'}
+                    className="w-full bg-[#0b1220] border border-[#1f2d48] focus:border-[#00d293] rounded-xl text-white placeholder-slate-500 py-3 pl-10 pr-4 text-xs focus:outline-none transition-all"
                   />
                 </div>
               )}
@@ -585,8 +775,8 @@ export const AuthModal = ({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={lang === 'bn' ? 'ইমেইল এড্রেস' : 'Email Address'}
-                  className="w-full bg-[#0b1220] border border-[#1f2d48] focus:border-[#ec4899] rounded-xl text-white placeholder-slate-500 py-3 pl-10 pr-4 text-xs focus:outline-none transition-all"
-                  autoComplete="off"
+                  className="w-full bg-[#0b1220] border border-[#1f2d48] focus:border-[#00d293] rounded-xl text-white placeholder-slate-500 py-3 pl-10 pr-4 text-xs focus:outline-none transition-all"
+                  autoComplete="email"
                 />
               </div>
 
@@ -598,9 +788,9 @@ export const AuthModal = ({
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={lang === 'bn' ? 'পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)' : 'Password (min 6 characters)'}
-                  className="w-full bg-[#0b1220] border border-[#1f2d48] focus:border-[#ec4899] rounded-xl text-white placeholder-slate-500 py-3 pl-10 pr-10 text-xs focus:outline-none transition-all"
-                  autoComplete="current-password"
+                  placeholder={lang === 'bn' ? 'পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)' : 'Password (min 6 chars)'}
+                  className="w-full bg-[#0b1220] border border-[#1f2d48] focus:border-[#00d293] rounded-xl text-white placeholder-slate-500 py-3 pl-10 pr-10 text-xs focus:outline-none transition-all"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 />
                 <button
                   type="button"
@@ -612,11 +802,11 @@ export const AuthModal = ({
               </div>
 
               {mode === 'login' && (
-                <div className="flex justify-end mt-1">
+                <div className="flex justify-end pt-0.5">
                   <button
                     type="button"
-                    onClick={() => resetAllState('reset')}
-                    className="text-[11px] text-pink-400 hover:text-pink-300 transition-colors cursor-pointer"
+                    onClick={() => resetAllState('forgot')}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-medium hover:underline cursor-pointer"
                   >
                     {lang === 'bn' ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot Password?'}
                   </button>
@@ -633,7 +823,7 @@ export const AuthModal = ({
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder={lang === 'bn' ? 'পাসওয়ার্ড নিশ্চিত করুন' : 'Confirm Password'}
-                    className="w-full bg-[#0b1220] border border-[#1f2d48] focus:border-[#ec4899] rounded-xl text-white placeholder-slate-500 py-3 pl-10 pr-10 text-xs focus:outline-none transition-all"
+                    className="w-full bg-[#0b1220] border border-[#1f2d48] focus:border-[#00d293] rounded-xl text-white placeholder-slate-500 py-3 pl-10 pr-10 text-xs focus:outline-none transition-all"
                     autoComplete="new-password"
                   />
                   <button
@@ -649,14 +839,14 @@ export const AuthModal = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-[#d946ef] via-[#ec4899] to-[#f43f5e] hover:opacity-95 text-white font-bold text-xs rounded-xl shadow-lg shadow-pink-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4"
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-[#00d293] via-teal-500 to-emerald-600 hover:opacity-95 text-[#04121e] font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4"
               >
                 {loading ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-900" />
                 ) : mode === 'login' ? (
                   <span>{lang === 'bn' ? 'লগইন করুন' : 'Sign In'}</span>
                 ) : (
-                  <span>{lang === 'bn' ? 'অ্যাকাউন্ট তৈরি ও লগইন করুন' : 'Create Account & Sign In'}</span>
+                  <span>{lang === 'bn' ? 'অ্যাকাউন্ট তৈরি করুন (Sign Up)' : 'Create Account & Continue'}</span>
                 )}
               </button>
             </form>
@@ -668,7 +858,7 @@ export const AuthModal = ({
                   <button
                     type="button"
                     onClick={() => resetAllState('register')}
-                    className="text-pink-400 hover:text-pink-300 font-semibold hover:underline cursor-pointer ml-1"
+                    className="text-[#00d293] hover:text-emerald-300 font-semibold hover:underline cursor-pointer ml-1"
                   >
                     {lang === 'bn' ? 'নতুন অ্যাকাউন্ট খুলুন' : 'Create Account Here'}
                   </button>
@@ -679,7 +869,7 @@ export const AuthModal = ({
                   <button
                     type="button"
                     onClick={() => resetAllState('login')}
-                    className="text-pink-400 hover:text-pink-300 font-semibold hover:underline cursor-pointer ml-1"
+                    className="text-[#00d293] hover:text-emerald-300 font-semibold hover:underline cursor-pointer ml-1"
                   >
                     {lang === 'bn' ? 'লগইন করুন' : 'Sign In Here'}
                   </button>
@@ -692,7 +882,7 @@ export const AuthModal = ({
               <div className="relative flex py-0.5 items-center">
                 <div className="flex-grow border-t border-[#1f2d48]"></div>
                 <span className="flex-shrink mx-3 text-[11px] text-slate-400 font-medium">
-                  {lang === 'bn' ? 'অথবা গুগল দিয়ে লগইন / সাইন-আপ করুন' : 'or continue with Google'}
+                  {lang === 'bn' ? 'অথবা গুগল দিয়ে সরাসরি প্রবেশ করুন' : 'or continue with Google'}
                 </span>
                 <div className="flex-grow border-t border-[#1f2d48]"></div>
               </div>
