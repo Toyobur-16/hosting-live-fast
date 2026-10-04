@@ -1035,6 +1035,7 @@ export default function App() {
               ? `🎉 স্বাগতম, ${user.name}! সফলভাবে আপনার অ্যাকাউন্টে লগইন হয়েছেন।`
               : `🎉 Welcome, ${user.name}! Successfully signed in.`
           );
+          setShowNotificationsModal(true);
         }}
         lang={lang}
       />

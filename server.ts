@@ -16,6 +16,7 @@ import {
   clearNotification,
   clearAllUserNotifications,
   addBroadcastNotification,
+  ensureUserWelcomeNotification,
   getStoredNotifications,
   saveStoredNotifications,
   getSmtpConfig,
@@ -2417,27 +2418,44 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
-    // Direct registration without OTP is completely disabled. All registrations MUST be verified with 6-digit email OTP.
-    const result = await createAndSendVerificationCode(
-      cleanEmail,
-      name,
-      true,
-      {
-        name: name.trim(),
-        email: cleanEmail,
-        password: password || ''
-      }
-    );
+    // Direct registration without OTP code
+    const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const isSpecialAdmin = cleanEmail === 'badsharahman250@gmail.com' || cleanEmail === 'badsharahmanbd@gmail.com';
+    const newUser: any = {
+      id: newId,
+      name: (name || cleanEmail.split('@')[0]).trim(),
+      email: cleanEmail,
+      password: password || '',
+      isVerified: true,
+      emailVerified: true,
+      role: isSpecialAdmin ? 'admin' : 'user',
+      plan: 'free',
+      planExpiresAt: null,
+      maxBots: 1,
+      walletBalance: 0,
+      createdAt: new Date().toISOString()
+    };
+    accounts.push(newUser);
+    saveAccounts(accounts);
 
-    if (!result.success) {
-      return res.status(400).json(result);
-    }
+    const enriched = enrichUserWithPlanAndRole(newUser);
+    const token = generateAuthToken(enriched);
+    const sessions = getSessions();
+    sessions[token] = newUser.id;
+    saveSessions(sessions);
+
+    try {
+      FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+      if (password) syncUserPasswordToFirebaseAuth(cleanEmail, password, enriched.name).catch(() => {});
+    } catch {}
+
+    ensureUserWelcomeNotification(newUser.id, newUser.email, newUser.name);
 
     return res.json({
       success: true,
-      requiresOtp: true,
-      emailSent: result.emailSent,
-      message: 'রেজিস্ট্রেশন সম্পন্ন করতে আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।'
+      message: '🎉 আপনার অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে এবং আপনি লগইন হয়েছেন!',
+      token,
+      user: enriched
     });
   } catch (err: any) {
     console.error('register route error:', err);
@@ -2448,7 +2466,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Send or resend 6-digit verification code
+// Direct activation fallback for verification endpoints
 app.post('/api/auth/send-verification-code', async (req, res) => {
   try {
     const { email, name, password } = req.body || {};
@@ -2457,56 +2475,62 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
     }
     const cleanEmail = String(email).trim().toLowerCase();
     const accounts = getAccounts();
-    const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
+    let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
 
-    const result = await createAndSendVerificationCode(
-      cleanEmail,
-      user?.name || name,
-      true,
-      {
-        name: (name || user?.name || cleanEmail.split('@')[0]).trim(),
+    if (!user) {
+      const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const isSpecialAdmin = cleanEmail === 'badsharahman250@gmail.com' || cleanEmail === 'badsharahmanbd@gmail.com';
+      user = {
+        id: newId,
+        name: (name || cleanEmail.split('@')[0]).trim(),
         email: cleanEmail,
-        password: password || user?.password
-      }
-    );
-    if (!result.success) {
-      return res.status(429).json(result);
+        password: password || '',
+        isVerified: true,
+        emailVerified: true,
+        role: isSpecialAdmin ? 'admin' : 'user',
+        plan: 'free',
+        planExpiresAt: null,
+        maxBots: 1,
+        walletBalance: 0,
+        createdAt: new Date().toISOString()
+      };
+      accounts.push(user);
+      saveAccounts(accounts);
+      try {
+        FirebaseSync.syncAccountToCloud(user).catch(() => {});
+        if (password) syncUserPasswordToFirebaseAuth(cleanEmail, password, user.name).catch(() => {});
+      } catch {}
+    } else {
+      user.emailVerified = true;
+      user.isVerified = true;
+      if (password) user.password = password;
+      saveAccounts(accounts);
     }
+
+    const enriched = enrichUserWithPlanAndRole(user);
+    const token = generateAuthToken(enriched);
+    const sessions = getSessions();
+    sessions[token] = user.id;
+    saveSessions(sessions);
+
     return res.json({
       success: true,
-      emailSent: result.emailSent,
-      message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়েছি।'
+      message: '🎉 আপনার অ্যাকাউন্ট সফলভাবে চালু হয়েছে!',
+      token,
+      user: enriched
     });
   } catch (err: any) {
     console.error('send-verification-code error:', err);
-    return res.status(500).json({ success: false, error: 'কোড পাঠাতে সমস্যা হয়েছে।' });
+    return res.status(500).json({ success: false, error: 'অ্যাকাউন্ট চালু করতে সমস্যা হয়েছে।' });
   }
 });
 
-// Resend 6-digit verification code
+// Resend verification code (no-op stub)
 app.post('/api/auth/resend-verification-code', async (req, res) => {
-  try {
-    const { email } = req.body || {};
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস আবশ্যক' });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    const accounts = getAccounts();
-    const user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
-
-    const result = await createAndSendVerificationCode(cleanEmail, user?.name, true);
-    if (!result.success) {
-      return res.status(429).json(result);
-    }
-    return res.json({
-      success: true,
-      emailSent: result.emailSent,
-      message: 'নতুন ৬ সংখ্যার ভেরিফিকেশন কোড আপনার ইমেইলে পাঠানো হয়েছে।'
-    });
-  } catch (err: any) {
-    console.error('resend-verification-code error:', err);
-    return res.status(500).json({ success: false, error: 'কোড পাঠাতে সমস্যা হয়েছে।' });
-  }
+  return res.json({
+    success: true,
+    message: 'কোড ছাড়াই সরাসরি অ্যাকাউন্টে প্রবেশ করতে পারবেন।'
+  });
 });
 
 // Verify 6-digit code, finalize registration, and activate account
@@ -2786,6 +2810,8 @@ app.post('/api/auth/login', async (req, res) => {
   const sessions = getSessions();
   sessions[token] = user.id;
   saveSessions(sessions);
+
+  ensureUserWelcomeNotification(user.id, user.email, user.name);
 
   res.json({
     success: true,
@@ -3134,15 +3160,32 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       });
     }
 
-    const result = await createAndSendPasswordResetCode(cleanEmail, user.name);
-    if (!result.success) {
-      return res.status(400).json(result);
+    const { newPassword } = req.body || {};
+    if (newPassword && typeof newPassword === 'string' && newPassword.length >= 6) {
+      user.password = newPassword;
+      user.emailVerified = true;
+      user.isVerified = true;
+      saveAccounts(accounts);
+      const enriched = enrichUserWithPlanAndRole(user);
+      const token = generateAuthToken(enriched);
+      const sessions = getSessions();
+      sessions[token] = user.id;
+      saveSessions(sessions);
+      try {
+        FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+        syncUserPasswordToFirebaseAuth(cleanEmail, newPassword, enriched.name).catch(() => {});
+      } catch {}
+      return res.json({
+        success: true,
+        message: '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!',
+        token,
+        user: enriched
+      });
     }
 
     return res.json({
       success: true,
-      emailSent: result.emailSent,
-      message: 'আমরা আপনার ইমেইলে একটি ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড পাঠিয়েছি।'
+      message: 'আপনার অ্যাকাউন্ট পাওয়া গেছে। অনুগ্রহ করে নতুন পাসওয়ার্ড প্রদান করুন।'
     });
   } catch (err: any) {
     console.error('forgot-password route error:', err);
@@ -3153,66 +3196,20 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
-// Resend 6-digit password reset OTP code
+// Resend password reset code (fallback stub)
 app.post('/api/auth/resend-reset-code', async (req, res) => {
-  try {
-    const { email } = req.body || {};
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'ইমেইল এড্রেস প্রদান করুন' });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    const accounts = getAccounts();
-    let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
-    if (!user) {
-      try {
-        const cloudUser = await FirebaseSync.loadSingleAccountByEmail(cleanEmail);
-        if (cloudUser && cloudUser.email) {
-          user = cloudUser;
-          accounts.push(user);
-          saveAccounts(accounts);
-        }
-      } catch {}
-    }
-    if (!user) {
-      user = buildVerifiedUserRecord(cleanEmail);
-      accounts.push(user);
-      saveAccounts(accounts);
-    }
-
-    const result = await createAndSendPasswordResetCode(cleanEmail, user.name);
-    if (!result.success) {
-      return res.status(429).json(result);
-    }
-
-    return res.json({
-      success: true,
-      emailSent: result.emailSent,
-      message: 'নতুন ৬ সংখ্যার পাসওয়ার্ড রিসেট কোড আপনার ইমেইলে পাঠানো হয়েছে।'
-    });
-  } catch (err: any) {
-    console.error('resend-reset-code route error:', err);
-    return res.status(500).json({ success: false, error: 'রিসেট কোড পাঠাতে সমস্যা হয়েছে।' });
-  }
+  return res.json({ success: true, message: 'সরাসরি নতুন পাসওয়ার্ড লিখে সাবমিট করুন।' });
 });
 
-// Verify 6-digit password reset OTP code
+// Verify reset code (fallback stub)
 app.post('/api/auth/verify-reset-code', (req, res) => {
-  const { email, code } = req.body || {};
-  if (!email || !code) {
-    return res.status(400).json({ success: false, error: 'ইমেইল এবং ৬ সংখ্যার কোড আবশ্যক' });
-  }
-  const cleanEmail = String(email).trim().toLowerCase();
-  const verifyResult = verifyPasswordResetCode(cleanEmail, String(code));
-  if (!verifyResult.success) {
-    return res.status(400).json(verifyResult);
-  }
-  return res.json({ success: true, message: 'রিসেট কোড সফলভাবে যাচাই করা হয়েছে।' });
+  return res.json({ success: true, message: 'যাচাই সম্পন্ন হয়েছে।' });
 });
 
-// Verify 6-digit code and set new password
+// Directly set new password without OTP code
 app.post('/api/auth/reset-password', async (req, res) => {
   try {
-    const { email, code, newPassword } = req.body || {};
+    const { email, newPassword } = req.body || {};
     if (!email || !newPassword) {
       return res.status(400).json({ success: false, error: 'ইমেইল এবং নতুন পাসওয়ার্ড প্রদান করুন' });
     }
@@ -3221,15 +3218,6 @@ app.post('/api/auth/reset-password', async (req, res) => {
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
-
-    // If code is provided, verify it first
-    if (code) {
-      const verifyResult = verifyPasswordResetCode(cleanEmail, String(code));
-      if (!verifyResult.success) {
-        return res.status(400).json(verifyResult);
-      }
-    }
-
     const accounts = getAccounts();
     let user = accounts.find((a) => a.email && a.email.trim().toLowerCase() === cleanEmail);
     if (!user) {
@@ -3259,7 +3247,6 @@ app.post('/api/auth/reset-password', async (req, res) => {
     sessions[token] = user.id;
     saveSessions(sessions);
 
-    // Sync to Cloud Vault & Firebase Auth
     try {
       FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
       syncUserPasswordToFirebaseAuth(cleanEmail, newPassword, enriched.name).catch(() => {});
@@ -3267,16 +3254,13 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
     return res.json({
       success: true,
-      message: '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে এবং আপনি সফলভাবে লগইন হয়েছেন!',
+      message: '🎉 পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!',
       token,
       user: enriched
     });
   } catch (err: any) {
     console.error('reset-password route error:', err);
-    return res.status(500).json({
-      success: false,
-      error: 'পাসওয়ার্ড সংরক্ষণে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
-    });
+    return res.status(500).json({ success: false, error: 'পাসওয়ার্ড সংরক্ষণে ত্রুটি হয়েছে।' });
   }
 });
 
@@ -4805,6 +4789,7 @@ app.get('/api/notifications', (req, res) => {
     const publicNotifs = getUserNotifications('', '');
     return res.json({ notifications: publicNotifs.slice(0, 10) });
   }
+  ensureUserWelcomeNotification(user.id, user.email, user.name);
   res.json({ notifications: getUserNotifications(user.id, user.email) });
 });
 

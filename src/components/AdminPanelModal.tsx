@@ -12,7 +12,6 @@ import { AdminBannersManager } from './admin/AdminBannersManager';
 import { AdminSupportManager } from './admin/AdminSupportManager';
 import { AdminNoticesManager } from './admin/AdminNoticesManager';
 import { AdminSiteSettingsManager } from './admin/AdminSiteSettingsManager';
-import { AdminSmtpManager } from './admin/AdminSmtpManager';
 import { AdminSocialTasksManager } from './admin/AdminSocialTasksManager';
 import { AdminWebsitesManager } from './admin/AdminWebsitesManager';
 import { AdminDepositMethodsManager } from './admin/AdminDepositMethodsManager';
@@ -29,7 +28,7 @@ interface AdminPanelModalProps {
   onPlansUpdated?: () => void;
 }
 
-export type AdminTabType = 'requests' | 'deposit-methods' | 'users' | 'pricing' | 'banners' | 'notices' | 'support' | 'payments' | 'bots' | 'site' | 'websites' | 'social-tasks' | 'smtp';
+export type AdminTabType = 'requests' | 'deposit-methods' | 'users' | 'pricing' | 'banners' | 'notices' | 'support' | 'payments' | 'bots' | 'site' | 'websites' | 'social-tasks';
 
 export const PAYMENT_ICON_PRESETS = [
   {
@@ -1190,7 +1189,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 { id: 'bots' as AdminTabType, labelBn: 'সকল বট নিয়ন্ত্রণ', labelEn: 'All Bots Control', icon: Bot, iconColor: 'text-blue-400' },
                 { id: 'websites' as AdminTabType, labelBn: 'ওয়েবসাইট হোস্টিং', labelEn: 'Hosted Websites', icon: Globe, iconColor: 'text-cyan-400' },
                 { id: 'social-tasks' as AdminTabType, labelBn: 'সোশ্যাল টাস্ক', labelEn: 'Social Tasks', icon: Share2, iconColor: 'text-purple-400', badge: pendingTasksCount > 0 ? pendingTasksCount : undefined },
-                { id: 'smtp' as AdminTabType, labelBn: 'SMTP ইমেইল কনফিগ', labelEn: 'SMTP Config', icon: Mail, iconColor: 'text-emerald-400' },
                 { id: 'site' as AdminTabType, labelBn: 'সাইট লোগো ও APK পিকচার', labelEn: 'Logo & APK Picture', icon: Sliders, iconColor: 'text-amber-400' },
               ].map((tab) => {
                 const IconComp = tab.icon;
@@ -3058,9 +3056,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
         {/* Social Tasks & Rewards Manager Tab */}
         {activeTab === 'social-tasks' && <AdminSocialTasksManager lang={lang} />}
-
-        {/* SMTP Configuration Tab */}
-        {activeTab === 'smtp' && <AdminSmtpManager lang={lang} />}
 
         </div>
 

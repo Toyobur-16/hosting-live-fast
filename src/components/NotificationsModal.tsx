@@ -227,13 +227,16 @@ export function NotificationsModal({ isOpen, onClose, currentUser, lang }: Notif
               const isDeposit = item.type?.includes('deposit') || item.title?.includes('ডিপোজিট') || item.title?.includes('Deposit');
               const isApproved = item.type === 'deposit_approved' || item.title?.includes('অনুমোদিত') || item.title?.includes('Approved');
               const isRejected = item.type === 'deposit_rejected' || item.title?.includes('বাতিল') || item.title?.includes('Rejected');
+              const isWelcome = item.type === 'welcome' || item.title?.includes('স্বাগতম') || item.title?.includes('Welcome');
 
               return (
                 <div
                   key={item.id}
                   onClick={() => !item.read && handleMarkSingleRead(item.id)}
-                  className={`p-3.5 rounded-xl border transition-all text-left relative group ${
-                    !item.read
+                  className={`p-3.5 sm:p-4 rounded-xl border transition-all text-left relative group ${
+                    isWelcome
+                      ? 'bg-gradient-to-br from-emerald-950/40 via-[#0a1b2a] to-teal-950/30 border-emerald-500/40 shadow-lg'
+                      : !item.read
                       ? 'bg-emerald-50/70 dark:bg-[#00d293]/5 border-[#00d293]/30 shadow-xs'
                       : 'bg-slate-50 dark:bg-[#111c33] border-slate-200 dark:border-[#1e2d48] opacity-85'
                   }`}
@@ -241,7 +244,11 @@ export function NotificationsModal({ isOpen, onClose, currentUser, lang }: Notif
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-2.5 flex-1 pr-2">
                       <div className="mt-0.5 shrink-0">
-                        {isApproved ? (
+                        {isWelcome ? (
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-md">
+                            <Sparkles className="w-4.5 h-4.5 text-emerald-400" />
+                          </div>
+                        ) : isApproved ? (
                           <div className="w-6 h-6 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                             <CheckCircle2 className="w-4 h-4" />
                           </div>
@@ -259,16 +266,21 @@ export function NotificationsModal({ isOpen, onClose, currentUser, lang }: Notif
                           </div>
                         )}
                       </div>
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className={`font-bold leading-snug ${isWelcome ? 'text-sm text-emerald-300' : 'text-xs text-slate-900 dark:text-white'}`}>
                             {item.title}
                           </h4>
+                          {isWelcome && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                              {lang === 'bn' ? 'স্বাগতম' : 'Welcome'}
+                            </span>
+                          )}
                           {!item.read && (
                             <span className="w-2 h-2 rounded-full bg-[#00d293] shrink-0" />
                           )}
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        <p className={`whitespace-pre-line leading-relaxed ${isWelcome ? 'text-xs text-slate-200 dark:text-slate-200' : 'text-xs text-slate-600 dark:text-slate-300'}`}>
                           {item.message}
                         </p>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1 pt-0.5">

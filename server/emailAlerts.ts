@@ -568,12 +568,52 @@ export function saveStoredNotifications(list: any[]) {
   }
 }
 
+export function ensureUserWelcomeNotification(userId: string, userEmail?: string, userName?: string) {
+  try {
+    const list = getStoredNotifications();
+    const cleanId = `welcome_${userId || userEmail || 'all'}`;
+    const cleanEmail = (userEmail || '').toLowerCase();
+    const hasWelcome = list.some((n) => n.id === cleanId || (n.userId === userId && n.type === 'welcome') || (cleanEmail && n.userEmail?.toLowerCase() === cleanEmail && n.type === 'welcome'));
+    if (!hasWelcome) {
+      const displayName = userName || (cleanEmail ? cleanEmail.split('@')[0] : 'গ্রাহক');
+      const welcomeItem = {
+        id: cleanId,
+        userId: userId || 'all',
+        userEmail: cleanEmail,
+        type: 'welcome',
+        title: `🎉 স্বাগতম ${displayName}! হোস্টিংলাইভফাস্টে আপনাকে অভিনন্দন`,
+        message: `প্রিয় ${displayName},\n\nhosting-live-fast প্ল্যাটফর্মে আপনাকে আন্তরিক স্বাগতম! আমাদের সাথে যুক্ত হওয়ার জন্য অসংখ্য ধন্যবাদ।\n\n⚡ আমাদের প্ল্যাটফর্মের বিশেষ সুবিধা ও সেবাসমূহ:\n• ২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং (Python & Node.js ১০০% কার্যকর)\n• ওয়েবসাইট ও ওয়েব অ্যাপ্লিকেশন হোস্টিং\n• নতুন সকল ইউজারের জন্য ১ মাসের ফ্রি ট্রায়াল সুবিধা\n• বিকাশ, নগদ ও বাইন্যান্স পে দিয়ে তাৎক্ষণিক ওয়ালেট রিচার্জ\n• অটো ক্র্যাশ রিস্টার্ট ও লাইভ কনসোল মনিটরিং ব্যবস্থা\n• ২৪/৭ হেল্পডেস্ক ও হোয়াটসঅ্যাপ অ্যাডমিন সাপোর্ট\n\n🚀 শুরু করতে 'Plans' পেজে গিয়ে আপনার ফ্রি ট্রায়াল সক্রিয় করুন অথবা সরাসরি বট ডিপ্লয় করুন। কোনো সমস্যায় সাপোর্ট সেন্টারে যোগাযোগ করুন। শুভকামনা!`,
+        createdAt: new Date().toISOString(),
+        read: false
+      };
+      list.unshift(welcomeItem);
+      saveStoredNotifications(list);
+    }
+  } catch {}
+}
+
 export function getUserNotifications(userId: string, userEmail?: string): any[] {
   const all = getStoredNotifications();
   const lowerEmail = (userEmail || '').toLowerCase();
   const effectiveUserId = userId || lowerEmail;
 
   return all.filter((n) => {
+    // Strictly exclude any SMTP warning alerts or error notices
+    if (
+      n.id === 'notif_admin_smtp_535_alert' ||
+      (n.title && (
+        n.title.includes('SMTP') ||
+        n.title.includes('535') ||
+        n.title.includes('অ্যাপ পাসওয়ার্ড')
+      )) ||
+      (n.message && (
+        n.message.includes('535 Bad Credentials') ||
+        n.message.includes('জিমেইল অ্যাপ পাসওয়ার্ডটি বাতিল করেছে')
+      ))
+    ) {
+      return false;
+    }
+
     // Strictly exclude any verification or password reset OTPs from in-app notifications (email-only)
     if (
       n.type === 'verification' ||
@@ -1466,23 +1506,6 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
       const isAuthError = err?.message?.includes('535') || err?.code === 'EAUTH' || err?.message?.includes('BadCredentials') || err?.message?.includes('Username and Password not accepted');
       if (isAuthError) {
         lastSmtpAuthFailedUntil = Date.now() + 15 * 60 * 1000;
-        try {
-          const notifList = getStoredNotifications();
-          const hasExisting = notifList.some((n) => n.id === 'notif_admin_smtp_535_alert' || (n.title && n.title.includes('SMTP অ্যাপ পাসওয়ার্ড')));
-          if (!hasExisting) {
-            notifList.unshift({
-              id: 'notif_admin_smtp_535_alert',
-              userId: 'all',
-              target: 'all',
-              type: 'broadcast',
-              title: '⚠️ জরুরি এডমিন নোটিশ: জিমেইল SMTP অ্যাপ পাসওয়ার্ড বাতিল হয়েছে (535 Bad Credentials)',
-              message: 'গুগল আপনার জিমেইল অ্যাপ পাসওয়ার্ডটি বাতিল করেছে। ফলে রেজিস্ট্রেশন ও প্ল্যান নোটিফিকেশন গ্রাহকের ইমেইলে পৌঁছাতে পারছে না। অবিলম্বে এডমিন প্যানেল > SMTP সেটিংস এ গিয়ে একটি নতুন ১৬ অক্ষরের Google App Password সেট করুন।',
-              createdAt: new Date().toISOString(),
-              read: false
-            });
-            saveStoredNotifications(notifList);
-          }
-        } catch {}
       }
 
       // Automatic HTTPS Port 443 Cloud Relay Bridge for hosts blocking SMTP ports (e.g. Render Free Tier)
