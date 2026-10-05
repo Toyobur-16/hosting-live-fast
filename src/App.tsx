@@ -301,13 +301,13 @@ export default function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // Authentication State (Strictly require emailVerified !== false so unverified registrations never auto-login on refresh)
+  // Authentication State
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
     try {
       const saved = localStorage.getItem('bot_auth_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
-      if (!parsed || parsed.emailVerified === false || parsed.isVerified === false) {
+      if (!parsed) {
         localStorage.removeItem('bot_auth_token');
         localStorage.removeItem('bot_auth_user');
         return null;
@@ -358,12 +358,6 @@ export default function App() {
       }
       const data = await res.json();
       if ((data.authenticated || data.success) && data.user) {
-        if (data.user.emailVerified === false || data.user.isVerified === false) {
-          localStorage.removeItem('bot_auth_token');
-          localStorage.removeItem('bot_auth_user');
-          setCurrentUser(null);
-          return;
-        }
         setCurrentUser(data.user);
         localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
       } else {

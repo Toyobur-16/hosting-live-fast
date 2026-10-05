@@ -60,8 +60,8 @@ export let lastSmtpAuthFailedUntil = 0;
 
 const STATIC_SMTP_BRIDGE_URLS = [
   process.env.SMTP_BRIDGE_URL,
-  'https://ais-dev-uvket5dab2amavedupx43s-156598928979.asia-southeast1.run.app/api/smtp-cloud-bridge',
-  'https://ais-pre-uvket5dab2amavedupx43s-156598928979.asia-southeast1.run.app/api/smtp-cloud-bridge'
+  'https://ais-dev-iwdzcnnipfgvffkgb5af2a-932319565699.asia-east1.run.app/api/smtp-cloud-bridge',
+  'https://ais-pre-iwdzcnnipfgvffkgb5af2a-932319565699.asia-east1.run.app/api/smtp-cloud-bridge'
 ].filter(Boolean) as string[];
 
 let dynamicBridgeUrlCache: { url: string; expiresAt: number } | null = null;
@@ -270,7 +270,7 @@ export async function relayViaHttpsBridge(payload: {
   for (const bridgeUrl of bridgeUrls) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2800);
+      const timer = setTimeout(() => controller.abort(), 7000);
       const res = await fetch(bridgeUrl, {
         method: 'POST',
         headers: {
@@ -393,9 +393,9 @@ export function startCloudSmtpRelayWorker(): void {
         return null;
       });
 
-      if (queryRes && queryRes.status === 429) {
-        // Quota exceeded, back off for 3 minutes so it does not spam
-        quotaBackoffUntil = Date.now() + 180000;
+      if (queryRes && (queryRes.status === 429 || queryRes.status === 403)) {
+        // Quota exceeded, back off for 15 minutes so it does not spam
+        quotaBackoffUntil = Date.now() + 15 * 60 * 1000;
         isProcessing = false;
         return;
       }
@@ -477,7 +477,7 @@ export function startCloudSmtpRelayWorker(): void {
     } finally {
       isProcessing = false;
     }
-  }, 2500);
+  }, 60000);
 }
 
 export function loadSmtpSettingsFile(): SmtpSettingsData {
@@ -1446,7 +1446,8 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
   // 2. Attempt real SMTP or HTTPS bridge sending
   const fileConfig = loadSmtpSettingsFile();
   const rawFrom = (fileConfig?.from || process.env.SMTP_FROM || fileConfig?.user || process.env.SMTP_USER || 'hostinglivefast.official@gmail.com').trim();
-  const fromFormatted = rawFrom.includes('<') ? rawFrom : `"hosting live fast" <${rawFrom}>`;
+  const cleanFrom = rawFrom.replace(/^["']+|["']+$/g, '').trim();
+  const fromFormatted = cleanFrom.includes('<') ? cleanFrom : `"hosting live fast" <${cleanFrom}>`;
   const plainText = text || html.replace(/<[^>]+>/g, ' ');
 
   // If direct SMTP was recently blocked (e.g. Render Free Tier port 587 block), prioritize HTTPS bridge immediately

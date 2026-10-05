@@ -739,7 +739,7 @@ export async function createAccountActivationLink(
   try {
     let session = await getFirebaseUserSession(cleanEmail, userPassword, userName);
     if (session?.idToken) {
-      await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+      const oobRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -748,6 +748,17 @@ export async function createAccountActivationLink(
           continueUrl: activationUrl
         })
       });
+      if (!oobRes.ok) {
+        // If continueUrl was rejected because domain is not whitelisted in Firebase Auth, send without continueUrl
+        await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestType: 'VERIFY_EMAIL',
+            idToken: session.idToken
+          })
+        }).catch(() => {});
+      }
       console.log(`[FIREBASE AUTH VERIFY EMAIL] Dispatched to ${cleanEmail}`);
     }
   } catch (fbErr: any) {
@@ -755,7 +766,11 @@ export async function createAccountActivationLink(
   }
 
   // 2. Also send branded HTML email with "⚡ Active Account" button
-  sendVerificationEmail(cleanEmail, activationUrl, userName).catch(() => {});
+  try {
+    await sendVerificationEmail(cleanEmail, activationUrl, userName);
+  } catch (err: any) {
+    console.warn(`[VERIFICATION EMAIL WARNING] For ${cleanEmail}:`, err?.message || err);
+  }
 
   return { success: true, activationUrl, token };
 }
@@ -789,7 +804,7 @@ export async function createPasswordResetLink(
 
   // 1. Trigger Google Firebase Auth official password reset email
   try {
-    await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+    const oobRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -798,13 +813,28 @@ export async function createPasswordResetLink(
         continueUrl: resetUrl
       })
     });
+    if (!oobRes.ok) {
+      // If continueUrl was rejected because domain is not whitelisted in Firebase Auth, send without continueUrl
+      await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_AUTH_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestType: 'PASSWORD_RESET',
+          email: cleanEmail
+        })
+      }).catch(() => {});
+    }
     console.log(`[FIREBASE PASSWORD RESET] Dispatched to ${cleanEmail}`);
   } catch (fbErr: any) {
     console.warn('[FIREBASE RESET WARNING]', fbErr?.message || fbErr);
   }
 
   // 2. Also send branded HTML email with "🔑 Reset Password" button
-  sendPasswordResetEmail(cleanEmail, resetUrl, userName).catch(() => {});
+  try {
+    await sendPasswordResetEmail(cleanEmail, resetUrl, userName);
+  } catch (err: any) {
+    console.warn(`[PASSWORD RESET EMAIL WARNING] For ${cleanEmail}:`, err?.message || err);
+  }
 
   return { success: true, resetUrl, token };
 }

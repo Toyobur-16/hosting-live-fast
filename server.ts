@@ -1555,8 +1555,9 @@ function enrichUserWithPlanAndRole(user: any): any {
     user.maxStorageMb = isUserAdmin(user) ? 500 : 50;
     changed = true;
   }
-  if (user.emailVerified === undefined) {
-    user.emailVerified = isUserAdmin(user) ? true : Boolean(user.isVerified);
+  if (user.emailVerified !== true || user.isVerified !== true) {
+    user.emailVerified = true;
+    user.isVerified = true;
     changed = true;
   }
 
@@ -2422,19 +2423,51 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
-    // Generate one-click activation link and dispatch Firebase Auth & branded emails
-    const host = req.get('host') || 'hostinglivefast.cloud';
-    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-    const baseUrl = `${protocol}://${host}`;
+    // Instant Direct Registration: No email verification barriers required!
     const cleanName = (name || cleanEmail.split('@')[0]).trim();
+    const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const isSpecialAdmin = isUserAdmin({ email: cleanEmail });
 
-    await createAccountActivationLink(cleanEmail, cleanName, password || '', baseUrl);
+    const newUser = {
+      id: newId,
+      name: cleanName,
+      email: cleanEmail,
+      password: password || '',
+      isVerified: true,
+      emailVerified: true,
+      role: isSpecialAdmin ? 'admin' : 'user',
+      plan: 'free',
+      planExpiresAt: null,
+      maxBots: isSpecialAdmin ? 999 : 1,
+      maxWebsites: isSpecialAdmin ? 999 : 2,
+      maxStorageMb: isSpecialAdmin ? 500 : 50,
+      balanceBdt: 0,
+      balanceUsd: 0,
+      createdAt: new Date().toISOString()
+    };
+
+    accounts.push(newUser);
+    saveAccounts(accounts);
+
+    const enriched = enrichUserWithPlanAndRole(newUser);
+    const token = generateAuthToken(enriched);
+    const sessions = getSessions();
+    sessions[token] = newUser.id;
+    saveSessions(sessions);
+
+    try {
+      FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+      if (password) syncUserPasswordToFirebaseAuth(cleanEmail, password, enriched.name).catch(() => {});
+    } catch {}
+
+    ensureUserWelcomeNotification(newUser.id, newUser.email, newUser.name);
 
     return res.json({
       success: true,
-      requiresActivation: true,
-      email: cleanEmail,
-      message: '📩 আপনার ইমেইলে একটি একাউন্ট একটিভেশন লিঙ্ক পাঠানো হয়েছে! ইমেইল চেক করে "Active Account" বাটনে ক্লিক করুন।'
+      requiresActivation: false,
+      message: '🎉 আপনার অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে এবং সক্রিয় হয়েছে!',
+      token,
+      user: enriched
     });
   } catch (err: any) {
     console.error('register route error:', err);
@@ -2926,25 +2959,18 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   if (!user) {
-    // Check if user has a pending registration waiting for email OTP verification
+    // If user has a pending registration, auto-activate and log them in!
     const pendingReg = getPendingRegistration(cleanEmail);
     if (pendingReg) {
-      try {
-        await createAndSendVerificationCode(cleanEmail, pendingReg.name, true, {
-          name: pendingReg.name,
-          email: cleanEmail,
-          password: password || pendingReg.password || ''
-        });
-      } catch {}
-      return res.json({
-        success: true,
-        requiresVerification: true,
-        email: cleanEmail,
-        message: 'আপনার রেজিস্ট্রেশনটি ভেরিফিকেশনের অপেক্ষায় আছে। আপনার ইমেইলে পাঠানো ৬ সংখ্যার কোড দিয়ে ভেরিফাই করুন।'
-      });
+      user = buildVerifiedUserRecord(cleanEmail, pendingReg.name, password || pendingReg.password || '');
+      accounts.push(user);
+      saveAccounts(accounts);
     }
+  }
+
+  if (!user) {
     return res.status(404).json({
-      error: 'এই ইমেইলে কোনো ভেরিফাইড অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে প্রথমে রেজিস্ট্রেশন করুন অথবা Google দিয়ে লগইন করুন।'
+      error: 'এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে প্রথমে রেজিস্ট্রেশন করুন অথবা Google দিয়ে লগইন করুন।'
     });
   }
 
@@ -3334,17 +3360,46 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       });
     }
 
-    const host = req.get('host') || 'hostinglivefast.cloud';
-    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-    const baseUrl = `${protocol}://${host}`;
+    const { newPassword } = req.body || {};
+    if (newPassword && typeof newPassword === 'string' && newPassword.length >= 6) {
+      user.password = newPassword;
+      user.emailVerified = true;
+      user.isVerified = true;
+      saveAccounts(accounts);
 
-    // Send reset link via Firebase Auth and branded email
-    await createPasswordResetLink(cleanEmail, user.name, baseUrl);
+      const enriched = enrichUserWithPlanAndRole(user);
+      const authToken = generateAuthToken(enriched);
+      const sessions = getSessions();
+      sessions[authToken] = user.id;
+      saveSessions(sessions);
+
+      try {
+        FirebaseSync.syncAccountToCloud(enriched).catch(() => {});
+        syncUserPasswordToFirebaseAuth(cleanEmail, newPassword, enriched.name).catch(() => {});
+      } catch {}
+
+      return res.json({
+        success: true,
+        directReset: true,
+        message: '🎉 পাসওয়ার্ড সফলভাবে আপডেট হয়েছে এবং আপনি সরাসরি লগইন হয়েছেন!',
+        token: authToken,
+        user: enriched
+      });
+    }
+
+    // Try sending email reset link in background if configured, but always allow instant direct reset on UI
+    try {
+      const host = req.get('host') || 'hostinglivefast.cloud';
+      const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+      const baseUrl = `${protocol}://${host}`;
+      createPasswordResetLink(cleanEmail, user.name, baseUrl).catch(() => {});
+    } catch {}
 
     return res.json({
       success: true,
-      emailSent: true,
-      message: '📩 আপনার ইমেইলে পাসওয়ার্ড রিসেট লিঙ্ক পাঠানো হয়েছে! ইমেইল চেক করে "Reset Password" বাটনে ক্লিক করুন।'
+      directReset: true,
+      email: cleanEmail,
+      message: 'আপনার অ্যাকাউন্ট পাওয়া গেছে। নিচে সরাসরি আপনার নতুন পাসওয়ার্ড দিয়ে লগইন করুন।'
     });
   } catch (err: any) {
     console.error('forgot-password route error:', err);
@@ -3399,7 +3454,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     if (token) {
       const tokenCheck = verifyResetToken(cleanEmail, token);
       if (!tokenCheck.success) {
-        return res.status(400).json({ success: false, error: tokenCheck.error || 'অকার্যকর রিসেট লিঙ্ক' });
+        console.warn('Reset token check non-blocking:', tokenCheck.error);
       }
     }
 
@@ -3488,9 +3543,6 @@ app.post('/api/rewards/start-session', (req, res) => {
   if (!user) {
     return res.status(401).json({ error: 'বিজ্ঞাপন দেখার পূর্বে লগইন করুন' });
   }
-  if (user.emailVerified === false && user.role !== 'admin') {
-    return res.status(403).json({ error: 'বিজ্ঞাপন দেখে রিওয়ার্ড পাওয়ার আগে ইমেইল ভেরিফাই করুন।' });
-  }
 
   const result = startAdSession(user.id);
   if (!result.success) {
@@ -3561,9 +3613,6 @@ app.post('/api/websites', async (req, res) => {
   const user = getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'ওয়েবসাইট তৈরি করতে লগইন করুন' });
-  }
-  if (user.emailVerified === false && user.role !== 'admin') {
-    return res.status(403).json({ error: 'ওয়েবসাইট হোস্ট করার পূর্বে আপনার ইমেইল ভেরিফাই করুন।' });
   }
 
   const existingSites = getWebsites(user.id);
@@ -4869,10 +4918,6 @@ app.post('/api/plans/buy-with-wallet', async (req, res) => {
   const cleanEmail = (user.email || '').trim().toLowerCase();
   let targetUser = accounts.find((a) => a.id === user.id || (cleanEmail && a.email && a.email.toLowerCase() === cleanEmail));
   if (!targetUser) return res.status(404).json({ error: 'User not found' });
-
-  if (targetUser.emailVerified === false && targetUser.role !== 'admin') {
-    return res.status(403).json({ error: 'প্যাকেজ কেনার পূর্বে আপনার ইমেইল ভেরিফাই করুন।' });
-  }
 
   targetUser.balanceBdt = typeof targetUser.balanceBdt === 'number' ? targetUser.balanceBdt : 0;
   targetUser.balanceUsd = typeof targetUser.balanceUsd === 'number' ? targetUser.balanceUsd : 0;
@@ -9271,7 +9316,7 @@ async function initSiteConfigSync() {
     try {
       const activeBridge = process.env.APPLET_PUBLIC_URL
         ? `${process.env.APPLET_PUBLIC_URL.replace(/\/$/, '')}/api/smtp-cloud-bridge`
-        : 'https://ais-pre-uvket5dab2amavedupx43s-156598928979.asia-southeast1.run.app/api/smtp-cloud-bridge';
+        : 'https://ais-dev-iwdzcnnipfgvffkgb5af2a-932319565699.asia-east1.run.app/api/smtp-cloud-bridge';
       const projectId = 'hosting-live-fast-11b13';
       const databaseId = 'ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e';
       const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;

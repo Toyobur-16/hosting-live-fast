@@ -318,8 +318,8 @@
     "password": "",
     "balanceUsd": 0,
     "balanceBdt": 0,
-    "emailVerified": false,
-    "isVerified": false
+    "emailVerified": true,
+    "isVerified": true
   },
   {
     "id": "user_1790946308178_a9g3",
@@ -436,5 +436,22 @@
     "googleId": "",
     "createdAt": "2026-10-03T11:31:53.148Z",
     "updatedAt": 1791067551700
+  },
+  {
+    "id": "user_1791189841152_63ktn",
+    "name": "Fast Tester",
+    "email": "tester_1791189839756@example.com",
+    "password": "newpassword456",
+    "isVerified": true,
+    "emailVerified": true,
+    "role": "user",
+    "plan": "free",
+    "planExpiresAt": null,
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "createdAt": "2026-10-05T08:44:01.152Z"
   }
 ]
