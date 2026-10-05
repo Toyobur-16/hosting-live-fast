@@ -493,6 +493,9 @@ export interface HostedBot {
   currentVersion?: string;
   deploymentCount?: number;
   lastPing?: string;
+  aiGuardianStatus?: 'active' | 'healing' | 'monitoring' | 'protected';
+  guardianHeals?: number;
+  lastGuardianHeal?: string;
 }
 
 export interface DeploymentRecord {

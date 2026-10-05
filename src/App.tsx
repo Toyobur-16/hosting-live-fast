@@ -819,6 +819,7 @@ export default function App() {
         onToggleTheme={handleToggleTheme}
         lang={lang}
         onToggleLang={() => setLang((prev) => (prev === 'bn' ? 'en' : 'bn'))}
+        onSelectLang={(target) => setLang(target)}
         onDeployNewBot={handleDeployNewBot}
         hasActivePlan={hasActivePlan}
         botsCount={bots.length}
@@ -851,6 +852,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={handleToggleTheme}
         onToggleLang={() => setLang((prev) => (prev === 'bn' ? 'en' : 'bn'))}
+        onSelectLang={(target) => setLang(target)}
         siteSettings={siteSettings}
         onOpenInstallApp={isDownloaded ? undefined : () => setShowInstallAppModal(true)}
       />
@@ -1228,12 +1230,16 @@ export default function App() {
         }}
       />
 
-      {/* 24/7 AI Live Support Robot Assistant (Bilingual: Bengali & English) */}
+      {/* 24/7 AI Live Support Robot Assistant (Bilingual: Bengali & English & Multimodal) */}
       <AiLiveSupportWidget
         currentUser={currentUser}
         siteName={siteSettings.siteName}
+        lang={lang}
+        onToggleLang={() => setLang((prev) => (prev === 'bn' ? 'en' : 'bn'))}
+        onSelectLang={(target) => setLang(target)}
         onNavigateToDeposit={() => setActiveTab('deposit-store')}
         onNavigateToPlans={() => setActiveTab('plans')}
+        onNavigateToWebsites={() => setActiveTab('websites')}
       />
     </div>
   );

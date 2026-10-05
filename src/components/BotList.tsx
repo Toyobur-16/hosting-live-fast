@@ -131,6 +131,30 @@ export const BotList: React.FC<BotListProps> = ({
     }
   };
 
+  const handleGuardianRevive = async (e: React.MouseEvent, botId: string) => {
+    e.stopPropagation();
+    setFixingBotId(botId);
+    try {
+      const res = await fetch(`/api/bots/${botId}/guardian-revive`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setFixToast({
+          botId,
+          message: lang === 'bn' ? '🛡️ এআই গার্ডিয়ান বটটিকে স্বয়ংক্রিয়ভাবে হিল ও লাইভ করেছে!' : '🛡️ AI Guardian auto-healed & revived bot 24/7!',
+          ok: true
+        });
+        onRestartBot(botId);
+      } else {
+        setFixToast({ botId, message: data.error || 'Guardian revive error', ok: false });
+      }
+    } catch (err: any) {
+      setFixToast({ botId, message: err.message, ok: false });
+    } finally {
+      setFixingBotId(null);
+      setTimeout(() => setFixToast(null), 5000);
+    }
+  };
+
   const filteredBots = useMemo(() => {
     let result = bots;
     if (statusFilter === 'running') {
@@ -256,6 +280,31 @@ export const BotList: React.FC<BotListProps> = ({
           </button>
         </div>
       )}
+
+      {/* 24/7 AI Bot Guardian Active Banner */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-indigo-500/10 border border-emerald-500/30 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center text-slate-950 shadow-md shadow-emerald-500/30 shrink-0 font-bold">
+            <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                <span>{lang === 'bn' ? '🛡️ ২৪/৭ এআই বট গার্ডিয়ান সক্রিয়' : '🛡️ 24/7 AI Bot Guardian Active'}</span>
+              </h4>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>{lang === 'bn' ? 'অবিরাম লাইভ' : 'Always Live'}</span>
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5">
+              {lang === 'bn'
+                ? 'এআই সার্বক্ষণিক আপনার টেলিগ্রাম বটস পর্যবেক্ষণ করছে—ক্র্যাশ, টাইমআউট বা মিসিং প্যাকেজ হলে স্বয়ংক্রিয়ভাবে হিল ও রিস্টার্ট করে অবিরাম লাইভ রাখবে।'
+                : 'AI continuously monitors your Telegram bots—auto-healing crashes, timeouts, and missing packages to guarantee 24/7 uptime.'}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* 24/7 Live Top Header Banner & Stats */}
       <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1f293d] p-5 sm:p-6 rounded-2xl shadow-xs transition-colors">
@@ -613,10 +662,16 @@ export const BotList: React.FC<BotListProps> = ({
                     <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60 dark:border-[#1f293d]">
                       <span className="text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1.5">
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <span>{lang === 'bn' ? 'অটো-রিস্টার্ট ওয়াচডগ:' : 'Auto-Restart:'}</span>
+                        <span>{lang === 'bn' ? '২৪/৭ এআই গার্ডিয়ান:' : '24/7 AI Guardian:'}</span>
                       </span>
-                      <span className="text-emerald-700 dark:text-emerald-400 font-bold">
-                        {lang === 'bn' ? 'সক্রিয় (২৪/৭)' : 'Active (24/7)'}
+                      <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>{lang === 'bn' ? 'সার্বক্ষণিক লাইভ' : 'Protected 24/7'}</span>
+                        {bot.guardianHeals && bot.guardianHeals > 0 ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 font-mono">
+                            ⚡ {bot.guardianHeals}x
+                          </span>
+                        ) : null}
                       </span>
                     </div>
                   </div>
@@ -775,7 +830,18 @@ export const BotList: React.FC<BotListProps> = ({
                         ) : (
                           <Wrench className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                         )}
-                        <span>{lang === 'bn' ? 'কোড ও ডাটা ফিক্স' : 'Auto-Fix Code'}</span>
+                        <span>{lang === 'bn' ? 'কোড ফিক্স' : 'Fix Code'}</span>
+                      </button>
+
+                      {/* 24/7 AI Guardian Revive Button */}
+                      <button
+                        onClick={(e) => handleGuardianRevive(e, bot.id)}
+                        disabled={fixingBotId === bot.id}
+                        className="min-h-[32px] py-1.5 px-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
+                        title={lang === 'bn' ? '২৪/৭ এআই বট গার্ডিয়ান দিয়ে ইনস্ট্যান্ট হিল ও রিভাইভ করুন' : 'Instant 24/7 AI Guardian Auto-Heal & Revive'}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span>{lang === 'bn' ? 'এআই গার্ডিয়ান' : 'AI Guardian'}</span>
                       </button>
                     </div>
 

@@ -34,6 +34,7 @@ interface AppStoreHeaderProps {
   onToggleTheme: () => void;
   lang: 'bn' | 'en';
   onToggleLang: () => void;
+  onSelectLang?: (lang: 'bn' | 'en') => void;
   onDeployNewBot: () => void;
   hasActivePlan: boolean;
   botsCount?: number;
@@ -53,6 +54,7 @@ export function AppStoreHeader({
   onToggleTheme,
   lang,
   onToggleLang,
+  onSelectLang,
   onDeployNewBot,
   hasActivePlan,
   botsCount = 0,
@@ -256,16 +258,6 @@ export function AppStoreHeader({
             <span className="hidden xs:inline-block px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[8px] sm:text-[9px] font-black uppercase tracking-wider shrink-0">
               USDT
             </span>
-          </button>
-
-          {/* Language Switch Button (Desktop & Tablet) */}
-          <button
-            onClick={onToggleLang}
-            className="hidden md:flex p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-[#111827] hover:bg-slate-200 dark:hover:bg-[#1f293d] border border-slate-200 dark:border-[#1e293b] text-slate-700 dark:text-slate-300 font-bold text-xs items-center gap-1 cursor-pointer transition-colors shrink-0 min-h-[34px]"
-            title={lang === 'bn' ? 'Switch to English' : 'বাংলা ভাষায় দেখুন'}
-          >
-            <Languages className="w-3.5 h-3.5 text-[#00d293] shrink-0" />
-            <span className="text-[11px] font-black">{lang === 'bn' ? 'EN' : 'বাংলা'}</span>
           </button>
 
           {/* Theme Toggle Button (Desktop & Tablet) */}

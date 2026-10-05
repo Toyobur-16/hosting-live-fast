@@ -46,6 +46,7 @@ interface SidebarDrawerProps {
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   onToggleLang?: () => void;
+  onSelectLang?: (lang: 'bn' | 'en') => void;
   siteSettings?: SiteSettings;
   onOpenInstallApp?: () => void;
 }
@@ -67,6 +68,7 @@ export function SidebarDrawer({
   theme,
   onToggleTheme,
   onToggleLang,
+  onSelectLang,
   siteSettings,
   onOpenInstallApp
 }: SidebarDrawerProps) {
@@ -276,16 +278,15 @@ export function SidebarDrawer({
 
             {/* Quick Controls Bar: Language & Theme */}
             <div className="px-3 py-2.5 bg-slate-50 dark:bg-[#0c1222] border-b border-slate-200 dark:border-[#162035] flex items-center gap-2">
-              {onToggleLang && (
-                <button
-                  type="button"
-                  onClick={onToggleLang}
-                  className="flex-1 py-2 px-2.5 rounded-xl bg-white dark:bg-[#111827] hover:bg-slate-100 dark:hover:bg-[#1b253b] border border-slate-200 dark:border-[#1e293b] text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
-                >
-                  <Languages className="w-3.5 h-3.5 text-[#00d293]" />
-                  <span>{lang === 'bn' ? 'বাংলা (BN)' : 'English (EN)'}</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={onToggleLang}
+                className="flex-1 py-2 px-2.5 rounded-xl bg-white dark:bg-[#111827] hover:bg-slate-100 dark:hover:bg-[#1b253b] border border-slate-200 dark:border-[#1e293b] text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                title={lang === 'bn' ? 'Switch to English' : 'বাংলা ভাষায় পরিবর্তন করুন'}
+              >
+                <Languages className="w-3.5 h-3.5 text-[#00d293]" />
+                <span className="font-black">{lang === 'bn' ? 'বাংলা' : 'English'}</span>
+              </button>
 
               {onToggleTheme && (
                 <button
@@ -392,6 +393,22 @@ export function SidebarDrawer({
 
           {/* Bottom Section: Admin Portal & Logout */}
           <div className="p-4 border-t border-slate-200 dark:border-[#162035] space-y-2">
+            {/* Language Switcher Button */}
+            <button
+              type="button"
+              onClick={onToggleLang}
+              className="w-full min-h-[40px] flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-[#162035] hover:bg-slate-200 dark:hover:bg-[#1f293d] border border-slate-200 dark:border-[#1e293b] text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+              title={lang === 'bn' ? 'Switch to English' : 'বাংলা ভাষায় পরিবর্তন করুন'}
+            >
+              <div className="flex items-center gap-2">
+                <Languages className="w-4 h-4 text-[#00d293]" />
+                <span>{lang === 'bn' ? 'ভাষা: বাংলা' : 'Language: English'}</span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-lg bg-[#00d293]/15 text-[#00d293] font-black text-[11px] border border-[#00d293]/30">
+                {lang === 'bn' ? 'বাংলা' : 'English'}
+              </span>
+            </button>
+
             {/* Admin Management Button (Visible if user is admin) */}
             {isAdmin && (
               <button

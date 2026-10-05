@@ -108,6 +108,7 @@ import {
   completeAdSession
 } from './server/rewardAdsManager';
 import { askAiSupport } from './server/aiSupportService';
+import { start24HourAiBotGuardian, getAiGuardianStats } from './server/botGuardianService';
 import {
   scanAndAutoFixBotDirectory,
   inspectZipAndDetectMissing,
@@ -6414,15 +6415,21 @@ app.post('/api/admin/support-settings', (req, res) => {
   res.json({ success: true, settings: updated });
 });
 
-// AI 24/7 Live Support Chat Endpoint (Bilingual Bengali/English)
+// AI 24/7 Live Support Chat Endpoint (Bilingual Bengali/English & Multimodal Image/Design)
 app.post('/api/support/ai-chat', async (req, res) => {
   try {
-    const { message, history } = req.body;
-    if (!message || !String(message).trim()) {
-      return res.status(400).json({ error: 'বার্তা দেওয়া আবশ্যক (Message required)' });
+    const { message, history, imageBase64, imageMimeType, lang } = req.body;
+    if ((!message || !String(message).trim()) && !imageBase64) {
+      return res.status(400).json({ error: lang === 'en' ? 'Message or image is required' : 'বার্তা বা ছবি দেওয়া আবশ্যক' });
     }
     const settings = getSupportSettings();
-    const result = await askAiSupport(message, history || [], settings);
+    const result = await askAiSupport(message || '', {
+      chatHistory: history || [],
+      supportSettings: settings,
+      imageBase64: imageBase64 || undefined,
+      imageMimeType: imageMimeType || undefined,
+      lang: lang === 'en' ? 'en' : 'bn'
+    });
     res.json({
       success: true,
       reply: result.text,
@@ -6440,6 +6447,61 @@ app.post('/api/support/ai-chat', async (req, res) => {
       error: 'সাপোর্ট রোবট প্রসেস করতে সাময়িক সমস্যা হয়েছে। সরাসরি এডমিনের সাথে যোগাযোগ করুন।',
       reply: 'দুঃখিত, রোবটের সাথে সংযোগে সাময়িক সমস্যা হয়েছে। সরাসরি এডমিনের সাথে যোগাযোগ করুন:\nWhatsApp: 01304104492\nTelegram: @toyoburrahman'
     });
+  }
+});
+
+// 24/7 AI Bot Guardian Status & Health Check Endpoint
+app.get('/api/bots/guardian-status', (req, res) => {
+  try {
+    const stats = getAiGuardianStats(getRegistry);
+    res.json({ success: true, guardian: stats });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 24/7 AI Bot Guardian Manual Trigger / Deep Revive Endpoint
+app.post('/api/bots/:id/guardian-revive', async (req, res) => {
+  try {
+    const botId = req.params.id;
+    const reg = getRegistry();
+    const bot = reg.find((b) => b.id === botId);
+    if (!bot) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
+
+    const botDir = path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id);
+    if (fs.existsSync(botDir)) {
+      scanAndAutoFixBotDirectory(botDir, {
+        defaultToken: bot.token,
+        requestedEntry: bot.entryFile
+      });
+      if (bot.token && bot.token.includes(':')) {
+        try {
+          await fetch(`https://api.telegram.org/bot${bot.token}/deleteWebhook?drop_pending_updates=true`, {
+            signal: AbortSignal.timeout(3000)
+          });
+        } catch {}
+      }
+    }
+
+    bot.guardianHeals = (bot.guardianHeals || 0) + 1;
+    bot.lastGuardianHeal = new Date().toISOString();
+    bot.aiGuardianStatus = 'active';
+    bot.status = 'running';
+    saveRegistry(reg);
+
+    const started = launchBotProcess(bot);
+    appendLog(bot.id, 'info', `[🛡️ 24/7 AI Guardian] Instant deep diagnosis and auto-heal completed! Bot revived 24/7.`);
+
+    res.json({
+      success: true,
+      started,
+      bot,
+      message: '24/7 AI Guardian auto-healed and revived your bot successfully!'
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -9374,6 +9436,15 @@ async function initSiteConfigSync() {
     startCloudSmtpRelayWorker();
     // Start 24-Hour recurring automatic bot backup service
     start24HourBackupScheduler(getRegistry, appendLog);
+    // Start 24/7 AI Bot Guardian & Auto-Healing Watchdog
+    start24HourAiBotGuardian(
+      getRegistry,
+      saveRegistry,
+      launchBotProcess,
+      appendLog,
+      (id) => runningProcesses.has(id),
+      HOSTED_BOTS_DIR
+    );
   });
 }
 
