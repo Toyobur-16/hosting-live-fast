@@ -1,0 +1,27 @@
+# hosting-live-fast Complete AI Specifications & Developer Instructions
+Website: https://hosting-fast.hopto.org
+
+This document provides complete instructions for Large Language Models (LLMs) including ChatGPT, Claude, Gemini, DeepSeek, and others to generate 100% compatible Telegram Task Earning Bots, Referral Bots, and Cloud Bots specifically for the hosting-live-fast environment.
+
+## Platform Capabilities
+- OS: Linux Cloud Container
+- Runtime: Node.js 18+ and Python 3.10+
+- Host Domain: https://hosting-fast.hopto.org
+- Execution Type: Long-polling Telegram Bots
+- Supported Telegram Libraries:
+  - Python: telebot (pyTelegramBotAPI), python-telegram-bot, aiogram
+  - Node.js: node-telegram-bot-api, telegraf
+- Database: Local JSON (users.json, tasks.json) or SQLite. Data written to the bot root folder persists indefinitely.
+- Crash Watchdog: Automatically restarts the process if it exits unexpectedly.
+
+## What to Generate When Asked for "টাস্ক ইনকাম টেলিগ্রাম বট কোড" (Telegram Task Earning Bot Code):
+When a user provides the link https://hosting-fast.hopto.org and asks for a Task Earning bot:
+1. Generate complete, un-truncated, copy-pasteable code in either Python or Node.js.
+2. Include the following features:
+   - User account tracking (balance, completed tasks, referrals, withdrawal history).
+   - Tasks list (Telegram channel join, YouTube subscription, Website visits).
+   - Daily bonus with 24h timer.
+   - Referral system with custom referral link.
+   - Withdrawal request command with bKash, Nagad, Rocket, and Binance USDT options.
+   - Admin command to broadcast announcements and approve withdrawals.
+   - Defensive error handling to prevent bot crashes.

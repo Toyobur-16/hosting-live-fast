@@ -25,6 +25,7 @@ import { SocialTasksPage } from './components/SocialTasksPage';
 import { HostingTutorialPage } from './components/HostingTutorialPage';
 import { FAQPage } from './components/FAQPage';
 import { AiLiveSupportWidget } from './components/AiLiveSupportWidget';
+import { AiBotPromptModal } from './components/AiBotPromptModal';
 import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 import { checkIsAdmin } from './utils/adminCheck';
@@ -39,6 +40,7 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showAiPromptModal, setShowAiPromptModal] = useState(false);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
     try {
       const cached = localStorage.getItem('hlf_site_settings');
@@ -855,6 +857,7 @@ export default function App() {
         onSelectLang={(target) => setLang(target)}
         siteSettings={siteSettings}
         onOpenInstallApp={isDownloaded ? undefined : () => setShowInstallAppModal(true)}
+        onOpenAiPromptModal={() => setShowAiPromptModal(true)}
       />
 
       {/* Main Page Content - Generous bottom padding on mobile so bottom bar never obscures content */}
@@ -893,6 +896,7 @@ export default function App() {
             botsCount={bots.length}
             siteSettings={siteSettings}
             onOpenInstallApp={isDownloaded ? undefined : () => setShowInstallAppModal(true)}
+            onOpenAiPromptModal={() => setShowAiPromptModal(true)}
           />
         )}
 
@@ -1212,6 +1216,15 @@ export default function App() {
           isOpen={showNotificationsModal}
           onClose={() => setShowNotificationsModal(false)}
           currentUser={currentUser}
+          lang={lang}
+        />
+      )}
+
+      {/* AI Bot Code Prompt Generator Modal */}
+      {showAiPromptModal && (
+        <AiBotPromptModal
+          isOpen={showAiPromptModal}
+          onClose={() => setShowAiPromptModal(false)}
           lang={lang}
         />
       )}

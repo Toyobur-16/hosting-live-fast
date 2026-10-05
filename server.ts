@@ -231,6 +231,51 @@ app.get(['/manifest.webmanifest', '/manifest.json'], (req, res) => {
   return res.json(manifest);
 });
 
+// AI Agent & LLM Discovery Endpoints (/llms.txt, /llms-full.txt, /api/ai-spec)
+app.get(['/llms.txt', '/.well-known/llms.txt'], (req, res) => {
+  const filePath = path.join(process.cwd(), 'public', 'llms.txt');
+  if (fs.existsSync(filePath)) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.sendFile(filePath);
+  }
+  return res.status(404).send('llms.txt not found');
+});
+
+app.get(['/llms-full.txt', '/.well-known/llms-full.txt'], (req, res) => {
+  const filePath = path.join(process.cwd(), 'public', 'llms-full.txt');
+  if (fs.existsSync(filePath)) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.sendFile(filePath);
+  }
+  return res.status(404).send('llms-full.txt not found');
+});
+
+app.get(['/api/ai-spec', '/api/telegram-bot-ai-spec'], (req, res) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  return res.json({
+    platform: 'hosting-live-fast',
+    url: 'https://hosting-fast.hopto.org',
+    runtime: {
+      type: '24/7 Cloud Container',
+      languages: ['Python 3.10+', 'Node.js 18+'],
+      libraries: ['pyTelegramBotAPI (telebot)', 'python-telegram-bot', 'node-telegram-bot-api', 'telegraf'],
+      database: 'Local persistent JSON files (users.json, withdrawals.json) or SQLite'
+    },
+    capabilities: [
+      'Telegram Task Earning Bots (টেলিগ্রাম টাস্ক ইনকাম বট)',
+      'Multi-tier Referral Bonus Systems',
+      'Daily Bonus & Streak Timers',
+      'bKash, Nagad, Rocket, Binance USDT Withdrawals',
+      '24/7 Auto-Restart Watchdog & Live Terminal Logs'
+    ],
+    llmsTxtUrl: 'https://hosting-fast.hopto.org/llms.txt',
+    llmsFullUrl: 'https://hosting-fast.hopto.org/llms-full.txt'
+  });
+});
+
 // 1. Dedicated Site Logo Delivery (Header, Sidebar, Brand banner)
 // Guaranteed separation: Will NEVER serve or be replaced by the APK icon!
 const SITE_LOGO_ROUTES = [

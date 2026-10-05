@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Server,
+  Bot,
   PlusCircle,
   Crown,
   Wallet,
@@ -54,6 +55,7 @@ interface StoreHomePageProps {
   botsCount?: number;
   siteSettings?: SiteSettings;
   onOpenInstallApp?: () => void;
+  onOpenAiPromptModal?: () => void;
 }
 
 export function StoreHomePage({
@@ -72,7 +74,8 @@ export function StoreHomePage({
   lang,
   botsCount = 0,
   siteSettings,
-  onOpenInstallApp
+  onOpenInstallApp,
+  onOpenAiPromptModal
 }: StoreHomePageProps) {
   const { isDownloaded } = usePWAInstall();
   const isAdmin = Boolean(user && (user.role === 'admin' || user.email === 'toyoburrahman9090@gmail.com'));
@@ -165,8 +168,18 @@ export function StoreHomePage({
           </div>
         </div>
 
-        {/* Deploy Button */}
+        {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
+          {onOpenAiPromptModal && (
+            <button
+              onClick={onOpenAiPromptModal}
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              title={lang === 'bn' ? 'এআই দিয়ে টেলিগ্রাম বট কোড বানান' : 'Generate Bot Code with AI'}
+            >
+              <Bot className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+              <span className="hidden xs:inline">{lang === 'bn' ? 'এআই কোড' : 'AI Bot Code'}</span>
+            </button>
+          )}
           <button
             onClick={onDeployNewBot}
             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-gradient-to-r from-[#00d293] to-emerald-400 hover:from-emerald-400 hover:to-[#00d293] text-slate-950 font-black text-xs shadow-md transition-all cursor-pointer whitespace-nowrap"

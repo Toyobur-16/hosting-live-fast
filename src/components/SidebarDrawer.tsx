@@ -49,6 +49,7 @@ interface SidebarDrawerProps {
   onSelectLang?: (lang: 'bn' | 'en') => void;
   siteSettings?: SiteSettings;
   onOpenInstallApp?: () => void;
+  onOpenAiPromptModal?: () => void;
 }
 
 export function SidebarDrawer({
@@ -70,7 +71,8 @@ export function SidebarDrawer({
   onToggleLang,
   onSelectLang,
   siteSettings,
-  onOpenInstallApp
+  onOpenInstallApp,
+  onOpenAiPromptModal
 }: SidebarDrawerProps) {
   const { isDownloaded } = usePWAInstall();
   if (!isOpen) return null;
@@ -131,6 +133,14 @@ export function SidebarDrawer({
       badge: lang === 'bn' ? 'লাইভ' : 'Live',
       color: 'emerald',
       isAction: true
+    },
+    {
+      id: 'ai_bot_prompt',
+      label: lang === 'bn' ? 'এআই দিয়ে বট কোড বানান' : 'AI Bot Code Generator',
+      icon: Sparkles,
+      badge: 'PROMPT',
+      color: 'purple',
+      isPromptAction: true
     },
     {
       id: 'bots',
@@ -352,6 +362,8 @@ export function SidebarDrawer({
                       onClose();
                       if ((item as any).isInstallAction) {
                         if (onOpenInstallApp) onOpenInstallApp();
+                      } else if ((item as any).isPromptAction) {
+                        if (onOpenAiPromptModal) onOpenAiPromptModal();
                       } else if (item.isAction) {
                         onDeployNewBot();
                       } else {
