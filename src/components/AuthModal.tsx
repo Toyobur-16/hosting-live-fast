@@ -44,6 +44,12 @@ async function safeJsonParse(res: Response): Promise<any> {
   }
 }
 
+// Ensure mode is strictly one of the 4 valid states
+const normalizeMode = (m: any): AuthMode => {
+  if (m === 'register' || m === 'forgot' || m === 'reset') return m;
+  return 'login';
+};
+
 // Password strength calculator
 function getPasswordStrength(pass: string): {
   score: number;
@@ -74,9 +80,9 @@ export const AuthModal = ({
   initialMode = 'login',
   resetToken = ''
 }: AuthModalProps) => {
-  const [mode, setMode] = useState<AuthMode>(initialMode === 'activation_pending' ? 'login' : initialMode || 'login');
+  const [mode, setMode] = useState<AuthMode>(() => normalizeMode(initialMode));
   const [name, setName] = useState('');
-  const [email, setEmail] = useState(initialEmail);
+  const [email, setEmail] = useState(typeof initialEmail === 'string' ? initialEmail : '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -91,7 +97,7 @@ export const AuthModal = ({
   const [googleEmail, setGoogleEmail] = useState('');
 
   const resetAllState = (targetMode: AuthMode) => {
-    setMode(targetMode);
+    setMode(normalizeMode(targetMode));
     setError(null);
     setSuccessMessage(null);
     setLoading(false);
@@ -99,22 +105,28 @@ export const AuthModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      setMode(initialMode === 'activation_pending' ? 'login' : initialMode || 'login');
-      if (initialEmail) setEmail(initialEmail);
+      setMode(normalizeMode(initialMode));
+      if (initialEmail && typeof initialEmail === 'string') setEmail(initialEmail);
       setError(null);
       setSuccessMessage(null);
     }
   }, [isOpen, initialEmail, initialMode]);
 
+  // Derived mode checks
+  const safeMode = normalizeMode(mode);
+  const isRegister = safeMode === 'register';
+  const isLogin = safeMode === 'login';
+  const isForgotOrReset = safeMode === 'forgot' || safeMode === 'reset';
+
   // Real-time validations
   const isEmailValid = email.trim().length > 3 && email.includes('@') && email.includes('.');
-  const strength = getPasswordStrength(mode === 'register' ? password : newPassword);
+  const strength = getPasswordStrength(isRegister ? password : newPassword);
   const passwordsMatch =
-    mode === 'register'
+    isRegister
       ? confirmPassword.length > 0 && password === confirmPassword
       : confirmNewPassword.length > 0 && newPassword === confirmNewPassword;
   const passwordsMismatch =
-    mode === 'register'
+    isRegister
       ? confirmPassword.length > 0 && password !== confirmPassword
       : confirmNewPassword.length > 0 && newPassword !== confirmNewPassword;
 
@@ -130,7 +142,7 @@ export const AuthModal = ({
       return;
     }
 
-    if (mode === 'login') {
+    if (isLogin) {
       if (!password) {
         setError(lang === 'bn' ? 'আপনার পাসওয়ার্ড লিখুন' : 'Please enter your password');
         return;
@@ -162,13 +174,13 @@ export const AuthModal = ({
       return;
     }
 
-    if (mode === 'register') {
+    if (isRegister) {
       if (!name.trim()) {
         setError(lang === 'bn' ? 'আপনার পুরো নাম লিখুন' : 'Please enter your full name');
         return;
       }
       if (password.length < 6) {
-        setError(lang === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' : 'Password must be at least 6 characters');
+        setError(lang === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে باشد' : 'Password must be at least 6 characters');
         return;
       }
       if (password !== confirmPassword) {
@@ -240,7 +252,6 @@ export const AuthModal = ({
 
     setLoading(true);
     try {
-      // Direct reset endpoint call
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -379,10 +390,6 @@ export const AuthModal = ({
 
   if (!isOpen) return null;
 
-  const isRegister = mode === 'register';
-  const isLogin = mode === 'login';
-  const isForgotOrReset = mode === 'forgot' || mode === 'reset';
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg bg-[#070b14] border border-[#1e2d48] rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[94vh] overflow-y-auto">
@@ -443,13 +450,13 @@ export const AuthModal = ({
 
         {/* Tab Switcher (Segmented Control for Sign In / Sign Up) */}
         {!isForgotOrReset && (
-          <div className="p-1 mb-5 bg-[#0b1220] border border-[#1e2d48] rounded-2xl flex items-center gap-1">
+          <div className="p-1 mb-5 bg-[#0b1220] border border-[#1e2d48] rounded-2xl flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => resetAllState('login')}
               className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 isLogin
-                  ? 'bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-cyan-500/10 border border-[#00d293]/40 text-[#00d293] shadow-sm'
+                  ? 'bg-gradient-to-r from-[#00d293] to-emerald-500 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
               }`}
             >
@@ -460,33 +467,13 @@ export const AuthModal = ({
               onClick={() => resetAllState('register')}
               className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 isRegister
-                  ? 'bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-cyan-500/10 border border-[#00d293]/40 text-[#00d293] shadow-sm'
+                  ? 'bg-gradient-to-r from-[#00d293] to-emerald-500 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#00d293]" />
+              <Sparkles className={`w-3.5 h-3.5 ${isRegister ? 'text-slate-950' : 'text-[#00d293]'}`} />
               <span>{lang === 'bn' ? '⚡ রেজিস্ট্রেশন (Sign Up)' : 'Sign Up'}</span>
             </button>
-          </div>
-        )}
-
-        {/* High-Quality Registration Perks Ribbon */}
-        {isRegister && (
-          <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-[#00d293]/10 to-teal-950/40 border border-emerald-500/30 text-left space-y-2">
-            <div className="flex items-center gap-2 text-[#00d293] text-xs font-bold">
-              <Gift className="w-4 h-4 shrink-0 text-emerald-400" />
-              <span>{lang === 'bn' ? '🎁 বিনামূল্যে ১ মাসের প্রিমিয়াম ট্রায়াল অন্তর্ভুক্ত!' : '🎁 Free 1-Month Premium Trial Included!'}</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-slate-300">
-              <div className="flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
-                <span>{lang === 'bn' ? 'তাৎক্ষণিক অটো অ্যাক্টিভেশন' : 'Instant Auto-Activation'}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>{lang === 'bn' ? 'কোনো কোড বা ইমেইল অপেক্ষা নেই' : 'No Code / Email Wait'}</span>
-              </div>
-            </div>
           </div>
         )}
 
@@ -676,22 +663,11 @@ export const AuthModal = ({
             </div>
 
             {/* Password */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] font-semibold">
-                <label className="text-slate-300 flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-[#00d293]" />
-                  <span>{lang === 'bn' ? 'পাসওয়ার্ড (Password)' : 'Password'}</span>
-                </label>
-                {isLogin && (
-                  <button
-                    type="button"
-                    onClick={() => resetAllState('forgot')}
-                    className="text-[#00d293] hover:text-emerald-300 font-medium hover:underline cursor-pointer text-[11px]"
-                  >
-                    {lang === 'bn' ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot Password?'}
-                  </button>
-                )}
-              </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-[#00d293]" />
+                <span>{lang === 'bn' ? 'পাসওয়ার্ড (Password)' : 'Password'}</span>
+              </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -712,6 +688,19 @@ export const AuthModal = ({
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+
+              {/* Clean, right-aligned Forgot Password link right under the password input */}
+              {isLogin && (
+                <div className="flex justify-end pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => resetAllState('forgot')}
+                    className="text-xs text-slate-400 hover:text-[#00d293] hover:underline transition cursor-pointer"
+                  >
+                    {lang === 'bn' ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot Password?'}
+                  </button>
+                </div>
+              )}
 
               {/* Password Strength Meter (Register Mode) */}
               {isRegister && password.length > 0 && (
@@ -797,7 +786,7 @@ export const AuthModal = ({
             </button>
 
             {/* Mode Switch Helper */}
-            <div className="text-center pt-2">
+            <div className="text-center pt-2 space-y-1.5">
               {isLogin ? (
                 <p className="text-xs text-slate-400">
                   {lang === 'bn' ? 'কোনো অ্যাকাউন্ট নেই?' : "Don't have an account?"}{' '}

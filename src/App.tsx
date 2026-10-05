@@ -323,9 +323,14 @@ export default function App() {
   const [authModalEmail, setAuthModalEmail] = useState('');
   const [authModalResetToken, setAuthModalResetToken] = useState('');
 
-  const openAuthModal = (targetMode: AuthMode = 'login', targetEmail = '') => {
-    setAuthModalMode(targetMode);
-    setAuthModalEmail(targetEmail);
+  const openAuthModal = (targetMode: any = 'login', targetEmail: any = '') => {
+    const validMode: AuthMode =
+      typeof targetMode === 'string' && ['login', 'register', 'forgot', 'reset'].includes(targetMode)
+        ? (targetMode as AuthMode)
+        : 'login';
+    const validEmail = typeof targetEmail === 'string' ? targetEmail : '';
+    setAuthModalMode(validMode);
+    setAuthModalEmail(validEmail);
     setAuthModalResetToken('');
     setAuthModalKey((prev) => prev + 1);
     setShowAuthModal(true);
