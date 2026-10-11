@@ -495,34 +495,34 @@ export const SocialTasksPage: React.FC<SocialTasksPageProps> = ({
                     <div>
                       {/* Card Header: Platform & Reward */}
                       <div className="flex items-center justify-between gap-2 mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${meta.bg}`}>
-                            <Icon className={`w-4 h-4 ${meta.color}`} />
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 shadow-sm ${meta.bg}`}>
+                            <Icon className={`w-5 h-5 shrink-0 ${meta.color}`} />
                           </div>
-                          <div>
-                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block truncate">
                               {meta.name}
                             </span>
                             {task.badgeText && (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                <Flame className="w-2.5 h-2.5 text-amber-400" />
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                                <Flame className="w-2.5 h-2.5 text-amber-400 shrink-0" />
                                 {task.badgeText}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-black">
+                        <div className="flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-black shrink-0">
                           <span>+${task.rewardUsd.toFixed(2)} USD</span>
                         </div>
                       </div>
 
                       {/* Title & Description */}
-                      <h3 className="text-sm sm:text-base font-bold text-white mb-1.5 leading-snug group-hover:text-purple-300 transition-colors">
+                      <h3 className="text-sm sm:text-base font-bold text-white mb-1.5 leading-snug break-words group-hover:text-purple-300 transition-colors">
                         {lang === 'bn' ? (task.titleBn || task.title) : task.title}
                       </h3>
 
-                      <p className="text-xs text-slate-400 leading-relaxed line-clamp-2 mb-4">
+                      <p className="text-xs text-slate-400 leading-relaxed line-clamp-2 mb-4 break-words">
                         {lang === 'bn' ? (task.descriptionBn || task.description) : task.description}
                       </p>
                     </div>
@@ -531,11 +531,11 @@ export const SocialTasksPage: React.FC<SocialTasksPageProps> = ({
                     <button
                       type="button"
                       onClick={() => handleStartTask(task)}
-                      className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-600/20 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                      className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-600/20 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99] shrink-0"
                     >
-                      <Upload className="w-4 h-4" />
+                      <Upload className="w-4 h-4 shrink-0" />
                       <span>{lang === 'bn' ? 'টাস্ক করুন ও স্ক্রিনশট জমা দিন' : 'Complete & Submit Proof'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                     </button>
                   </div>
                 );
@@ -591,13 +591,13 @@ export const SocialTasksPage: React.FC<SocialTasksPageProps> = ({
                     className="p-4 sm:p-5 rounded-2xl bg-[#0a1020] border border-slate-800 hover:border-slate-700 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                   >
                     <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${meta.bg}`}>
-                        <Icon className={`w-5 h-5 ${meta.color}`} />
+                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 shadow-sm ${meta.bg}`}>
+                        <Icon className={`w-5 h-5 shrink-0 ${meta.color}`} />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h4 className="text-sm font-bold text-white truncate">{sub.taskTitle}</h4>
-                          <span className="font-mono text-xs font-black text-emerald-400">
+                          <h4 className="text-sm font-bold text-white break-words">{sub.taskTitle}</h4>
+                          <span className="font-mono text-xs font-black text-emerald-400 shrink-0">
                             +${sub.rewardUsd.toFixed(2)} USD
                           </span>
                         </div>
@@ -611,51 +611,51 @@ export const SocialTasksPage: React.FC<SocialTasksPageProps> = ({
                         </div>
 
                         {sub.proofNote && (
-                          <p className="text-xs text-slate-400 mt-1 italic">
+                          <p className="text-xs text-slate-400 mt-1 italic break-words">
                             মন্তব্য: {sub.proofNote}
                           </p>
                         )}
 
                         {sub.status === 'rejected' && sub.rejectReason && (
-                          <p className="text-xs text-rose-400 font-medium mt-1">
+                          <p className="text-xs text-rose-400 font-medium mt-1 break-words">
                             বাতিলের কারণ: {sub.rejectReason}
                           </p>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 self-end sm:self-center shrink-0">
+                    <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-800 shrink-0 justify-start sm:justify-end">
                       {/* Screenshot Preview Button */}
                       {sub.screenshotUrl && (
                         <button
                           type="button"
                           onClick={() => setViewImageSrc(sub.screenshotUrl || null)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border border-slate-700"
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border border-slate-700 shrink-0"
                           title="আপনার জমা দেওয়া স্ক্রিনশট দেখুন"
                         >
-                          <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                          <Eye className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                           <span>{lang === 'bn' ? 'স্ক্রিনশট' : 'Proof'}</span>
                         </button>
                       )}
 
                       {/* Status Badge */}
                       {sub.status === 'pending' && (
-                        <span className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                        <span className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 shrink-0">
+                          <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
                           <span>{lang === 'bn' ? 'পর্যালোচনায় আছে' : 'Pending Review'}</span>
                         </span>
                       )}
 
                       {sub.status === 'approved' && (
-                        <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black flex items-center gap-1.5 shrink-0">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span>{lang === 'bn' ? 'অ্যাপ্রুভড (ক্রেডিটেড)' : 'Approved'}</span>
                         </span>
                       )}
 
                       {sub.status === 'rejected' && (
-                        <span className="px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5">
-                          <X className="w-3.5 h-3.5 text-rose-400" />
+                        <span className="px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 shrink-0">
+                          <X className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                           <span>{lang === 'bn' ? 'বাতিল হয়েছে' : 'Rejected'}</span>
                         </span>
                       )}

@@ -4,14 +4,14 @@ import path from 'path';
 import AdmZip from 'adm-zip';
 import { getWebsiteSettings } from './staticWebsitesManager';
 
-const DEFAULT_NETLIFY_TOKEN = 'nfp_DPwmDu45wrHc2eiyQeKZJ4EXrYnLqKdL0da9';
+const DEFAULT_NETLIFY_TOKEN = process.env.NETLIFY_AUTH_TOKEN || '';
 
 export function getNetlifyToken(): string {
   const settings = getWebsiteSettings();
   if (settings.netlifyToken && settings.netlifyToken.trim()) {
     return settings.netlifyToken.trim();
   }
-  return process.env.NETLIFY_AUTH_TOKEN || DEFAULT_NETLIFY_TOKEN;
+  return DEFAULT_NETLIFY_TOKEN;
 }
 
 interface NetlifyRequestOptions {

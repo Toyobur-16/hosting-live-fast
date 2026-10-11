@@ -1368,37 +1368,37 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         key={task.id}
                         className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-[#0d1524] to-[#121029] border border-purple-500/30 hover:border-purple-500/60 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs transition-colors shadow-md"
                       >
-                        <div className="space-y-2 max-w-2xl w-full">
+                        <div className="space-y-2 max-w-2xl w-full min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-purple-400" />
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 shrink-0">
+                              <Sparkles className="w-3 h-3 text-purple-400 shrink-0" />
                               <span>🎯 সোশ্যাল টাস্ক সাবমিশন</span>
                             </span>
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-800 text-slate-300 border border-slate-700">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-800 text-slate-300 border border-slate-700 shrink-0">
                               {task.platform}
                             </span>
-                            <span className="font-extrabold text-white text-sm">{task.userName || 'User'}</span>
-                            <span className="text-slate-400 text-[11px]">({task.userEmail || task.userId})</span>
+                            <span className="font-extrabold text-white text-sm break-words">{task.userName || 'User'}</span>
+                            <span className="text-slate-400 text-[11px] font-mono break-all">({task.userEmail || task.userId})</span>
                           </div>
 
                           <div className="flex items-center gap-2.5 flex-wrap">
-                            <span className="font-bold text-slate-200 text-sm">
+                            <span className="font-bold text-slate-200 text-sm break-words">
                               {task.taskTitle}
                             </span>
-                            <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 font-black text-emerald-400 text-xs">
+                            <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 font-black text-emerald-400 text-xs shrink-0">
                               +${task.rewardUsd} USD ওয়ালেট রিওয়ার্ড
                             </span>
                           </div>
 
                           {task.proofNote && (
-                            <div className="p-2 rounded-xl bg-[#080d18] border border-[#16243d] text-[11px] text-slate-300">
+                            <div className="p-2 rounded-xl bg-[#080d18] border border-[#16243d] text-[11px] text-slate-300 break-words">
                               <strong className="text-slate-400">প্রমাণ নোট / ইউজারনেম:</strong> {task.proofNote}
                             </div>
                           )}
 
                           {/* Screenshot Proof Preview Thumbnail */}
                           {task.screenshotUrl && (
-                            <div className="flex items-center gap-3 pt-1">
+                            <div className="flex items-center gap-3 pt-1 flex-wrap">
                               <div
                                 onClick={() => setViewScreenshotUrl(task.screenshotUrl!)}
                                 className="relative group cursor-pointer rounded-xl overflow-hidden border border-[#2b3a58] hover:border-sky-400 transition-all w-24 h-16 bg-slate-950 shrink-0"
@@ -1410,7 +1410,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                 />
                                 <div className="absolute inset-0 bg-black/40 group-hover:bg-black/10 flex items-center justify-center transition-colors">
-                                  <Eye className="w-4 h-4 text-white drop-shadow-md" />
+                                  <Eye className="w-4 h-4 text-white drop-shadow-md shrink-0" />
                                 </div>
                               </div>
                               <div>
@@ -1419,7 +1419,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   onClick={() => setViewScreenshotUrl(task.screenshotUrl!)}
                                   className="text-xs font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1.5 cursor-pointer underline"
                                 >
-                                  <Eye className="w-3.5 h-3.5" />
+                                  <Eye className="w-3.5 h-3.5 shrink-0" />
                                   <span>স্ক্রিনশট প্রমাণ বড় করে দেখুন (View Proof)</span>
                                 </button>
                                 <p className="text-[10px] text-slate-500">ইউজারের দেওয়া কাজের প্রুফ স্ক্রিনশট</p>
@@ -1427,7 +1427,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             </div>
                           )}
 
-                          <div className="text-[10px] text-slate-500 pt-0.5">
+                          <div className="text-[10px] text-slate-500 pt-0.5 flex-wrap">
                             সাবমিট তারিখ: {task.submittedAt ? new Date(task.submittedAt).toLocaleString('bn-BD') : 'N/A'}
                             {task.reviewedAt && ` • পর্যালোচনা: ${new Date(task.reviewedAt).toLocaleString('bn-BD')} (${task.reviewedBy || 'Admin'})`}
                             {task.rejectReason && <span className="text-rose-400 font-bold ml-1.5">• কারণ: {task.rejectReason}</span>}
@@ -1435,7 +1435,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-2 flex-wrap md:flex-nowrap w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-[#1f2d48] shrink-0">
+                        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-[#1f2d48] shrink-0 justify-start md:justify-end">
                           {task.status === 'pending' ? (
                             <>
                               <button
@@ -1487,60 +1487,60 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           key={req.id}
                           className="p-3.5 sm:p-4 rounded-2xl bg-[#0d1524] border border-[#1f2d48] flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 text-xs hover:border-slate-600 transition-colors"
                         >
-                          <div className="space-y-1.5 max-w-xl w-full">
+                          <div className="space-y-1.5 max-w-xl w-full min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 ${
                                 isDeposit ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                               }`}>
                                 {isDeposit ? '💰 ওয়ালেট ডিপোজিট' : '📦 প্যাকেজ সাবস্ক্রিপশন'}
                               </span>
-                              <span className="font-bold text-white text-sm">{req.userName}</span>
-                              <span className="text-slate-400 text-[11px]">({req.userEmail})</span>
+                              <span className="font-bold text-white text-sm break-words">{req.userName}</span>
+                              <span className="text-slate-400 text-[11px] font-mono break-all">({req.userEmail})</span>
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="px-2 py-0.5 rounded-md bg-[#0088cc]/20 text-[#0088cc] font-bold text-[11px]">
+                              <span className="px-2 py-0.5 rounded-md bg-[#0088cc]/20 text-[#0088cc] font-bold text-[11px] shrink-0">
                                 {req.planName}
                               </span>
-                              <span className="font-black text-emerald-400 text-sm">
+                              <span className="font-black text-emerald-400 text-sm shrink-0">
                                 ${req.amount} USD
                               </span>
                               {req.bdtAmount && (
-                                <span className="px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 font-bold text-[10px] border border-pink-500/30">
+                                <span className="px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 font-bold text-[10px] border border-pink-500/30 shrink-0">
                                   ৳{req.bdtAmount} BDT (১$ = {req.rateToBdt || 120}৳)
                                 </span>
                               )}
-                              <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 uppercase font-bold text-[10px]">
+                              <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 uppercase font-bold text-[10px] shrink-0">
                                 {req.method}
                               </span>
                             </div>
 
                             <div className="flex items-center gap-3 text-[11px] text-slate-300 flex-wrap">
                               <span>প্রেরক: <strong className="font-mono text-white">{req.senderNumber || req.senderIdentifier}</strong></span>
-                              <span className="flex items-center gap-1">
-                                TrxID: <strong className="font-mono text-pink-400">{req.transactionId}</strong>
+                              <span className="flex items-center gap-1 font-mono break-all">
+                                TrxID: <strong className="text-pink-400">{req.transactionId}</strong>
                                 <button
                                   type="button"
                                   onClick={() => handleCopy(req.transactionId, req.id)}
-                                  className="p-1 hover:text-white cursor-pointer"
+                                  className="p-1 hover:text-white cursor-pointer shrink-0"
                                 >
                                   {copiedId === req.id ? <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
                                 </button>
                               </span>
                             </div>
 
-                            <div className="text-[10px] text-slate-500">
+                            <div className="text-[10px] text-slate-500 break-words">
                               তারিখ: {new Date(req.createdAt).toLocaleString('bn-BD')} {req.note ? `• নোট: ${req.note}` : ''}
                             </div>
 
                             {req.screenshotUrl && (
-                              <div className="flex items-center gap-2 pt-1">
+                              <div className="flex items-center gap-2 pt-1 flex-wrap">
                                 <button
                                   type="button"
                                   onClick={() => setViewScreenshotUrl(req.screenshotUrl!)}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer transition-all"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer transition-all shrink-0"
                                 >
-                                  <Eye className="w-3.5 h-3.5 text-amber-400" />
+                                  <Eye className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                                   <span>📸 পেমেন্ট স্ক্রিনশট দেখুন (View Screenshot)</span>
                                 </button>
                               </div>
@@ -1548,7 +1548,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           </div>
 
                           {/* Actions */}
-                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-t-0 border-[#1f2d48]">
+                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-[#1f2d48] shrink-0 justify-start sm:justify-end">
                             {req.status === 'pending' ? (
                               <>
                                 <button

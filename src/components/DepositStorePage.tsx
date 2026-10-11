@@ -337,11 +337,6 @@ export function DepositStorePage({
       return;
     }
 
-    if (!transactionId.trim()) {
-      setFormMessage({ type: 'error', text: 'Transaction ID / TrxID / TxHash দেওয়া আবশ্যক।' });
-      return;
-    }
-
     if (!screenshotData) {
       setFormMessage({
         type: 'error',
@@ -354,7 +349,7 @@ export function DepositStorePage({
     try {
       const token = localStorage.getItem('bot_auth_token');
       const orderIdGen = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-      const cleanTrx = transactionId.trim().toUpperCase();
+      const cleanTrx = transactionId.trim() ? transactionId.trim().toUpperCase() : `PROOF_${orderIdGen}`;
       const reqId = `dep_${orderIdGen}`;
       const effectiveSender = senderIdentifier.trim() || user.email || 'User';
       const effectiveRate = selectedMethod.rateToBdt || BDT_RATE;
@@ -864,31 +859,11 @@ export function DepositStorePage({
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">
-                    ২. Transaction ID / TrxID / TxHash *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    placeholder={
-                      isBdtMethod
-                        ? 'e.g. 9J83KLOP01'
-                        : selectedMethod.id.includes('binance')
-                        ? 'e.g. Binance Order ID বা Transaction ID'
-                        : 'e.g. 0xadf20... বা ট্রানজেকশন হ্যাশ'
-                    }
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#1e293b] text-sm text-white font-bold uppercase tracking-wider focus:border-amber-400 focus:outline-none"
-                  />
-                </div>
-
-                {/* 3. Mandatory Payment Screenshot Upload */}
+                {/* 2. Mandatory Payment Screenshot Upload */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-200">
-                      ৩. পেমেন্টের স্ক্রিনশট আপলোড করুন <span className="text-rose-400 font-black">* (আবশ্যক)</span>
+                      ২. পেমেন্টের স্ক্রিনশট আপলোড করুন <span className="text-rose-400 font-black">* (আবশ্যক)</span>
                     </label>
                     {screenshotData && (
                       <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">

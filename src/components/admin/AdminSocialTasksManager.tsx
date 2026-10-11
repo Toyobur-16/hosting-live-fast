@@ -732,93 +732,107 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                     return (
                       <div
                         key={task.id}
-                        className={`p-4 rounded-2xl border transition-all ${
+                        className={`p-4 sm:p-5 rounded-2xl border transition-all ${
                           task.enabled
-                            ? 'bg-[#0a0f1d] border-slate-800 hover:border-slate-700'
+                            ? 'bg-[#0a0f1d] border-slate-800 hover:border-slate-700 shadow-md'
                             : 'bg-[#080c16]/60 border-slate-900 opacity-60'
                         }`}
                       >
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${meta.bg} ${meta.color}`}>
-                              <PlatformIcon className="w-6 h-6" />
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          {/* Left: Platform Icon & Task Details */}
+                          <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border shadow-md ${meta.bg} ${meta.color}`}>
+                              <PlatformIcon className="w-6 h-6 shrink-0" />
                             </div>
 
-                            <div className="space-y-1">
+                            <div className="space-y-1.5 min-w-0 flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase border ${meta.bg} ${meta.color}`}>
+                                <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase border ${meta.bg} ${meta.color} shrink-0`}>
                                   {meta.name}
                                 </span>
                                 {task.badgeText && (
-                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-amber-500/15 border border-amber-500/30 text-amber-300 shrink-0">
                                     {task.badgeText}
                                   </span>
                                 )}
-                                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shrink-0">
                                   +${task.rewardUsd.toFixed(2)} USD
+                                </span>
+                                <span className="text-[11px] text-slate-500 font-bold shrink-0">
+                                  (ক্রম #{task.order || 1})
                                 </span>
                               </div>
 
-                              <h4 className="text-sm font-black text-white">{task.titleBn || task.title}</h4>
-                              {task.descriptionBn && (
-                                <p className="text-xs text-slate-400 max-w-xl">{task.descriptionBn}</p>
+                              <h4 className="text-sm sm:text-base font-black text-white break-words leading-snug">
+                                {task.titleBn || task.title}
+                              </h4>
+                              {(task.descriptionBn || task.description) && (
+                                <p className="text-xs text-slate-400 max-w-2xl break-words line-clamp-2">
+                                  {task.descriptionBn || task.description}
+                                </p>
                               )}
 
-                              <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-500">
+                              <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-400 flex-wrap">
                                 <a
                                   href={task.link}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-sky-400 hover:underline flex items-center gap-1 font-mono"
+                                  className="text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1 font-mono max-w-[200px] sm:max-w-xs md:max-w-sm truncate shrink-0"
+                                  title={task.link}
                                 >
-                                  <span>{task.link}</span>
-                                  <ExternalLink className="w-3 h-3" />
+                                  <span className="truncate">{task.link}</span>
+                                  <ExternalLink className="w-3 h-3 shrink-0" />
                                 </a>
                                 <span>•</span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-amber-400" />
+                                <span className="flex items-center gap-1 shrink-0">
+                                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                                   <span>{task.timerSeconds || 8}s টাইমার</span>
                                 </span>
                                 <span>•</span>
-                                <span className="text-emerald-400 font-bold">
+                                <span className="text-emerald-400 font-bold shrink-0">
                                   {task.totalCompletions || 0} জন সম্পন্ন করেছে
                                 </span>
                               </div>
                             </div>
                           </div>
 
-                          {/* Actions */}
-                          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                          {/* Actions: High-Contrast, Clearly Labeled Buttons */}
+                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800/80 shrink-0 justify-start md:justify-end">
+                            {/* Status Toggle Button */}
                             <button
                               type="button"
                               onClick={() => handleToggleStatus(task)}
-                              className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                              className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shrink-0 ${
                                 task.enabled
-                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-                                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
+                                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25'
+                                  : 'bg-slate-800/90 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white'
                               }`}
                               title={task.enabled ? 'টাস্ক বন্ধ করুন' : 'টাস্ক চালু করুন'}
                             >
-                              {task.enabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                              <span className="text-[11px]">{task.enabled ? 'সক্রিয়' : 'বন্ধ'}</span>
+                              {task.enabled ? <ToggleRight className="w-5 h-5 text-emerald-400 shrink-0" /> : <ToggleLeft className="w-5 h-5 text-slate-400 shrink-0" />}
+                              <span>{task.enabled ? 'সক্রিয় (Active)' : 'বন্ধ (Disabled)'}</span>
                             </button>
 
+                            {/* Edit Button */}
                             <button
                               type="button"
                               onClick={() => handleOpenEdit(task)}
-                              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                              className="px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 hover:text-white border border-sky-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shrink-0"
                               title="এডিট করুন"
                             >
-                              <Edit2 className="w-4 h-4" />
+                              <Edit2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                              <span>{lang === 'bn' ? 'এডিট' : 'Edit'}</span>
                             </button>
 
+                            {/* Delete Button */}
                             <button
                               type="button"
                               onClick={() => handleDelete(task)}
-                              className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 cursor-pointer transition-colors"
+                              className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 hover:text-rose-100 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shrink-0"
                               title="মুছে ফেলুন"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                              <span>{lang === 'bn' ? 'মুছুন' : 'Delete'}</span>
                             </button>
                           </div>
                         </div>
@@ -929,23 +943,23 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                             {/* Left: User & Task info */}
                             <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                              <div className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${meta.bg} ${meta.color}`}>
-                                <PlatformIcon className="w-6 h-6" />
+                              <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 shadow-md ${meta.bg} ${meta.color}`}>
+                                <PlatformIcon className="w-6 h-6 shrink-0" />
                               </div>
 
-                              <div className="space-y-1 min-w-0 flex-1">
+                              <div className="space-y-1.5 min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-extrabold text-sm text-white">{sub.userName || 'User'}</span>
-                                  <span className="text-xs text-slate-400 font-mono">({sub.userEmail || sub.userId})</span>
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${meta.bg} ${meta.color}`}>
+                                  <span className="font-extrabold text-sm text-white break-words">{sub.userName || 'User'}</span>
+                                  <span className="text-xs text-slate-400 font-mono break-all">({sub.userEmail || sub.userId})</span>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${meta.bg} ${meta.color} shrink-0`}>
                                     {meta.name}
                                   </span>
-                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shrink-0">
                                     +${sub.rewardUsd.toFixed(2)} USD
                                   </span>
                                 </div>
 
-                                <h4 className="text-sm font-bold text-slate-200">{sub.taskTitle}</h4>
+                                <h4 className="text-sm font-bold text-slate-200 break-words">{sub.taskTitle}</h4>
 
                                 <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
                                   <span>
@@ -959,13 +973,13 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                                 </div>
 
                                 {sub.proofNote && (
-                                  <p className="text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg mt-1 inline-block">
+                                  <p className="text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg mt-1 inline-block break-words">
                                     📝 <strong>{lang === 'bn' ? 'ইউজার নোট:' : 'User Note:'}</strong> {sub.proofNote}
                                   </p>
                                 )}
 
                                 {sub.status === 'rejected' && sub.rejectReason && (
-                                  <p className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg mt-1 inline-block">
+                                  <p className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg mt-1 inline-block break-words">
                                     ✕ <strong>{lang === 'bn' ? 'বাতিলের কারণ:' : 'Reason:'}</strong> {sub.rejectReason}
                                   </p>
                                 )}
@@ -973,34 +987,34 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                             </div>
 
                             {/* Right: Screenshot Preview & Actions */}
-                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 self-end lg:self-center shrink-0 w-full sm:w-auto justify-end">
+                            <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto justify-start lg:justify-end shrink-0 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-800">
                               {/* Screenshot thumbnail button */}
                               {sub.screenshotUrl ? (
                                 <button
                                   type="button"
                                   onClick={() => setViewScreenshotUrl(sub.screenshotUrl || null)}
-                                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border border-slate-700 shadow-sm"
+                                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border border-cyan-500/30 shadow-sm shrink-0"
                                   title="স্ক্রিনশট প্রমাণ বড় করে দেখুন"
                                 >
-                                  <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                                  <Eye className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                                   <span>{lang === 'bn' ? 'স্ক্রিনশট দেখুন' : 'View Proof'}</span>
                                 </button>
                               ) : (
-                                <span className="text-[11px] text-slate-500 italic px-2">
+                                <span className="text-[11px] text-slate-500 italic px-2 shrink-0">
                                   {lang === 'bn' ? 'স্ক্রিনশট নেই' : 'No screenshot'}
                                 </span>
                               )}
 
                               {/* Status / Action Buttons */}
                               {sub.status === 'pending' ? (
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap shrink-0">
                                   <button
                                     type="button"
                                     disabled={isProcessing}
                                     onClick={() => handleApproveSubmission(sub.id)}
-                                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50 shrink-0"
                                   >
-                                    <Check className="w-4 h-4" />
+                                    <Check className="w-4 h-4 shrink-0" />
                                     <span>{isProcessing ? 'অনুমোদন হচ্ছে...' : (lang === 'bn' ? 'অনুমোদন ও ক্রেডিট' : 'Approve & Credit')}</span>
                                   </button>
 
@@ -1011,20 +1025,20 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                                       setRejectingSub(sub);
                                       setRejectReasonInput('');
                                     }}
-                                    className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                                    className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center gap-1 transition cursor-pointer shrink-0"
                                   >
-                                    <X className="w-4 h-4" />
+                                    <X className="w-4 h-4 shrink-0" />
                                     <span>{lang === 'bn' ? 'বাতিল' : 'Reject'}</span>
                                   </button>
                                 </div>
                               ) : sub.status === 'approved' ? (
-                                <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black flex items-center gap-1.5">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black flex items-center gap-1.5 shrink-0">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                                   <span>{lang === 'bn' ? 'অনুমোদিত (ক্রেডিট সম্পন্ন)' : 'Approved'}</span>
                                 </span>
                               ) : (
-                                <span className="px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5">
-                                  <X className="w-4 h-4 text-rose-400" />
+                                <span className="px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 shrink-0">
+                                  <X className="w-4 h-4 text-rose-400 shrink-0" />
                                   <span>{lang === 'bn' ? 'বাতিলকৃত' : 'Rejected'}</span>
                                 </span>
                               )}
@@ -1078,14 +1092,14 @@ export const AdminSocialTasksManager: React.FC<AdminSocialTasksManagerProps> = (
                         key={plat.id}
                         type="button"
                         onClick={() => setFormData({ ...formData, platform: plat.id })}
-                        className={`p-2.5 rounded-xl border text-center flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                        className={`min-h-[64px] p-2 rounded-xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
                           isSelected
                             ? `${plat.bg} ${plat.color} border-current ring-2 ring-purple-500/50 shadow-md font-black`
                             : 'bg-[#080d19] border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                         }`}
                       >
-                        <Icon className="w-4 h-4" />
-                        <span className="text-[10px] truncate max-w-full">{plat.name}</span>
+                        <Icon className="w-5 h-5 shrink-0" />
+                        <span className="text-[11px] font-bold truncate max-w-full">{plat.name}</span>
                       </button>
                     );
                   })}

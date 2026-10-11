@@ -79,7 +79,9 @@ import {
   getWebsiteSettings,
   saveWebsiteSettings,
   isValidSlug,
-  sanitizeSlug
+  sanitizeSlug,
+  getSiteDirectory,
+  ensureWebsiteWorkspace
 } from './server/staticWebsitesManager';
 import {
   getBotBackups,
@@ -3695,11 +3697,12 @@ app.get('/api/websites/:id', (req, res) => {
   res.json({ success: true, website });
 });
 
-app.get('/api/websites/:id/files', (req, res) => {
+app.get('/api/websites/:id/files', async (req, res) => {
   const user = getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  await ensureWebsiteWorkspace(req.params.id);
   const files = getWebsiteFilesList(req.params.id, user.role === 'admin' ? undefined : user.id);
   res.json({ success: true, files });
 });
@@ -4158,7 +4161,9 @@ app.post('/api/plans/purchase', (req, res) => {
   const { planId, method, senderNumber, transactionId, note } = req.body;
   if (!planId) return res.status(400).json({ error: 'প্লান নির্বাচন করুন (Plan is required)' });
   if (!senderNumber || !senderNumber.trim()) return res.status(400).json({ error: 'প্রেরক ফোন নাম্বার দিন (Sender phone number is required)' });
-  if (!transactionId || !transactionId.trim()) return res.status(400).json({ error: 'Transaction ID (TrxID) দিন' });
+  const cleanPlanTrx = (transactionId && String(transactionId).trim())
+    ? String(transactionId).trim().toUpperCase()
+    : `PLAN_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
   const plans = getPlans();
   const plan = plans.find((p) => p.id === planId);
@@ -4184,7 +4189,7 @@ app.post('/api/plans/purchase', (req, res) => {
     currency,
     method: method || 'binance',
     senderNumber: senderNumber.trim(),
-    transactionId: transactionId.trim().toUpperCase(),
+    transactionId: cleanPlanTrx,
     note: (note || '').trim(),
     status: 'pending',
     createdAt: new Date().toISOString()
@@ -4257,12 +4262,10 @@ app.post('/api/wallet/deposit', async (req, res) => {
     ? String(senderIdentifier).trim()
     : (user.email || user.name || 'User');
 
-  if (!transactionId || !String(transactionId).trim()) {
-    return res.status(400).json({ error: 'Transaction ID / TrxID / Order ID দিন' });
-  }
-
   const requests = getPlanRequests();
-  const cleanTrx = String(transactionId).trim().toUpperCase();
+  const cleanTrx = (transactionId && String(transactionId).trim())
+    ? String(transactionId).trim().toUpperCase()
+    : `PROOF_${orderId || Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
   // Prevent duplicate spam if identical TrxID is already pending
   const existingPending = requests.find((r) => r.transactionId === cleanTrx && r.status === 'pending');
@@ -9199,6 +9202,59 @@ app.get(['/admin', '/admin/login'], (req, res) => {
   res.redirect('/?admin=true');
 });
 
+// Live Static Website Hosting & Direct Serving (/site/:slug or /sites/:slug)
+app.use(['/site/:slug', '/sites/:slug'], async (req, res, next) => {
+  try {
+    const slug = req.params.slug;
+    const resolved = getWebsiteBySlug(slug);
+    if (!resolved) {
+      return next();
+    }
+    const { website, siteDir } = resolved;
+    if (website.status === 'stopped') {
+      return res.status(503).send(`
+        <!DOCTYPE html>
+        <html lang="bn">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>${website.name} - সাময়িকভাবে বন্ধ</title>
+            <style>
+              body { background: #0a0e1a; color: #fff; font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+              .card { background: #111827; border: 1px solid #1f2937; border-radius: 24px; padding: 32px; max-width: 440px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
+              h2 { color: #f43f5e; margin: 0 0 12px 0; font-size: 20px; }
+              p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h2>ওয়েবসাইটটি বর্তমানে স্থগিত (Stopped)</h2>
+              <p><strong>${website.name}</strong> এর এডমিন সাময়িকভাবে সাইটটি বন্ধ রেখেছেন। বিস্তারিত জানার জন্য সাইট মালিকের সাথে যোগাযোগ করুন।</p>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+
+    // Auto-restore website workspace files from Firestore Cloud Vault if not on local disk!
+    if (!fs.existsSync(siteDir) || fs.readdirSync(siteDir).length === 0) {
+      await FirebaseSync.restoreWebsiteWorkspaceFromCloud(website.id, siteDir);
+    }
+
+    const reqSub = req.url === '/' ? 'index.html' : req.url.replace(/^\//, '');
+    const cleanSub = reqSub.split('?')[0];
+    const targetFile = path.join(siteDir, cleanSub);
+    if (fs.existsSync(targetFile) && fs.statSync(targetFile).isFile()) {
+      return res.sendFile(targetFile);
+    } else if (fs.existsSync(path.join(siteDir, 'index.html'))) {
+      return res.sendFile(path.join(siteDir, 'index.html'));
+    }
+    return next();
+  } catch {
+    return next();
+  }
+});
+
 // Vite middleware / Static Serving
 async function start() {
   const publicPath = path.join(process.cwd(), 'public');
@@ -9406,33 +9462,46 @@ async function initSiteConfigSync() {
       console.log(`✅ Restored ${merged.length} task completions from Firebase Firestore!`);
     }
 
-    const remoteBots = await FirebaseSync.loadBotsFromCloud();
-    if (remoteBots && Array.isArray(remoteBots) && remoteBots.length > 0) {
+    // 1. Bulletproof Bots & Workspaces Auto-Restore & Auto-Launch
+    try {
       const current = getRegistry();
-      const map = new Map<string, any>();
-      current.forEach((b) => { if (b && b.id) map.set(b.id, b); });
-      let added = false;
-      for (const rb of remoteBots) {
-        if (rb && rb.id) {
-          if (!map.has(rb.id)) {
-            map.set(rb.id, rb);
-            added = true;
-          }
-          const botDir = path.join(HOSTED_BOTS_DIR, rb.dirName || rb.id);
-          if (!fs.existsSync(botDir) || fs.readdirSync(botDir).length === 0) {
-            await FirebaseSync.restoreBotWorkspaceFromCloud(rb.id, botDir);
-          }
-          if ((rb.status === 'running' || rb.autoRestart !== false) && !runningProcesses.has(rb.id)) {
-            setTimeout(() => {
-              launchBotProcess(rb);
-            }, 1500);
+      const botMap = new Map<string, any>();
+      current.forEach((b) => { if (b && b.id) botMap.set(b.id, b); });
+
+      const remoteBots = await FirebaseSync.loadBotsFromCloud();
+      if (remoteBots && Array.isArray(remoteBots)) {
+        for (const rb of remoteBots) {
+          if (rb && rb.id) {
+            const existing = botMap.get(rb.id);
+            botMap.set(rb.id, { ...(existing || {}), ...rb });
           }
         }
       }
-      if (added) {
-        saveRegistry(Array.from(map.values()));
-        console.log(`✅ Restored ${remoteBots.length} hosted bots and workspaces from Firebase Firestore!`);
+
+      const allBots = Array.from(botMap.values());
+      for (const b of allBots) {
+        if (!b || !b.id) continue;
+        const botDir = path.join(HOSTED_BOTS_DIR, b.dirName || b.id);
+        const hasFiles = fs.existsSync(botDir) && fs.readdirSync(botDir).filter((f: string) => !f.startsWith('.')).length > 0;
+        if (!hasFiles) {
+          console.log(`[Auto-Restore] Restoring files for bot "${b.name || b.id}" from Cloud Vault...`);
+          await FirebaseSync.restoreBotWorkspaceFromCloud(b.id, botDir);
+        } else {
+          FirebaseSync.syncBotWorkspaceToCloud(b.id, botDir).catch(() => {});
+        }
+        if ((b.status === 'running' || b.autoRestart !== false) && !runningProcesses.has(b.id)) {
+          setTimeout(() => {
+            if (!runningProcesses.has(b.id)) {
+              console.log(`🚀 [Auto-Launch] Booting live bot "${b.name || b.id}"...`);
+              launchBotProcess(b);
+            }
+          }, 1500);
+        }
       }
+      saveRegistry(allBots);
+      console.log(`✅ [FirebaseSync] Verified & preserved ${allBots.length} hosted bots across site updates!`);
+    } catch (botErr: any) {
+      console.warn('Bot restoration warning:', botErr?.message || botErr);
     }
 
     const remoteSmtp = await FirebaseSync.loadSmtpSettingsFromCloud();
@@ -9468,22 +9537,38 @@ async function initSiteConfigSync() {
       console.log('✅ Published active SMTP bridge URL to Firestore:', activeBridge);
     } catch {}
 
-    const remoteWebsites = await FirebaseSync.loadWebsitesFromCloud();
-    if (remoteWebsites && Array.isArray(remoteWebsites) && remoteWebsites.length > 0) {
-      const current = getWebsites();
-      const map = new Map<string, any>();
-      current.forEach((w) => { if (w && w.id) map.set(w.id, w); });
-      let added = false;
-      remoteWebsites.forEach((rw) => {
-        if (rw && rw.id && !map.has(rw.id)) {
-          map.set(rw.id, rw);
-          added = true;
+    // 2. Bulletproof Websites & Static Workspaces Auto-Restore
+    try {
+      const currentWebsites = getWebsites();
+      const siteMap = new Map<string, any>();
+      currentWebsites.forEach((w) => { if (w && w.id) siteMap.set(w.id, w); });
+
+      const remoteWebsites = await FirebaseSync.loadWebsitesFromCloud();
+      if (remoteWebsites && Array.isArray(remoteWebsites)) {
+        for (const rw of remoteWebsites) {
+          if (rw && rw.id) {
+            const existing = siteMap.get(rw.id);
+            siteMap.set(rw.id, { ...(existing || {}), ...rw });
+          }
         }
-      });
-      if (added) {
-        saveWebsites(Array.from(map.values()));
-        console.log(`✅ Restored ${remoteWebsites.length} websites from Firebase Firestore!`);
       }
+
+      const allWebsites = Array.from(siteMap.values());
+      for (const site of allWebsites) {
+        if (!site || !site.id) continue;
+        const siteDir = getSiteDirectory(site.userId, site.id);
+        const hasFiles = fs.existsSync(siteDir) && fs.readdirSync(siteDir).filter((f: string) => !f.startsWith('.')).length > 0;
+        if (!hasFiles) {
+          console.log(`[Auto-Restore] Restoring website files for "${site.name || site.id}" (${site.slug}) from Cloud Vault...`);
+          await FirebaseSync.restoreWebsiteWorkspaceFromCloud(site.id, siteDir);
+        } else {
+          FirebaseSync.syncWebsiteWorkspaceToCloud(site.id, siteDir).catch(() => {});
+        }
+      }
+      saveWebsites(allWebsites);
+      console.log(`✅ [FirebaseSync] Verified & preserved ${allWebsites.length} websites across site updates!`);
+    } catch (siteErr: any) {
+      console.warn('Website restoration warning:', siteErr?.message || siteErr);
     }
   } catch (err: any) {
     console.warn('initSiteConfigSync error:', err.message || err);
@@ -9517,6 +9602,34 @@ async function initSiteConfigSync() {
       (id) => runningProcesses.has(id),
       HOSTED_BOTS_DIR
     );
+
+    // Continuous 10-Minute Cloud Vault Sync & Live Process Protection Watchdog
+    setInterval(async () => {
+      try {
+        const reg = getRegistry();
+        for (const bot of reg) {
+          if (!bot || !bot.id) continue;
+          const botDir = path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id);
+          if (fs.existsSync(botDir) && fs.readdirSync(botDir).length > 0) {
+            FirebaseSync.syncBotWorkspaceToCloud(bot.id, botDir).catch(() => {});
+          }
+          if ((bot.status === 'running' || bot.autoRestart !== false) && !runningProcesses.has(bot.id)) {
+            console.log(`[Watchdog] Auto-restarting live bot: ${bot.name || bot.id}`);
+            launchBotProcess(bot);
+          }
+        }
+        const websites = getWebsites();
+        for (const site of websites) {
+          if (!site || !site.id) continue;
+          const siteDir = getSiteDirectory(site.userId, site.id);
+          if (fs.existsSync(siteDir) && fs.readdirSync(siteDir).length > 0) {
+            FirebaseSync.syncWebsiteWorkspaceToCloud(site.id, siteDir).catch(() => {});
+          }
+        }
+      } catch (watchErr) {
+        console.warn('Continuous persistence watchdog warning:', watchErr);
+      }
+    }, 10 * 60 * 1000);
   });
 }
 

@@ -124,11 +124,6 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
       return;
     }
 
-    if (!transactionId.trim()) {
-      setDepositError(lang === 'bn' ? 'Transaction ID / Order ID দিন।' : 'Transaction ID is required.');
-      return;
-    }
-
     if (!screenshotData) {
       setDepositError(
         lang === 'bn'
@@ -142,7 +137,7 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
     try {
       const token = localStorage.getItem('bot_auth_token');
       const orderIdGen = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-      const cleanTrx = transactionId.trim().toUpperCase();
+      const cleanTrx = transactionId.trim() ? transactionId.trim().toUpperCase() : `PROOF_${orderIdGen}`;
       const reqId = `dep_${orderIdGen}`;
 
       let uploadedScreenshotUrl = screenshotData;
@@ -561,21 +556,6 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
                   onChange={(e) => setSenderIdentifier(e.target.value)}
                   placeholder={lang === 'bn' ? 'যেমন: 849201948' : 'e.g. 849201948'}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#0d1627] border border-slate-200 dark:border-[#1f2d48] text-xs text-slate-900 dark:text-white focus:outline-hidden focus:border-[#0088cc]"
-                  required
-                />
-              </div>
-
-              {/* Transaction ID */}
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  {lang === 'bn' ? 'Transaction ID / Order ID (TrxID):' : 'Transaction ID / Order ID:'}
-                </label>
-                <input
-                  type="text"
-                  value={transactionId}
-                  onChange={(e) => setTransactionId(e.target.value)}
-                  placeholder={lang === 'bn' ? 'বাইন্যান্স থেকে প্রাপ্ত TrxID' : 'e.g. 219840291083'}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#0d1627] border border-slate-200 dark:border-[#1f2d48] text-xs font-mono uppercase text-slate-900 dark:text-emerald-400 focus:outline-hidden focus:border-[#0088cc]"
                   required
                 />
               </div>
