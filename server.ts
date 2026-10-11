@@ -706,7 +706,13 @@ const DEFAULT_SITE_SETTINGS = {
   siteName: 'hosting-live-fast',
   logoUrl: '/site-logo.png',
   taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
-  taglineEn: '24/7 Fast Bot & Top Up Service'
+  taglineEn: '24/7 Fast Bot & Top Up Service',
+  welcomeMessageEnabled: true,
+  welcomeMessageTitle: 'হোস্টিংলাইভফাস্ট-এ আপনাকে স্বাগতম! 🎉',
+  welcomeMessageBadge: 'অফিসিয়াল স্বাগতম বার্তা',
+  welcomeMessageBody: 'আমাদের ২৪/৭ টেলিগ্রাম বট ও ওয়েবসাইট ক্লাউড হোস্টিং প্ল্যাটফর্মে আপনাকে স্বাগতম। আপনি এখন নির্বিঘ্নে বট ও সাইট পরিচালনা করতে পারেন। যেকোনো তথ্যের জন্য আমাদের ২৪/৭ এআই লাইভ সাপোর্ট ব্যবহার করুন!',
+  welcomeMessageButtonText: 'শুরু করুন',
+  welcomeMessageImageUrl: ''
 };
 
 if (!fs.existsSync(SITE_SETTINGS_FILE)) {
@@ -4241,7 +4247,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
     return res.status(401).json({ error: 'ডিপোজিট করতে প্রথমে লগইন করুন (Please login to deposit)' });
   }
 
-  const { amount, currency, method, senderIdentifier, transactionId, note, orderId, bdtAmount, rateToBdt } = req.body;
+  const { amount, currency, method, senderIdentifier, transactionId, note, orderId, bdtAmount, rateToBdt, screenshotUrl } = req.body;
   const numAmount = parseFloat(amount);
   if (!numAmount || numAmount <= 0) {
     return res.status(400).json({ error: 'সঠিক ডিপোজিট পরিমাণ (Amount) লিখুন' });
@@ -4313,6 +4319,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
     senderNumber: effectiveSender,
     senderIdentifier: effectiveSender,
     transactionId: cleanTrx,
+    screenshotUrl: (screenshotUrl && String(screenshotUrl).trim()) ? String(screenshotUrl).trim() : undefined,
     note: (note || '').trim(),
     status: 'pending',
     createdAt: new Date().toISOString()
@@ -6071,7 +6078,21 @@ app.post('/api/admin/site-settings', (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const { siteName, logoUrl, apkIconUrl, taglineBn, taglineEn, hostingVideoUrl, websiteVideoUrl } = req.body;
+  const {
+    siteName,
+    logoUrl,
+    apkIconUrl,
+    taglineBn,
+    taglineEn,
+    hostingVideoUrl,
+    websiteVideoUrl,
+    welcomeMessageEnabled,
+    welcomeMessageTitle,
+    welcomeMessageBadge,
+    welcomeMessageBody,
+    welcomeMessageButtonText,
+    welcomeMessageImageUrl
+  } = req.body;
   let finalLogoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : undefined;
   let finalApkIconUrl = typeof apkIconUrl === 'string' ? apkIconUrl.trim() : undefined;
 
@@ -6092,7 +6113,13 @@ app.post('/api/admin/site-settings', (req, res) => {
     ...(typeof taglineBn === 'string' ? { taglineBn: taglineBn.trim() } : {}),
     ...(typeof taglineEn === 'string' ? { taglineEn: taglineEn.trim() } : {}),
     ...(typeof hostingVideoUrl === 'string' ? { hostingVideoUrl: hostingVideoUrl.trim() } : {}),
-    ...(typeof websiteVideoUrl === 'string' ? { websiteVideoUrl: websiteVideoUrl.trim() } : {})
+    ...(typeof websiteVideoUrl === 'string' ? { websiteVideoUrl: websiteVideoUrl.trim() } : {}),
+    ...(typeof welcomeMessageEnabled === 'boolean' ? { welcomeMessageEnabled } : {}),
+    ...(typeof welcomeMessageTitle === 'string' ? { welcomeMessageTitle: welcomeMessageTitle.trim() } : {}),
+    ...(typeof welcomeMessageBadge === 'string' ? { welcomeMessageBadge: welcomeMessageBadge.trim() } : {}),
+    ...(typeof welcomeMessageBody === 'string' ? { welcomeMessageBody: welcomeMessageBody.trim() } : {}),
+    ...(typeof welcomeMessageButtonText === 'string' ? { welcomeMessageButtonText: welcomeMessageButtonText.trim() } : {}),
+    ...(typeof welcomeMessageImageUrl === 'string' ? { welcomeMessageImageUrl: welcomeMessageImageUrl.trim() } : {})
   };
 
   // 1. Handle Site Logo update independently

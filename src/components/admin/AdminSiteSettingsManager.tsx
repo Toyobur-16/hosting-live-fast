@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image as ImageIcon, Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Sliders, Upload, Loader2, Trash2, Film, Play, ExternalLink, Wallet, Bell, MoreVertical, Smartphone, Download, FileCheck } from 'lucide-react';
+import { Image as ImageIcon, Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Sliders, Upload, Loader2, Trash2, Film, Play, ExternalLink, Wallet, Bell, MoreVertical, Smartphone, Download, FileCheck, PartyPopper, Eye, MessageSquareQuote } from 'lucide-react';
 import { SiteSettings } from '../../types';
 import { getEmbedVideoUrl } from '../HostingTutorialSection';
 import { normalizeLogoUrl, optimizeLogoImage } from '../../utils/logoUrl';
 import { db, doc, setDoc, onSnapshot } from '../../lib/firebase';
+import { WelcomeModal } from '../WelcomeModal';
 
 export function AdminSiteSettingsManager() {
   const [settings, setSettings] = useState<SiteSettings>(() => {
@@ -18,7 +19,13 @@ export function AdminSiteSettingsManager() {
           taglineBn: parsed.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
           taglineEn: parsed.taglineEn || '24/7 Fast Bot & Top Up Service',
           hostingVideoUrl: parsed.hostingVideoUrl || '',
-          websiteVideoUrl: parsed.websiteVideoUrl || ''
+          websiteVideoUrl: parsed.websiteVideoUrl || '',
+          welcomeMessageEnabled: parsed.welcomeMessageEnabled ?? true,
+          welcomeMessageTitle: parsed.welcomeMessageTitle || '🎉 হোস্টিং লাইভ ফাস্ট এ স্বাগতম!',
+          welcomeMessageBadge: parsed.welcomeMessageBadge || '🌟 অফিসিয়াল ওয়েলকাম নোটিশ',
+          welcomeMessageBody: parsed.welcomeMessageBody || '',
+          welcomeMessageButtonText: parsed.welcomeMessageButtonText || 'বুঝেছি, শুরু করুন',
+          welcomeMessageImageUrl: parsed.welcomeMessageImageUrl || ''
         };
       }
     } catch {}
@@ -27,16 +34,25 @@ export function AdminSiteSettingsManager() {
       logoUrl: '/site-logo.png',
       apkIconUrl: '/pwa-192x192.png',
       taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
-      taglineEn: '24/7 Fast Bot & Top Up Service'
+      taglineEn: '24/7 Fast Bot & Top Up Service',
+      welcomeMessageEnabled: true,
+      welcomeMessageTitle: '🎉 হোস্টিং লাইভ ফাস্ট এ স্বাগতম!',
+      welcomeMessageBadge: '🌟 অফিসিয়াল ওয়েলকাম নোটিশ',
+      welcomeMessageBody: '',
+      welcomeMessageButtonText: 'বুঝেছি, শুরু করুন',
+      welcomeMessageImageUrl: ''
     };
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [showWelcomePreview, setShowWelcomePreview] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apkFileInputRef = useRef<HTMLInputElement>(null);
   const apkIconInputRef = useRef<HTMLInputElement>(null);
+  const welcomeBannerInputRef = useRef<HTMLInputElement>(null);
   const [apkInfo, setApkInfo] = useState<{ hasApk: boolean; fileName?: string; downloadUrl?: string; sizeBytes?: number } | null>(null);
   const [uploadingApk, setUploadingApk] = useState(false);
   const [uploadingApkIcon, setUploadingApkIcon] = useState(false);
@@ -361,6 +377,49 @@ export function AdminSiteSettingsManager() {
     const file = e.target.files?.[0];
     if (!file) return;
     await uploadAndApplyApkIcon(file);
+  };
+
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setNotification({ type: 'error', text: 'শুধুমাত্র ইমেজ ফাইল (PNG, JPG, WebP) নির্বাচন করুন।' });
+      return;
+    }
+    setUploadingBanner(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64 = reader.result as string;
+          const token = localStorage.getItem('bot_auth_token');
+          const res = await fetch('/api/store/upload-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+              base64,
+              fileName: file.name || 'welcome_banner.png'
+            })
+          });
+          const data = await res.json();
+          const bannerUrl = (data && data.url) ? data.url : base64;
+          setSettings((prev) => ({ ...prev, welcomeMessageImageUrl: bannerUrl }));
+          setNotification({ type: 'success', text: '✓ ওয়েলকাম ব্যানার ছবি সফলভাবে আপলোড হয়েছে।' });
+        } catch {
+          setSettings((prev) => ({ ...prev, welcomeMessageImageUrl: reader.result as string }));
+        } finally {
+          setUploadingBanner(false);
+          if (welcomeBannerInputRef.current) welcomeBannerInputRef.current.value = '';
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setUploadingBanner(false);
+      if (welcomeBannerInputRef.current) welcomeBannerInputRef.current.value = '';
+    }
   };
 
   const persistSettingsEverywhere = async (updatedSettings: SiteSettings, fileMeta?: { name: string; type: string }) => {
@@ -966,6 +1025,179 @@ export function AdminSiteSettingsManager() {
           </div>
         </div>
 
+        {/* SECTION 4: LOGIN & REGISTRATION WELCOME MESSAGE POPUP */}
+        <div className="p-5 rounded-2xl bg-gradient-to-b from-[#0e1726] to-[#0a101d] border border-cyan-500/30 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold">
+                <PartyPopper className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-white flex items-center gap-2">
+                  <span>🎉 লগইন ও রেজিস্ট্রেশন ওয়েলকাম মেসেজ</span>
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold border border-cyan-500/30">
+                    ফুল স্ক্রিন পপআপ
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-400">
+                  লগইন/রেজিস্ট্রেশন করার সাথে সাথে ইউজারদের স্ক্রিনে মাঝামাঝি এই বার্তাটি ভেসে উঠবে এবং ক্রস আইকন দিয়ে সরানো যাবে
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowWelcomePreview(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-amber-500/20 hover:from-cyan-500/30 hover:to-amber-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-sm shrink-0"
+            >
+              <Eye className="w-4 h-4 text-cyan-400" />
+              <span>লাইভ প্রিভিউ দেখুন (Live Preview)</span>
+            </button>
+          </div>
+
+          {/* Toggle Enable/Disable */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div>
+              <div className="text-xs font-bold text-white">
+                ওয়েলকাম মেসেজ পপআপ সক্রিয় রাখুন
+              </div>
+              <div className="text-[11px] text-slate-400">
+                বন্ধ রাখলে লগইন করার পর স্বয়ংক্রিয় ওয়েলকাম পপআপ আসবে না
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.welcomeMessageEnabled !== false}
+                onChange={(e) => setSettings((prev) => ({ ...prev, welcomeMessageEnabled: e.target.checked }))}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+            </label>
+          </div>
+
+          {/* Welcome Badge & Title */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-300">
+                ওয়েলকাম ব্যাজ / সাবটাইটেল (Badge):
+              </label>
+              <input
+                type="text"
+                value={settings.welcomeMessageBadge || ''}
+                onChange={(e) => setSettings((prev) => ({ ...prev, welcomeMessageBadge: e.target.value }))}
+                placeholder="যেমন: 🌟 অফিসিয়াল ওয়েলকাম নোটিশ বা মেম্বার অফার"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:border-cyan-400 focus:outline-none font-bold"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-300">
+                ওয়েলকাম মেসেজ শিরোনাম (Title):
+              </label>
+              <input
+                type="text"
+                value={settings.welcomeMessageTitle || ''}
+                onChange={(e) => setSettings((prev) => ({ ...prev, welcomeMessageTitle: e.target.value }))}
+                placeholder="যেমন: 🎉 হোস্টিং লাইভ ফাস্ট এ আপনাকে স্বাগতম!"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:border-cyan-400 focus:outline-none font-black"
+              />
+            </div>
+          </div>
+
+          {/* Welcome Message Detailed Body */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-slate-300 flex items-center justify-between">
+              <span>ওয়েলকাম মেসেজ বিস্তারিত (Body Message):</span>
+              <span className="text-[10px] text-slate-500">এন্টার চেপে নতুন লাইন বা বুলেট পয়েন্ট যোগ করতে পারেন</span>
+            </label>
+            <textarea
+              rows={5}
+              value={settings.welcomeMessageBody || ''}
+              onChange={(e) => setSettings((prev) => ({ ...prev, welcomeMessageBody: e.target.value }))}
+              placeholder={`আমাদের ২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং ও ওয়েবসাইট সার্ভিসে আপনাকে স্বাগতম!
+
+• ২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং
+• এআই বট গার্ডিয়ান ও লাইভ কনসোল
+• ইনস্ট্যান্ট বিকাশ, নগদ ও বাইন্যান্স পে ডিপোজিট`}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:border-cyan-400 focus:outline-none leading-relaxed font-normal"
+            />
+          </div>
+
+          {/* Button Text & Banner Image */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-300">
+                বাটন টেক্সট (Action Button Text):
+              </label>
+              <input
+                type="text"
+                value={settings.welcomeMessageButtonText || ''}
+                onChange={(e) => setSettings((prev) => ({ ...prev, welcomeMessageButtonText: e.target.value }))}
+                placeholder="যেমন: বুঝেছি, শুরু করুন"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:border-cyan-400 focus:outline-none font-bold"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-300">
+                ব্যানার ছবির লিংক (Optional Image URL):
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={settings.welcomeMessageImageUrl || ''}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, welcomeMessageImageUrl: e.target.value }))}
+                  placeholder="https://... বা ছবি আপলোড করুন"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:border-cyan-400 focus:outline-none truncate font-mono text-[11px]"
+                />
+                <input
+                  type="file"
+                  ref={welcomeBannerInputRef}
+                  onChange={handleBannerUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => welcomeBannerInputRef.current?.click()}
+                  disabled={uploadingBanner}
+                  className="px-3 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shrink-0 cursor-pointer flex items-center gap-1 transition-all disabled:opacity-50"
+                  title="ছবি আপলোড করুন"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{uploadingBanner ? '...' : 'আপলোড'}</span>
+                </button>
+                {settings.welcomeMessageImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setSettings((prev) => ({ ...prev, welcomeMessageImageUrl: '' }))}
+                    className="p-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 shrink-0 cursor-pointer transition-colors"
+                    title="ব্যানার ছবি মুছুন"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {settings.welcomeMessageImageUrl && (
+            <div className="p-3 rounded-xl bg-black/60 border border-cyan-500/30 flex items-center gap-3">
+              <div className="w-16 h-12 rounded-lg bg-black overflow-hidden border border-slate-700 shrink-0">
+                <img
+                  src={settings.welcomeMessageImageUrl}
+                  alt="Banner preview"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="text-xs text-slate-300 truncate">
+                ব্যানার ছবি প্রিভিউ সংযুক্ত আছে
+              </div>
+            </div>
+          )}
+        </div>
+
         <button
           type="submit"
           disabled={saving}
@@ -975,6 +1207,14 @@ export function AdminSiteSettingsManager() {
           <span>{saving ? 'সেভ হচ্ছে...' : 'লোগো ও সেটিংস সেভ করুন'}</span>
         </button>
       </form>
+
+      {/* Admin Live Preview of Welcome Modal */}
+      <WelcomeModal
+        isOpen={showWelcomePreview}
+        onClose={() => setShowWelcomePreview(false)}
+        siteSettings={settings}
+        lang="bn"
+      />
     </div>
   );
 }

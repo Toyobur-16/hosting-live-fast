@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Wallet, ShieldCheck, Copy, Check, Clock, CheckCircle2, XCircle,
   AlertCircle, ArrowUpRight, RefreshCw, Sparkles, ExternalLink,
-  DollarSign, ArrowRight, ShieldAlert, CreditCard
+  DollarSign, ArrowRight, ShieldAlert, CreditCard, UploadCloud,
+  ImageIcon, Trash2, Eye, X
 } from 'lucide-react';
 import { AuthUser, PaymentSettings, PlanRequest } from '../types';
 import { db, doc, setDoc } from '../lib/firebase';
@@ -36,7 +37,10 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
   const [depositAmount, setDepositAmount] = useState<string>('5.00');
   const [senderIdentifier, setSenderIdentifier] = useState('');
   const [transactionId, setTransactionId] = useState('');
-  const [note, setNote] = useState('');
+  const [screenshotData, setScreenshotData] = useState<string | null>(null);
+  const [screenshotFileName, setScreenshotFileName] = useState<string>('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [depositSuccess, setDepositSuccess] = useState<string | null>(null);
   const [depositError, setDepositError] = useState<string | null>(null);
@@ -125,12 +129,38 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
       return;
     }
 
+    if (!screenshotData) {
+      setDepositError(
+        lang === 'bn'
+          ? 'অনুগ্রহ করে পেমেন্টের সফল স্ক্রিনশট আপলোড করুন (পেমেন্ট স্ক্রিনশট দেওয়া আবশ্যক)।'
+          : 'Please upload the payment confirmation screenshot (Required).'
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const token = localStorage.getItem('bot_auth_token');
       const orderIdGen = Math.floor(1000000000 + Math.random() * 9000000000).toString();
       const cleanTrx = transactionId.trim().toUpperCase();
       const reqId = `dep_${orderIdGen}`;
+
+      let uploadedScreenshotUrl = screenshotData;
+      try {
+        const upRes = await fetch('/api/store/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: screenshotData,
+            fileName: screenshotFileName || 'payment_proof.png',
+            fileType: 'payment_proof'
+          })
+        });
+        if (upRes.ok) {
+          const upData = await upRes.json();
+          uploadedScreenshotUrl = upData.url || screenshotData;
+        }
+      } catch {}
 
       // 1. Direct Firestore write for instant cloud persistence
       try {
@@ -148,7 +178,7 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
           senderNumber: senderIdentifier.trim(),
           senderIdentifier: senderIdentifier.trim(),
           transactionId: cleanTrx,
-          note: note.trim(),
+          screenshotUrl: uploadedScreenshotUrl,
           status: 'pending',
           createdAt: new Date().toISOString(),
           updatedAt: Date.now()
@@ -176,7 +206,7 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
           method: 'binance',
           senderIdentifier: senderIdentifier.trim(),
           transactionId: cleanTrx,
-          note: note.trim()
+          screenshotUrl: uploadedScreenshotUrl
         })
       });
 
@@ -191,7 +221,9 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
           : 'Deposit request submitted successfully and saved to Firebase! Admin will verify and credit your balance shortly.'
       );
       setTransactionId('');
-      setNote('');
+      setScreenshotData(null);
+      setScreenshotFileName('');
+      if (screenshotInputRef.current) screenshotInputRef.current.value = '';
       fetchDepositHistory();
     } catch (err: any) {
       setDepositError(err.message || 'Error processing deposit');
@@ -548,18 +580,103 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
                 />
               </div>
 
-              {/* Optional Note */}
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  {lang === 'bn' ? 'নোট (ঐচ্ছিক):' : 'Note (Optional):'}
-                </label>
+              {/* Mandatory Payment Screenshot Upload */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    {lang === 'bn' ? 'পেমেন্টের স্ক্রিনশট আপলোড করুন:' : 'Payment Screenshot:'}{' '}
+                    <span className="text-rose-500 font-bold">* ({lang === 'bn' ? 'আবশ্যক' : 'Required'})</span>
+                  </label>
+                  {screenshotData && (
+                    <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      {lang === 'bn' ? 'সংযুক্ত' : 'Attached'}
+                    </span>
+                  )}
+                </div>
+
                 <input
-                  type="text"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder={lang === 'bn' ? 'যেমন: ৩ মাসের প্যাকেজ কেনার জন্য' : 'e.g. Depositing for 3 months plan'}
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#0d1627] border border-slate-200 dark:border-[#1f2d48] text-xs text-slate-900 dark:text-white focus:outline-hidden focus:border-[#0088cc]"
+                  type="file"
+                  ref={screenshotInputRef}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith('image/')) {
+                      setDepositError(lang === 'bn' ? 'শুধুমাত্র ছবি ফাইল নির্বাচন করুন।' : 'Please select an image file.');
+                      return;
+                    }
+                    setScreenshotFileName(file.name);
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      setScreenshotData(reader.result as string);
+                      setDepositError(null);
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                  accept="image/*"
+                  className="hidden"
                 />
+
+                {!screenshotData ? (
+                  <div
+                    onClick={() => screenshotInputRef.current?.click()}
+                    className="cursor-pointer rounded-2xl border-2 border-dashed border-sky-400/50 hover:border-sky-500 bg-sky-500/5 hover:bg-sky-500/10 p-4 text-center transition-all flex flex-col items-center justify-center gap-1.5"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center">
+                      <UploadCloud className="w-5 h-5" />
+                    </div>
+                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {lang === 'bn' ? 'পেমেন্ট স্ক্রিনশট সিলেক্ট করুন (Click to Upload)' : 'Upload Payment Screenshot'}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {lang === 'bn' ? 'বাইনান্স সফল পেমেন্টের স্ক্রিনশট (PNG, JPG)' : 'Binance transaction screenshot'}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        onClick={() => setPreviewImage(screenshotData)}
+                        className="w-12 h-12 rounded-xl overflow-hidden bg-black border border-emerald-500/40 shrink-0 cursor-pointer"
+                      >
+                        <img src={screenshotData} alt="Proof" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                          {screenshotFileName || 'screenshot.png'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewImage(screenshotData)}
+                          className="text-[10px] text-sky-500 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>{lang === 'bn' ? 'বড় করে দেখুন' : 'View Image'}</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => screenshotInputRef.current?.click()}
+                        className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-xs font-bold cursor-pointer"
+                      >
+                        {lang === 'bn' ? 'পরিবর্তন' : 'Change'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScreenshotData(null);
+                          setScreenshotFileName('');
+                          if (screenshotInputRef.current) screenshotInputRef.current.value = '';
+                        }}
+                        className="p-1 rounded-lg bg-rose-500/20 text-rose-400 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Submit Button */}
@@ -679,6 +796,40 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
           </div>
         )}
       </div>
+
+      {/* Preview Image Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/90 backdrop-blur-md animate-in fade-in"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative max-w-sm w-full bg-[#0a101f] border border-slate-700 rounded-3xl p-4 text-center space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-3 right-3 p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h4 className="text-xs font-black text-white">পেমেন্ট স্ক্রিনশট প্রমাণ (Payment Screenshot)</h4>
+            <img
+              src={previewImage}
+              alt="Payment Proof"
+              className="w-full max-h-80 object-contain rounded-2xl bg-black p-1 border border-slate-700 mx-auto"
+            />
+            <button
+              type="button"
+              onClick={() => setPreviewImage(null)}
+              className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+            >
+              বন্ধ করুন (Close)
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

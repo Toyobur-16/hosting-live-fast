@@ -1437,35 +1437,84 @@ export class FirebaseSync {
       if (fileCount === 0) return false;
 
       const zipBuf = zip.toBuffer();
-      // Keep within Firestore document limits (~1MB)
-      if (zipBuf.length > 780000) {
-        console.warn(`[FirebaseSync] Bot workspace ${botId} is ${zipBuf.length} bytes, archiving main script and configs...`);
-      }
+      const docId = encodeURIComponent(String(botId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+
+      // Dual-layer vaulting: Save persistent local mirror
+      try {
+        const localVaultDir = path.join(process.cwd(), 'hosted_bots', '.persistent_vault');
+        if (!fs.existsSync(localVaultDir)) fs.mkdirSync(localVaultDir, { recursive: true });
+        fs.writeFileSync(path.join(localVaultDir, `${docId}.zip`), zipBuf);
+      } catch {}
 
       const zipBase64 = zipBuf.toString('base64');
-      const docId = encodeURIComponent(String(botId).replace(/[^a-zA-Z0-9_-]/g, '_'));
       const idToken = await getAdminIdToken();
-
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
       };
 
-      const fields: Record<string, any> = {
-        botId: toFirestoreValue(botId),
-        zipBase64: toFirestoreValue(zipBase64),
-        fileCount: toFirestoreValue(fileCount),
-        byteLength: toFirestoreValue(zipBuf.length),
-        updatedAt: toFirestoreValue(Date.now())
-      };
+      const CHUNK_SIZE = 500000;
+      if (zipBase64.length <= CHUNK_SIZE) {
+        // Single document upload
+        const fields: Record<string, any> = {
+          botId: toFirestoreValue(botId),
+          zipBase64: toFirestoreValue(zipBase64),
+          isSharded: toFirestoreValue(false),
+          shardsCount: toFirestoreValue(1),
+          fileCount: toFirestoreValue(fileCount),
+          byteLength: toFirestoreValue(zipBuf.length),
+          updatedAt: toFirestoreValue(Date.now())
+        };
 
-      const url = `${BASE_URL}/bot_workspaces/${docId}?key=${API_KEY}`;
-      const res = await fetch(url, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ fields })
-      });
-      return Boolean(res && res.ok);
+        const url = `${BASE_URL}/bot_workspaces/${docId}?key=${API_KEY}`;
+        const res = await fetch(url, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ fields })
+        });
+        return Boolean(res && res.ok);
+      } else {
+        // Multi-document sharding for large bot projects
+        const chunks: string[] = [];
+        for (let i = 0; i < zipBase64.length; i += CHUNK_SIZE) {
+          chunks.push(zipBase64.slice(i, i + CHUNK_SIZE));
+        }
+
+        const masterFields: Record<string, any> = {
+          botId: toFirestoreValue(botId),
+          chunk: toFirestoreValue(chunks[0]),
+          isSharded: toFirestoreValue(true),
+          shardsCount: toFirestoreValue(chunks.length),
+          fileCount: toFirestoreValue(fileCount),
+          byteLength: toFirestoreValue(zipBuf.length),
+          updatedAt: toFirestoreValue(Date.now())
+        };
+
+        const masterUrl = `${BASE_URL}/bot_workspaces/${docId}?key=${API_KEY}`;
+        await fetch(masterUrl, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ fields: masterFields })
+        });
+
+        // Upload remaining shards
+        for (let idx = 1; idx < chunks.length; idx++) {
+          const shardDocId = `${docId}_s${idx}`;
+          const shardFields: Record<string, any> = {
+            botId: toFirestoreValue(botId),
+            shardIndex: toFirestoreValue(idx),
+            chunk: toFirestoreValue(chunks[idx]),
+            updatedAt: toFirestoreValue(Date.now())
+          };
+          const shardUrl = `${BASE_URL}/bot_workspaces/${shardDocId}?key=${API_KEY}`;
+          await fetch(shardUrl, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ fields: shardFields })
+          }).catch(() => {});
+        }
+        return true;
+      }
     } catch (err: any) {
       console.warn(`[FirebaseSync] syncBotWorkspaceToCloud error for ${botId}:`, err?.message || err);
       return false;
@@ -1474,8 +1523,10 @@ export class FirebaseSync {
 
   static async restoreBotWorkspaceFromCloud(botId: string, botDir: string): Promise<boolean> {
     if (!botId) return false;
+    const docId = encodeURIComponent(String(botId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+
+    // 1. Try Firebase Firestore Cloud Vault first
     try {
-      const docId = encodeURIComponent(String(botId).replace(/[^a-zA-Z0-9_-]/g, '_'));
       const idToken = await getAdminIdToken();
       const url = `${BASE_URL}/bot_workspaces/${docId}?key=${API_KEY}`;
       const headers: Record<string, string> = {
@@ -1486,23 +1537,64 @@ export class FirebaseSync {
       if (res && res.ok) {
         const data: any = await res.json();
         const parsed = fromFirestoreFields(data.fields || {});
-        if (parsed && parsed.zipBase64) {
+        let fullZipBase64 = '';
+
+        if (parsed.isSharded && typeof parsed.chunk === 'string') {
+          fullZipBase64 = parsed.chunk;
+          const shardsCount = Number(parsed.shardsCount) || 1;
+          for (let idx = 1; idx < shardsCount; idx++) {
+            const shardDocId = `${docId}_s${idx}`;
+            const shardRes = await fetch(`${BASE_URL}/bot_workspaces/${shardDocId}?key=${API_KEY}`, { headers }).catch(() => null);
+            if (shardRes && shardRes.ok) {
+              const shardData: any = await shardRes.json();
+              const shardParsed = fromFirestoreFields(shardData.fields || {});
+              if (shardParsed.chunk) {
+                fullZipBase64 += shardParsed.chunk;
+              }
+            }
+          }
+        } else if (parsed.zipBase64) {
+          fullZipBase64 = parsed.zipBase64;
+        }
+
+        if (fullZipBase64) {
           fs.mkdirSync(botDir, { recursive: true });
-          const zipBuf = Buffer.from(parsed.zipBase64, 'base64');
+          const zipBuf = Buffer.from(fullZipBase64, 'base64');
           const zip = new AdmZip(zipBuf);
           zip.extractAllTo(botDir, true);
-          console.log(`✅ [FirebaseSync] Restored bot workspace files for ${botId} from Firestore (${parsed.fileCount || 'multiple'} files)!`);
+          // Mirror to local vault
+          try {
+            const localVaultDir = path.join(process.cwd(), 'hosted_bots', '.persistent_vault');
+            if (!fs.existsSync(localVaultDir)) fs.mkdirSync(localVaultDir, { recursive: true });
+            fs.writeFileSync(path.join(localVaultDir, `${docId}.zip`), zipBuf);
+          } catch {}
+          console.log(`✅ [FirebaseSync] Restored bot workspace files for ${botId} from Firestore Cloud (${parsed.fileCount || 'multiple'} files)!`);
           return true;
         }
       }
     } catch (err: any) {
-      console.warn(`[FirebaseSync] restoreBotWorkspaceFromCloud error for ${botId}:`, err?.message || err);
+      console.warn(`[FirebaseSync] restoreBotWorkspaceFromCloud Firestore attempt warning for ${botId}:`, err?.message || err);
     }
+
+    // 2. Fallback to Local Persistent Vault mirror if Firestore is unavailable
+    try {
+      const localZipPath = path.join(process.cwd(), 'hosted_bots', '.persistent_vault', `${docId}.zip`);
+      if (fs.existsSync(localZipPath)) {
+        fs.mkdirSync(botDir, { recursive: true });
+        const zip = new AdmZip(localZipPath);
+        zip.extractAllTo(botDir, true);
+        console.log(`✅ [FirebaseSync] Restored bot workspace files for ${botId} from Local Persistent Vault mirror!`);
+        return true;
+      }
+    } catch (err: any) {
+      console.warn(`[FirebaseSync] Local vault fallback error for ${botId}:`, err?.message || err);
+    }
+
     return false;
   }
 
   // ==========================================
-  // WEBSITES FIRESTORE SYNC
+  // WEBSITES FIRESTORE SYNC & WORKSPACE RESTORE
   // ==========================================
   static async syncWebsiteToCloud(site: any): Promise<boolean> {
     if (!site || !site.id) return false;
@@ -1535,6 +1627,196 @@ export class FirebaseSync {
     }
   }
 
+  static async syncWebsiteWorkspaceToCloud(siteId: string, siteDir: string): Promise<boolean> {
+    if (!siteId || !fs.existsSync(siteDir)) return false;
+    try {
+      const zip = new AdmZip();
+      let fileCount = 0;
+
+      const addDirRecursive = (currentDir: string, zipSubDir = '') => {
+        const items = fs.readdirSync(currentDir, { withFileTypes: true });
+        for (const item of items) {
+          if (
+            item.name === '__pycache__' ||
+            item.name === '.git' ||
+            item.name === 'node_modules' ||
+            item.name === '.DS_Store' ||
+            item.name === '_archive.zip'
+          ) continue;
+
+          const fullPath = path.join(currentDir, item.name);
+          if (item.isDirectory()) {
+            addDirRecursive(fullPath, zipSubDir ? `${zipSubDir}/${item.name}` : item.name);
+          } else if (item.isFile()) {
+            try {
+              const fileBuf = fs.readFileSync(fullPath);
+              zip.addFile(zipSubDir ? `${zipSubDir}/${item.name}` : item.name, fileBuf);
+              fileCount++;
+            } catch {}
+          }
+        }
+      };
+
+      addDirRecursive(siteDir);
+      if (fileCount === 0) return false;
+
+      const zipBuf = zip.toBuffer();
+      const docId = encodeURIComponent(String(siteId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+
+      // Dual-layer vaulting: Save persistent local mirror
+      try {
+        const localVaultDir = path.join(process.cwd(), 'hosted_websites', '.persistent_vault');
+        if (!fs.existsSync(localVaultDir)) fs.mkdirSync(localVaultDir, { recursive: true });
+        fs.writeFileSync(path.join(localVaultDir, `${docId}.zip`), zipBuf);
+      } catch {}
+
+      const zipBase64 = zipBuf.toString('base64');
+      const idToken = await getAdminIdToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      const CHUNK_SIZE = 500000;
+      if (zipBase64.length <= CHUNK_SIZE) {
+        // Single document upload
+        const fields: Record<string, any> = {
+          websiteId: toFirestoreValue(siteId),
+          zipBase64: toFirestoreValue(zipBase64),
+          isSharded: toFirestoreValue(false),
+          shardsCount: toFirestoreValue(1),
+          fileCount: toFirestoreValue(fileCount),
+          byteLength: toFirestoreValue(zipBuf.length),
+          updatedAt: toFirestoreValue(Date.now())
+        };
+
+        const url = `${BASE_URL}/website_workspaces/${docId}?key=${API_KEY}`;
+        const res = await fetch(url, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ fields })
+        });
+        return Boolean(res && res.ok);
+      } else {
+        // Multi-document sharding for large website assets
+        const chunks: string[] = [];
+        for (let i = 0; i < zipBase64.length; i += CHUNK_SIZE) {
+          chunks.push(zipBase64.slice(i, i + CHUNK_SIZE));
+        }
+
+        const masterFields: Record<string, any> = {
+          websiteId: toFirestoreValue(siteId),
+          chunk: toFirestoreValue(chunks[0]),
+          isSharded: toFirestoreValue(true),
+          shardsCount: toFirestoreValue(chunks.length),
+          fileCount: toFirestoreValue(fileCount),
+          byteLength: toFirestoreValue(zipBuf.length),
+          updatedAt: toFirestoreValue(Date.now())
+        };
+
+        const masterUrl = `${BASE_URL}/website_workspaces/${docId}?key=${API_KEY}`;
+        await fetch(masterUrl, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ fields: masterFields })
+        });
+
+        // Upload remaining shards
+        for (let idx = 1; idx < chunks.length; idx++) {
+          const shardDocId = `${docId}_s${idx}`;
+          const shardFields: Record<string, any> = {
+            websiteId: toFirestoreValue(siteId),
+            shardIndex: toFirestoreValue(idx),
+            chunk: toFirestoreValue(chunks[idx]),
+            updatedAt: toFirestoreValue(Date.now())
+          };
+          const shardUrl = `${BASE_URL}/website_workspaces/${shardDocId}?key=${API_KEY}`;
+          await fetch(shardUrl, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ fields: shardFields })
+          }).catch(() => {});
+        }
+        return true;
+      }
+    } catch (err: any) {
+      console.warn(`[FirebaseSync] syncWebsiteWorkspaceToCloud error for ${siteId}:`, err?.message || err);
+      return false;
+    }
+  }
+
+  static async restoreWebsiteWorkspaceFromCloud(siteId: string, siteDir: string): Promise<boolean> {
+    if (!siteId) return false;
+    const docId = encodeURIComponent(String(siteId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+
+    // 1. Try Firebase Firestore Cloud Vault first
+    try {
+      const idToken = await getAdminIdToken();
+      const url = `${BASE_URL}/website_workspaces/${docId}?key=${API_KEY}`;
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+
+      const res = await fetch(url, { headers });
+      if (res && res.ok) {
+        const data: any = await res.json();
+        const parsed = fromFirestoreFields(data.fields || {});
+        let fullZipBase64 = '';
+
+        if (parsed.isSharded && typeof parsed.chunk === 'string') {
+          fullZipBase64 = parsed.chunk;
+          const shardsCount = Number(parsed.shardsCount) || 1;
+          for (let idx = 1; idx < shardsCount; idx++) {
+            const shardDocId = `${docId}_s${idx}`;
+            const shardRes = await fetch(`${BASE_URL}/website_workspaces/${shardDocId}?key=${API_KEY}`, { headers }).catch(() => null);
+            if (shardRes && shardRes.ok) {
+              const shardData: any = await shardRes.json();
+              const shardParsed = fromFirestoreFields(shardData.fields || {});
+              if (shardParsed.chunk) {
+                fullZipBase64 += shardParsed.chunk;
+              }
+            }
+          }
+        } else if (parsed.zipBase64) {
+          fullZipBase64 = parsed.zipBase64;
+        }
+
+        if (fullZipBase64) {
+          fs.mkdirSync(siteDir, { recursive: true });
+          const zipBuf = Buffer.from(fullZipBase64, 'base64');
+          const zip = new AdmZip(zipBuf);
+          zip.extractAllTo(siteDir, true);
+          // Mirror to local vault
+          try {
+            const localVaultDir = path.join(process.cwd(), 'hosted_websites', '.persistent_vault');
+            if (!fs.existsSync(localVaultDir)) fs.mkdirSync(localVaultDir, { recursive: true });
+            fs.writeFileSync(path.join(localVaultDir, `${docId}.zip`), zipBuf);
+          } catch {}
+          console.log(`✅ [FirebaseSync] Restored website workspace files for ${siteId} from Firestore Cloud (${parsed.fileCount || 'multiple'} files)!`);
+          return true;
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[FirebaseSync] restoreWebsiteWorkspaceFromCloud Firestore attempt warning for ${siteId}:`, err?.message || err);
+    }
+
+    // 2. Fallback to Local Persistent Vault mirror if Firestore is unavailable
+    try {
+      const localZipPath = path.join(process.cwd(), 'hosted_websites', '.persistent_vault', `${docId}.zip`);
+      if (fs.existsSync(localZipPath)) {
+        fs.mkdirSync(siteDir, { recursive: true });
+        const zip = new AdmZip(localZipPath);
+        zip.extractAllTo(siteDir, true);
+        console.log(`✅ [FirebaseSync] Restored website workspace files for ${siteId} from Local Persistent Vault mirror!`);
+        return true;
+      }
+    } catch (err: any) {
+      console.warn(`[FirebaseSync] Local vault fallback error for ${siteId}:`, err?.message || err);
+    }
+
+    return false;
+  }
+
   static async deleteWebsiteFromCloud(siteId: string): Promise<boolean> {
     if (!siteId) return false;
     try {
@@ -1545,6 +1827,8 @@ export class FirebaseSync {
       };
       const url = `${BASE_URL}/websites/${docId}?key=${API_KEY}`;
       const res = await fetch(url, { method: 'DELETE', headers }).catch(() => null);
+      // Also delete website workspace document
+      await fetch(`${BASE_URL}/website_workspaces/${docId}?key=${API_KEY}`, { method: 'DELETE', headers }).catch(() => null);
       return Boolean(res && res.ok);
     } catch {
       return false;

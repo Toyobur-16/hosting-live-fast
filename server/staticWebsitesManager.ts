@@ -98,6 +98,10 @@ export function saveWebsites(websites: HostedWebsite[]): void {
       for (const w of websites) {
         if (w && w.id) {
           FirebaseSync.syncWebsiteToCloud(w).catch(() => {});
+          const siteDir = getSiteDirectory(w.userId, w.id);
+          if (fs.existsSync(siteDir) && fs.readdirSync(siteDir).length > 0) {
+            FirebaseSync.syncWebsiteWorkspaceToCloud(w.id, siteDir).catch(() => {});
+          }
         }
       }
     }
@@ -143,8 +147,22 @@ export function isValidSlug(slug: string): boolean {
   return true;
 }
 
-function getSiteDirectory(userId: string, siteId: string): string {
+export function getSiteDirectory(userId: string, siteId: string): string {
   return path.join(HOSTED_WEBSITES_ROOT, userId, siteId);
+}
+
+/**
+ * Ensures website workspace files are present locally, restoring from Firebase Firestore or local vault if needed
+ */
+export async function ensureWebsiteWorkspace(siteId: string): Promise<string | null> {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.id === siteId);
+  if (!website) return null;
+  const siteDir = getSiteDirectory(website.userId, website.id);
+  if (!fs.existsSync(siteDir) || fs.readdirSync(siteDir).length === 0) {
+    await FirebaseSync.restoreWebsiteWorkspaceFromCloud(website.id, siteDir);
+  }
+  return siteDir;
 }
 
 function calculateDirectorySize(dirPath: string): { totalBytes: number; fileCount: number } {
@@ -716,6 +734,124 @@ export function getWebsiteFilesList(siteId: string, userId?: string): Array<{ pa
 
   traverse(siteDir);
   return fileList;
+}
+
+/**
+ * Get list of files with auto-restoration from Firebase Cloud Vault if local directory is empty
+ */
+export async function getWebsiteFilesListAsync(siteId: string, userId?: string): Promise<Array<{ path: string; size: number; modified: string }>> {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.id === siteId && (!userId || w.userId === userId || userId === 'admin'));
+  if (!website) return [];
+
+  const siteDir = getSiteDirectory(website.userId, siteId);
+  if (!fs.existsSync(siteDir) || fs.readdirSync(siteDir).length === 0) {
+    await FirebaseSync.restoreWebsiteWorkspaceFromCloud(website.id, siteDir);
+  }
+  return getWebsiteFilesList(siteId, userId);
+}
+
+/**
+ * Read specific website file content
+ */
+export async function getWebsiteFileContent(siteId: string, relPath: string, userId?: string): Promise<{ success: boolean; content?: string; isBinary?: boolean; error?: string }> {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.id === siteId && (!userId || w.userId === userId || userId === 'admin'));
+  if (!website) return { success: false, error: 'ওয়েবসাইট পাওয়া যায়নি' };
+
+  const siteDir = getSiteDirectory(website.userId, siteId);
+  if (!fs.existsSync(siteDir) || fs.readdirSync(siteDir).length === 0) {
+    await FirebaseSync.restoreWebsiteWorkspaceFromCloud(website.id, siteDir);
+  }
+
+  const safeRel = path.normalize(relPath).replace(/^(\.\.[\/\\])+/, '');
+  const filePath = path.join(siteDir, safeRel);
+  if (!filePath.startsWith(siteDir + path.sep) && filePath !== siteDir) {
+    return { success: false, error: 'অননুমোদিত ফাইল পাথ' };
+  }
+
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    return { success: false, error: 'ফাইল পাওয়া যায়নি' };
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  const binaryExts = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.zip', '.woff', '.woff2', '.ttf', '.pdf']);
+  if (binaryExts.has(ext)) {
+    const buf = fs.readFileSync(filePath);
+    return { success: true, content: buf.toString('base64'), isBinary: true };
+  }
+
+  const text = fs.readFileSync(filePath, 'utf-8');
+  return { success: true, content: text, isBinary: false };
+}
+
+/**
+ * Save specific website file and automatically persist workspace to Cloud
+ */
+export async function saveWebsiteFile(siteId: string, relPath: string, content: string, userId?: string): Promise<{ success: boolean; error?: string }> {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.id === siteId && (!userId || w.userId === userId || userId === 'admin'));
+  if (!website) return { success: false, error: 'ওয়েবসাইট পাওয়া যায়নি' };
+
+  const siteDir = getSiteDirectory(website.userId, siteId);
+  const safeRel = path.normalize(relPath).replace(/^(\.\.[\/\\])+/, '');
+  const filePath = path.join(siteDir, safeRel);
+  if (!filePath.startsWith(siteDir + path.sep)) {
+    return { success: false, error: 'অননুমোদিত ফাইল পাথ' };
+  }
+
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf-8');
+
+  // Recalculate size
+  const { totalBytes, fileCount } = calculateDirectorySize(siteDir);
+  website.storageBytes = totalBytes;
+  website.filesCount = fileCount;
+  website.hasIndexHtml = fs.existsSync(path.join(siteDir, 'index.html'));
+  website.updatedAt = new Date().toISOString();
+  saveWebsites(websites);
+
+  // Sync to Firebase Cloud Vault
+  FirebaseSync.syncWebsiteWorkspaceToCloud(website.id, siteDir).catch(() => {});
+  return { success: true };
+}
+
+/**
+ * Delete specific website file and sync workspace to Cloud
+ */
+export async function deleteWebsiteFile(siteId: string, relPath: string, userId?: string): Promise<{ success: boolean; error?: string }> {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.id === siteId && (!userId || w.userId === userId || userId === 'admin'));
+  if (!website) return { success: false, error: 'ওয়েবসাইট পাওয়া যায়নি' };
+
+  const siteDir = getSiteDirectory(website.userId, siteId);
+  const safeRel = path.normalize(relPath).replace(/^(\.\.[\/\\])+/, '');
+  const filePath = path.join(siteDir, safeRel);
+  if (!filePath.startsWith(siteDir + path.sep)) {
+    return { success: false, error: 'অননুমোদিত ফাইল পাথ' };
+  }
+
+  if (fs.existsSync(filePath)) {
+    try {
+      if (fs.statSync(filePath).isDirectory()) {
+        fs.rmSync(filePath, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(filePath);
+      }
+    } catch (err: any) {
+      return { success: false, error: `ফাইল মুছতে সমস্যা হয়েছে: ${err.message}` };
+    }
+  }
+
+  const { totalBytes, fileCount } = calculateDirectorySize(siteDir);
+  website.storageBytes = totalBytes;
+  website.filesCount = fileCount;
+  website.hasIndexHtml = fs.existsSync(path.join(siteDir, 'index.html'));
+  website.updatedAt = new Date().toISOString();
+  saveWebsites(websites);
+
+  FirebaseSync.syncWebsiteWorkspaceToCloud(website.id, siteDir).catch(() => {});
+  return { success: true };
 }
 
 /**

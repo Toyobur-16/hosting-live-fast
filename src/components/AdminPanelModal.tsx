@@ -1189,7 +1189,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 { id: 'bots' as AdminTabType, labelBn: 'সকল বট নিয়ন্ত্রণ', labelEn: 'All Bots Control', icon: Bot, iconColor: 'text-blue-400' },
                 { id: 'websites' as AdminTabType, labelBn: 'ওয়েবসাইট হোস্টিং', labelEn: 'Hosted Websites', icon: Globe, iconColor: 'text-cyan-400' },
                 { id: 'social-tasks' as AdminTabType, labelBn: 'সোশ্যাল টাস্ক', labelEn: 'Social Tasks', icon: Share2, iconColor: 'text-purple-400', badge: pendingTasksCount > 0 ? pendingTasksCount : undefined },
-                { id: 'site' as AdminTabType, labelBn: 'সাইট লোগো ও APK পিকচার', labelEn: 'Logo & APK Picture', icon: Sliders, iconColor: 'text-amber-400' },
+                { id: 'site' as AdminTabType, labelBn: 'লোগো, সেটিংস ও ওয়েলকাম মেসেজ', labelEn: 'Logo, Settings & Welcome Msg', icon: Sliders, iconColor: 'text-amber-400' },
               ].map((tab) => {
                 const IconComp = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -1532,6 +1532,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             <div className="text-[10px] text-slate-500">
                               তারিখ: {new Date(req.createdAt).toLocaleString('bn-BD')} {req.note ? `• নোট: ${req.note}` : ''}
                             </div>
+
+                            {req.screenshotUrl && (
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewScreenshotUrl(req.screenshotUrl!)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer transition-all"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>📸 পেমেন্ট স্ক্রিনশট দেখুন (View Screenshot)</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Actions */}

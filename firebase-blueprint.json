@@ -231,12 +231,29 @@
         "updatedAt": { "type": "number", "description": "Last synced timestamp" }
       },
       "required": ["botId", "zipBase64"]
+    },
+    "WebsiteWorkspace": {
+      "title": "WebsiteWorkspace",
+      "description": "Persistent compressed archive and source files of a hosted static website workspace",
+      "type": "object",
+      "properties": {
+        "websiteId": { "type": "string", "description": "ID of the hosted website" },
+        "zipBase64": { "type": "string", "description": "Base64 encoded zip archive of the website files" },
+        "fileCount": { "type": "number", "description": "Total files count in the website" },
+        "byteLength": { "type": "number", "description": "Total byte size of website archive" },
+        "updatedAt": { "type": "number", "description": "Last synced timestamp" }
+      },
+      "required": ["websiteId", "zipBase64"]
     }
   },
   "firestore": {
     "/bot_workspaces/{workspaceId}": {
       "schema": "BotWorkspace",
       "description": "Compressed workspace archives of all hosted bots ensuring zero data loss across updates"
+    },
+    "/website_workspaces/{workspaceId}": {
+      "schema": "WebsiteWorkspace",
+      "description": "Compressed workspace archives of all hosted websites ensuring zero data loss across updates"
     },
     "/site_images/{imageId}": {
       "schema": "SiteImage",

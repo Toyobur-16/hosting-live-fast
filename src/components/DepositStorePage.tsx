@@ -23,7 +23,9 @@ import {
   Plus,
   Settings,
   Eye,
-  ImageIcon
+  ImageIcon,
+  UploadCloud,
+  Trash2
 } from 'lucide-react';
 import { AuthUser, DepositMethodItem } from '../types';
 import { playDepositSuccessSound } from '../utils/audioAlert';
@@ -119,9 +121,34 @@ export function DepositStorePage({
   // Form State
   const [senderIdentifier, setSenderIdentifier] = useState('');
   const [transactionId, setTransactionId] = useState('');
-  const [note, setNote] = useState('');
+  const [screenshotData, setScreenshotData] = useState<string | null>(null);
+  const [screenshotFileName, setScreenshotFileName] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const screenshotInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setFormMessage({ type: 'error', text: 'অনুগ্রহ করে শুধুমাত্র ছবি ফাইল (PNG, JPG, WEBP) আপলোড করুন।' });
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setFormMessage({ type: 'error', text: 'ছবির সাইজ সর্বোচ্চ 15MB হতে পারে।' });
+      return;
+    }
+
+    setScreenshotFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setScreenshotData(reader.result as string);
+      setFormMessage(null);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Modal states
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -315,6 +342,14 @@ export function DepositStorePage({
       return;
     }
 
+    if (!screenshotData) {
+      setFormMessage({
+        type: 'error',
+        text: 'অনুগ্রহ করে পেমেন্টের সফল স্ক্রিনশট আপলোড করুন (পেমেন্ট স্ক্রিনশট দেওয়া আবশ্যক)।'
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const token = localStorage.getItem('bot_auth_token');
@@ -324,7 +359,31 @@ export function DepositStorePage({
       const effectiveSender = senderIdentifier.trim() || user.email || 'User';
       const effectiveRate = selectedMethod.rateToBdt || BDT_RATE;
       const effectiveBdtAmount = isBdtMethod ? calculatedBdt : undefined;
-      const effectiveNote = note.trim() || `Deposit (${selectedMethod.name} - $${parsedAmountUsd} USD${isBdtMethod ? ` / ৳${effectiveBdtAmount} BDT @ 1$=${effectiveRate}৳` : ''})`;
+      const effectiveNote = `Deposit (${selectedMethod.name} - $${parsedAmountUsd} USD${isBdtMethod ? ` / ৳${effectiveBdtAmount} BDT @ 1$=${effectiveRate}৳` : ''})`;
+
+      // Upload payment screenshot if provided
+      let uploadedScreenshotUrl: string | undefined = undefined;
+      if (screenshotData) {
+        try {
+          const upRes = await fetch('/api/store/upload-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageBase64: screenshotData,
+              fileName: screenshotFileName || 'payment_proof.png',
+              fileType: 'payment_proof'
+            })
+          });
+          if (upRes.ok) {
+            const upData = await upRes.json();
+            uploadedScreenshotUrl = upData.url || screenshotData;
+          } else {
+            uploadedScreenshotUrl = screenshotData;
+          }
+        } catch {
+          uploadedScreenshotUrl = screenshotData;
+        }
+      }
 
       // 1. Direct write to Firestore for instant cloud persistence
       try {
@@ -344,6 +403,7 @@ export function DepositStorePage({
           senderNumber: effectiveSender,
           senderIdentifier: effectiveSender,
           transactionId: cleanTrx,
+          screenshotUrl: uploadedScreenshotUrl,
           orderId: orderIdGen,
           note: effectiveNote,
           status: 'pending',
@@ -374,6 +434,7 @@ export function DepositStorePage({
           method: selectedMethod.name,
           senderIdentifier: effectiveSender,
           transactionId: cleanTrx,
+          screenshotUrl: uploadedScreenshotUrl,
           orderId: orderIdGen,
           note: effectiveNote
         })
@@ -394,7 +455,9 @@ export function DepositStorePage({
         setShowSuccessModal(true);
         setTransactionId('');
         setSenderIdentifier('');
-        setNote('');
+        setScreenshotData(null);
+        setScreenshotFileName('');
+        if (screenshotInputRef.current) screenshotInputRef.current.value = '';
         setFormMessage(null);
         handleAutoSync(true);
       } else {
@@ -821,17 +884,109 @@ export function DepositStorePage({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">
-                    অতিরিক্ত নোট বা মন্তব্য (ঐচ্ছিক)
-                  </label>
+                {/* 3. Mandatory Payment Screenshot Upload */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-200">
+                      ৩. পেমেন্টের স্ক্রিনশট আপলোড করুন <span className="text-rose-400 font-black">* (আবশ্যক)</span>
+                    </label>
+                    {screenshotData && (
+                      <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        সংযুক্ত হয়েছে
+                      </span>
+                    )}
+                  </div>
+
                   <input
-                    type="text"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="কোনো বিশেষ মন্তব্য থাকলে লিখতে পারেন"
-                    className="w-full px-4 py-2 rounded-xl bg-[#0f172a] border border-[#1e293b] text-xs text-white focus:border-amber-400 focus:outline-none"
+                    type="file"
+                    ref={screenshotInputRef}
+                    onChange={handleScreenshotChange}
+                    accept="image/*"
+                    className="hidden"
                   />
+
+                  {!screenshotData ? (
+                    <div
+                      onClick={() => screenshotInputRef.current?.click()}
+                      className="group cursor-pointer rounded-2xl border-2 border-dashed border-amber-500/40 hover:border-amber-400 bg-amber-500/5 hover:bg-amber-500/10 p-5 text-center transition-all duration-200 flex flex-col items-center justify-center gap-2"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform shadow-md">
+                        <UploadCloud className="w-6 h-6 stroke-[2.2]" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-200 group-hover:text-amber-300">
+                          পেমেন্টের স্ক্রিনশট সিলেক্ট করুন (Click to Upload)
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          বিকাশ/নগদ/বাইনান্স সফল পেমেন্টের স্ক্রিনশট (PNG, JPG, WEBP - Max 15MB)
+                        </div>
+                      </div>
+                      <span className="px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm flex items-center gap-1 mt-1">
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>ছবি সিলেক্ট করুন</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/20 p-3 flex items-center justify-between gap-3 shadow-md">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          onClick={() => setPreviewImage(screenshotData)}
+                          className="relative w-14 h-14 rounded-xl bg-black border border-emerald-500/50 overflow-hidden shrink-0 cursor-pointer group shadow-inner"
+                          title="বড় করে প্রিভিউ দেখুন"
+                        >
+                          <img
+                            src={screenshotData}
+                            alt="Payment Proof"
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <Eye className="w-4 h-4 text-white" />
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate max-w-[180px] sm:max-w-[260px]">
+                            {screenshotFileName || 'payment_proof.png'}
+                          </div>
+                          <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-0.5">
+                            <CheckCircle2 className="w-3 h-3 shrink-0" />
+                            <span>স্ক্রিনশট সফলভাবে রেডি হয়েছে</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage(screenshotData)}
+                            className="text-[10px] text-amber-400 hover:underline font-bold mt-0.5 cursor-pointer flex items-center gap-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>বড় করে ছবি দেখুন</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => screenshotInputRef.current?.click()}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer transition-colors"
+                          title="অন্য ছবি সিলেক্ট করুন"
+                        >
+                          পরিবর্তন
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScreenshotData(null);
+                            setScreenshotFileName('');
+                            if (screenshotInputRef.current) screenshotInputRef.current.value = '';
+                          }}
+                          className="p-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 cursor-pointer transition-colors"
+                          title="স্ক্রিনশট মুছুন"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {formMessage && (

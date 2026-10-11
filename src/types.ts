@@ -241,6 +241,7 @@ export interface DepositRequest {
   method: 'binance' | 'bkash' | 'nagad' | 'rocket' | string;
   senderIdentifier: string;
   transactionId: string;
+  screenshotUrl?: string;
   note?: string;
   status: 'pending' | 'approved' | 'rejected';
   rejectReason?: string;
@@ -276,6 +277,7 @@ export interface PlanRequest {
   senderNumber: string;
   senderIdentifier?: string;
   transactionId: string;
+  screenshotUrl?: string;
   note?: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
@@ -466,6 +468,12 @@ export interface SiteSettings {
   taglineEn?: string;
   hostingVideoUrl?: string;
   websiteVideoUrl?: string;
+  welcomeMessageEnabled?: boolean;
+  welcomeMessageTitle?: string;
+  welcomeMessageBadge?: string;
+  welcomeMessageBody?: string;
+  welcomeMessageButtonText?: string;
+  welcomeMessageImageUrl?: string;
 }
 
 export interface HostedBot {

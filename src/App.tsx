@@ -26,6 +26,7 @@ import { HostingTutorialPage } from './components/HostingTutorialPage';
 import { FAQPage } from './components/FAQPage';
 import { AiLiveSupportWidget } from './components/AiLiveSupportWidget';
 import { AiBotPromptModal } from './components/AiBotPromptModal';
+import { WelcomeModal } from './components/WelcomeModal';
 import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 import { checkIsAdmin } from './utils/adminCheck';
@@ -40,6 +41,7 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showAiPromptModal, setShowAiPromptModal] = useState(false);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
     try {
@@ -1118,7 +1120,9 @@ export default function App() {
               ? `🎉 স্বাগতম, ${user.name}! সফলভাবে আপনার অ্যাকাউন্টে লগইন হয়েছেন।`
               : `🎉 Welcome, ${user.name}! Successfully signed in.`
           );
-          setShowNotificationsModal(true);
+          if (siteSettings.welcomeMessageEnabled !== false) {
+            setShowWelcomeModal(true);
+          }
         }}
         lang={lang}
       />
@@ -1253,6 +1257,15 @@ export default function App() {
         onNavigateToDeposit={() => setActiveTab('deposit-store')}
         onNavigateToPlans={() => setActiveTab('plans')}
         onNavigateToWebsites={() => setActiveTab('websites')}
+      />
+
+      {/* Login & Registration Fullscreen Centered Welcome Modal */}
+      <WelcomeModal
+        isOpen={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
+        siteSettings={siteSettings}
+        user={currentUser}
+        lang={lang}
       />
     </div>
   );

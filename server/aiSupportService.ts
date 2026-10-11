@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 let aiInstance: GoogleGenAI | null = null;
 
 function getGenAI(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) return null;
   if (!aiInstance) {
     aiInstance = new GoogleGenAI({
@@ -19,61 +19,71 @@ function getGenAI(): GoogleGenAI | null {
 }
 
 const SYSTEM_INSTRUCTION = `
-You are the official 24/7 AI Live Support Assistant & Senior Telegram Bot Engineer for "HostingLiveFast" (হোস্টিংলাইভফাস্ট) - Bangladesh's leading cloud hosting platform for Telegram bots and websites.
-Your name is "HostingLiveFast AI Assistant" / "হোস্টিংলাইভফাস্ট এআই সহকারী ও কোড ফিক্সার".
+You are the official 24/7 AI Live Support Intelligence & Senior Lead Engineer for "HostingLiveFast" (hosting-live-fast / হোস্টিংলাইভফাস্ট, https://hosting-fast.hopto.org).
+You are a highly intelligent, omniscient, empathetic, and versatile AI assistant.
 
-LANGUAGE ABILITIES:
-- You are 100% fluent and bilingual in Bengali (বাংলা) and English.
-- If the user writes in Bengali (বাংলা) or Banglish, respond politely, warmly, and clearly in fluent Bengali.
-- If the user writes in English, respond in professional English.
-- Keep responses friendly, helpful, step-by-step, and easy to understand for beginners. Use bullet points and relevant emojis.
+PRIMARY CAPABILITIES & RESPONSIBILITIES:
+1. UNIVERSAL INTELLIGENCE — ANSWER ANY AND EVERY QUESTION (যেকোনো প্রশ্নের সঠিক ও পূর্ণাঙ্গ উত্তর):
+   - You can answer ANY question the user asks on ANY subject without hesitation:
+     * Programming & Coding: Python (telebot, PTB, aiogram, Django, Flask, FastAPI), JavaScript/TypeScript (React, Node.js, Express, Next.js), PHP, C++, C#, Java, Go, Rust, HTML, CSS, Tailwind, SQL, MongoDB, Git, Docker, algorithms, data structures, and debugging.
+     * General Knowledge & Education: Science, physics, chemistry, biology, mathematics, history, geography, astronomy, world affairs, economy, literature.
+     * Problem Solving & Advice: Daily challenges, technical troubleshooting, business ideas, creative writing, poetry, translations, career guidance, essay writing.
+     * Casual & Friendly Chat: Greetings ("হাই", "কেমন আছেন", "হ্যালো", "Hi"), casual banter, witty, warm, and polite interactions.
+   - When answering, provide depth, clarity, step-by-step reasoning, and structured formatting (Markdown headers, bold text, bullet points).
+   - If code is requested or code errors are shared, ALWAYS provide the COMPLETE 100% WORKING, ERROR-FREE, READY-TO-RUN CODE inside markdown code blocks (\`\`\`python, \`\`\`javascript, \`\`\`html, etc.) along with dependency instructions (requirements.txt or package.json).
 
-PLATFORM KNOWLEDGE & CORE RESPONSIBILITIES:
-1. TELEGRAM BOT HOSTING & AUTO CODE FIXER (CRITICAL SKILL):
-   - You are an expert Senior Telegram Bot Developer (Python & Node.js).
-   - Python frameworks: python-telegram-bot (v20+ async & legacy v13), telebot / pyTelegramBotAPI, aiogram v3, pyrogram.
-   - Node.js frameworks: telegraf, node-telegram-bot-api.
-   - If a user shares ANY broken code, syntax error, traceback, or indentation problem:
-     * Step 1: Diagnose the error in 1-2 simple Bengali sentences.
-     * Step 2: Deliver the COMPLETE, 100% WORKING, ERROR-FREE CODE in a markdown code block (\`\`\`python or \`\`\`javascript). Always give the entire code so the user can copy and run it immediately!
-     * Step 3: State the exact packages needed in requirements.txt or package.json.
-     * Step 4: Explain how to zip main.py/index.js and requirements.txt/package.json and host on HostingLiveFast.
+2. DEEP & THOROUGH KNOWLEDGE OF "hosting-live-fast" (হোস্টিংলাইভফাস্ট প্ল্যাটফর্মের পূর্ণাঙ্গ জ্ঞান):
+   Whenever the user asks about this website, hosting, pricing, or issues, provide precise, authoritative, and helpful guidance:
+   • Core Service:
+     - 24/7 cloud runtime for Telegram bots and static websites with high-performance isolated workspaces, live console, and auto-restart watchdog.
+   • Telegram Bot Hosting:
+     - Supported runtimes: Python (pyTelegramBotAPI / telebot, python-telegram-bot, aiogram, pyrogram) and Node.js (telegraf, node-telegram-bot-api).
+     - Especially optimized for: Task Earning Bots (টাস্ক ইনকাম বট), Referral & Daily Bonus Bots, Mini Apps, Group Managers, Notification Bots.
+     - How to Host:
+       1) Put main script in \`main.py\` or \`index.js\` and dependencies in \`requirements.txt\` or \`package.json\`.
+       2) Compress the files into a single \`.zip\` archive.
+       3) In dashboard, click "+ New Bot", upload zip file, provide bot name & BotFather token, select entry file, and click "Start".
+   • 24/7 AI Bot Guardian & Auto-Healing Watchdog:
+     - Continuously monitors running bots 24/7.
+     - If a bot crashes, it detects the error, installs missing pip/npm libraries automatically, clears Telegram 409 conflict loops, and auto-revives the bot immediately.
+   • Website Hosting:
+     - Host static websites (HTML, CSS, JS, single-page web apps, React builds).
+     - Upload zip or files in the "Websites" page.
+     - Provides instant live URLs and custom domain support.
+   • Wallet & Deposit System:
+     - Manual & Instant deposit options:
+       * bKash Personal (01614572747) - Send Money
+       * Nagad Personal (01304104492) - Send Money
+       * Binance Pay (Pay ID / UID: 922593999) - Instant USDT deposit
+       * USDT (BEP-20 / TRC-20) addresses available on the Deposit page.
+     - How to deposit:
+       1) Send Money or USDT to the given account/address.
+       2) Copy the TrxID / Transaction ID / Order ID.
+       3) Go to the "ডিপোজিট" (Deposit) page, enter amount, sender number, and TrxID, then click Confirm.
+       4) Admin verifies and credits the USD balance to your wallet promptly (Binance Pay is verified automatically).
+   • Hosting Plans & Free Trial:
+     - Free trial is provided for new users to test 24/7 bot hosting without cost.
+     - Flexible plans: 1 Month, 3 Months, 6 Months, and 1 Year with affordable pricing.
+   • Social Tasks & Free Earning:
+     - Users can earn wallet credit by subscribing to official Telegram channels, YouTube, and completing social tasks, then submitting screenshot proof.
+   • Human Support Escalation:
+     - If user has payment issues or requests to talk to human admin:
+       * WhatsApp: +8801304104492 (01304104492)
+       * Telegram: @toyoburrahman (https://t.me/toyoburrahman)
+       * Email: toyoburrahman560@gmail.com
+     - Instruct user to share their registered email and payment TrxID for faster resolution.
 
-2. WALLET & DEPOSIT SYSTEM:
-   - Manual & Automatic deposits:
-     * bKash Personal (01614572747) - Send Money
-     * Nagad Personal (01304104492) - Send Money
-     * Binance Pay / UID (922593999) - Instant USDT deposit
-     * USDT (BEP-20 / TRC-20) addresses available on the Deposit page.
-   - Steps to deposit:
-     1) Send Money / USDT to the respective account.
-     2) Copy the TrxID / Transaction ID / Order ID.
-     3) Go to the Deposit page, enter amount, sender number, and TrxID, then click Confirm.
-     4) Admin will verify and credit the USD balance to your wallet promptly (Binance Pay is verified automatically).
+3. LANGUAGE & COMMUNICATION:
+   - 100% Bilingual in Bengali (বাংলা) and English.
+   - If user asks in Bengali or Banglish, answer warmly, politely, and fluently in Bengali.
+   - If user asks in English, answer in polished, professional English.
+   - Tone: Friendly, respectful, confident, encouraging, and highly technical when needed.
 
-3. WEBSITE HOSTING:
-   - Host HTML/CSS/JavaScript and web projects.
-   - Free custom subdomains and custom domain support.
-
-4. HOSTING PLANS & PRICING:
-   - Flexible monthly, quarterly, half-yearly, and yearly packages.
-   - Free trial available for new users to test bot hosting without cost.
-
-5. SOCIAL TASKS & FREE REWARDS:
-   - Users can earn free wallet balance by subscribing to Telegram channels, YouTube, following social pages, and submitting screenshot proof.
-
-6. HUMAN SUPPORT & ESCALATION:
-   - If a user has a payment dispute, needs manual balance verification, or wants to talk to a human admin:
-     * WhatsApp: +8801304104492 (01304104492)
-     * Telegram Support: @toyoburrahman (https://t.me/toyoburrahman)
-     * Official Email: toyoburrahman560@gmail.com
-   - Always encourage users to provide their TrxID and registered email when contacting admin.
-
-TONE & RULES:
-- Always be polite, respectful, and reassuring.
-- When delivering code, make sure it is completely valid, clean, and ready to copy-paste.
-- Never share server API keys, secrets, or internal system files.
-- Guide users directly to the right button/page on the website.
+4. MULTIMODAL CAPABILITY:
+   - If an image or screenshot is attached:
+     * Inspect every visual detail (layout, colors, typography, buttons, hero, forms).
+     * If asked to build a website from the image, generate complete, modern, responsive single-page HTML with Tailwind CSS and JavaScript.
+     * If an error screenshot is provided, diagnose the exact cause and give the complete working code.
 `;
 
 export interface ChatMessage {
@@ -117,8 +127,8 @@ export async function askAiSupport(
   if (!cleanMsg && !imageBase64) {
     return {
       text: lang === 'en'
-        ? 'Please write your question, attach an image, or describe what you need.'
-        : 'অনুগ্রহ করে আপনার প্রশ্ন লিখুন, ছবি দিন বা কী সমস্যা তা জানান।'
+        ? 'Please write your question, ask anything about the site, or describe what you need!'
+        : 'অনুগ্রহ করে আপনার যেকোনো প্রশ্ন লিখুন বা কী জানতে চান তা জানান!'
     };
   }
 
@@ -127,11 +137,11 @@ export async function askAiSupport(
     : 'এই ছবি দেখে সুন্দর ওয়েবসাইট ডিজাইন ও সম্পূর্ণ কার্যকর কোড তৈরি করে দিন।'
   );
 
-  // Check if we are in a quota cooldown window
+  // Check if we are in a brief quota cooldown window
   const canAttemptGemini = Date.now() > quotaExceededUntil;
   const ai = canAttemptGemini ? getGenAI() : null;
 
-  // If Gemini API Key is available and quota not exceeded, generate smart real-time response
+  // If Gemini client is available, generate smart real-time response
   if (ai) {
     try {
       const contents: any[] = [];
@@ -166,30 +176,26 @@ export async function askAiSupport(
         parts: currentParts
       });
 
-      // Tailored system prompt based on language
+      // Tailored system prompt based on user language preference
       const dynamicInstruction = `${SYSTEM_INSTRUCTION}
       
 CURRENT PREFERRED USER LANGUAGE: ${lang === 'en' ? 'ENGLISH (Respond primarily in English)' : 'BENGALI (Respond primarily in fluent Bengali / বাংলা)'}.
-SPECIAL CAPABILITIES ACTIVATED:
-1. PICTURE-TO-WEBSITE / MULTIMODAL DESIGN:
-   - When an image or screenshot is provided, inspect every visual element (header, hero, colors, fonts, layout, cards, buttons, footer).
-   - Generate COMPLETE, BEAUTIFUL, PRODUCTION-READY single-page HTML with Tailwind CSS, responsive design, dark/light theme, and interactive JavaScript.
-   - Always put the complete code inside a single copyable markdown code block (\`\`\`html) so the user can easily copy and host on HostingLiveFast.
-2. 24/7 FRIENDLY CONVERSATIONALIST:
-   - Respond warmly and naturally to simple greetings like "hi", "hello", "how are you", "কেমন আছেন", "ধন্যবাদ", etc.
-3. ALL CODE WRITING:
-   - Python Telegram bots (telebot, ptb, aiogram), Node.js (telegraf), web scrapers, REST APIs, HTML/CSS/JS, full React components.`;
+SPECIAL DIRECTIVES:
+1. Whatever question the user asks—whether about hosting-live-fast, Telegram bots, general coding, science, math, general knowledge, or any topic they choose—provide a direct, top-tier, accurate, and wonderfully formatted answer.
+2. If asked about hosting-live-fast, explain the 24/7 Telegram bot hosting, AI Bot Guardian, free trial, websites, bKash/Nagad/Binance Pay deposits, and admin contacts with enthusiasm.
+3. If code is needed, always output the FULL complete working code block ready to copy and run without leaving placeholders.`;
 
-      // Supported modern models per Gemini API guidelines: 'gemini-3.8-flash' first, fallback 'gemini-2.5-flash'
+      // Supported modern models per Gemini API guidelines: 'gemini-3.8-flash' first, fallback 'gemini-flash-latest' and 'gemini-3.1-flash-lite'
       const candidateModels = [
         'gemini-3.8-flash',
-        'gemini-2.5-flash'
+        'gemini-flash-latest',
+        'gemini-3.1-flash-lite'
       ];
 
       for (const modelName of candidateModels) {
         try {
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('AI request timed out')), 9000)
+            setTimeout(() => reject(new Error('AI request timed out')), 35000)
           );
           const response: any = await Promise.race([
             ai.models.generateContent({
@@ -197,7 +203,7 @@ SPECIAL CAPABILITIES ACTIVATED:
               contents,
               config: {
                 systemInstruction: dynamicInstruction,
-                temperature: 0.6
+                temperature: 0.7
               }
             }),
             timeoutPromise
@@ -209,14 +215,16 @@ SPECIAL CAPABILITIES ACTIVATED:
           }
         } catch (modelErr: any) {
           const errMsg = (modelErr?.message || String(modelErr)).toLowerCase();
+          console.warn(`[AI Support] Model ${modelName} returned error:`, errMsg);
           if (errMsg.includes('quota') || errMsg.includes('resource_exhausted') || errMsg.includes('429')) {
-            quotaExceededUntil = Date.now() + 10 * 60 * 1000;
-            break;
+            // Brief 15s cooldown only
+            quotaExceededUntil = Date.now() + 15 * 1000;
           }
+          // Try next candidate model
         }
       }
-    } catch {
-      // Quietly fall back
+    } catch (err: any) {
+      console.warn('[AI Support] Error during Gemini generation:', err?.message || err);
     }
   }
 
@@ -252,27 +260,29 @@ function getRuleBasedReply(msg: string, settings?: any, lang: 'bn' | 'en' = 'bn'
     if (isEn) {
       return `👋 **Hello and Welcome to HostingLiveFast!** 🌟
 
-I am your **24/7 AI Live Support Assistant & Lead Engineer**. I am always online and ready to help you with:
+I am your **24/7 AI Live Support Assistant & Lead Engineer**. I am always online and ready to answer any question or assist you:
 
+• 💡 **Ask Any Question:** You can ask me any general question, programming question, or technical inquiry—I am here to help!
 • 🎨 **Picture-to-Website & UI Design:** Send any photo/sketch, and I will generate complete responsive HTML/CSS/Tailwind code for you!
 • 🛠️ **Telegram Bot Code Debugger & Auto-Fix:** Paste your Python or Node.js code, and I'll eliminate all bugs & errors.
 • 🛡️ **24/7 Bot Guardian:** Keeping your Telegram bots alive around the clock without dying.
 • 💳 **Wallet & Deposits:** bKash, Nagad, Binance USDT, or TRX instant processing.
-• 🌐 **Free Website Hosting:** Upload HTML/CSS/JS and get instant live URLs.
+• 🌐 **Website Hosting:** Upload HTML/CSS/JS and get instant live URLs.
 
-How are you doing today? Feel free to ask anything, upload an image, or share your code!`;
+How are you doing today? Feel free to ask anything, share your code, or describe what you need!`;
     }
     return `👋 **আসসালামু আলাইকুম! কেমন আছেন? হোস্টিংলাইভফাস্ট-এ আপনাকে স্বাগতম!** 🌟
 
-আমি আপনার **২৪/৭ এআই লাইভ সাপোর্ট ও কোড ফিক্সার সহকারী**। দিন-রাত যেকোনো সময় আমি অনলাইনে আছি এবং আপনাকে সাহায্য করতে সম্পূর্ণ প্রস্তুত:
+আমি আপনার **২৪/৭ এআই লাইভ সাপোর্ট ও কোড ফিক্সার সহকারী**। দিন-রাত যেকোনো সময় আমি অনলাইনে আছি এবং আপনাকে যেকোনো বিষয়ে সহায়তা করতে প্রস্তুত:
 
+• 💡 **যেকোনো প্রশ্ন করুন:** সাধারণ জ্ঞান, পড়াশোনা, প্রোগ্রামিং বা দৈনন্দিন যেকোনো প্রশ্ন করতে পারেন—আমি উত্তর দিতে প্রস্তুত!
 • 🎨 **ছবি দিয়ে ওয়েবসাইট ও ডিজাইন তৈরি:** যেকোনো পিকচার বা স্কেচ আপলোড করলে আমি সাথে সাথে রেডি-টু-রান HTML/Tailwind কোড বানিয়ে দেব!
 • 🛠️ **টেলিগ্রাম বট কোড ফিক্সার:** পাইথন বা নোডজেএস কোডের যেকোনো ভুল বা এরর ১০০% ঠিক করে দেওয়ার গ্যারান্টি।
 • 🛡️ **২৪ ঘণ্টা বট গার্ডিয়ান:** আপনার টেলিগ্রাম বট যাতে কখনো বন্ধ না হয় তা নিশ্চিত করা।
 • 💳 **ওয়ালেট ডিপোজিট:** বিকাশ, নগদ ও বাইন্যান্স পে সংক্রান্ত যেকোনো গাইড।
 • 🌐 **ওয়েবসাইট হোস্টিং:** ফ্রিতে আপনার সাইট লাইভ করার সহায়তা।
 
-আজ আপনাকে কীভাবে সাহায্য করতে পারি বলুন? যেকোনো প্রশ্ন করতে পারেন বা কোড/ছবি শেয়ার করতে পারেন!`;
+আজ আপনাকে কীভাবে সাহায্য করতে পারি বলুন? আপনার ইচ্ছামতো যেকোনো প্রশ্ন করতে পারেন বা কোড/ছবি শেয়ার করতে পারেন!`;
   }
 
   // 2. Picture-to-Website / Design-to-Code / Website Generation Request
@@ -656,28 +666,215 @@ All Telegram bots hosted on HostingLiveFast are protected by our continuous **24
 • **২৪/৭ অবিরাম সচল রাখা:** প্রসেস বন্ধ হতে দেয় না এবং স্বয়ংক্রিয়ভাবে রিস্টার্ট করে লাইভ রাখে!`;
   }
 
-  // Default welcome response
-  if (isEn) {
-    return `👋 Hello! I am your **24/7 AI Support Assistant & Code Engineer** at HostingLiveFast.
+  // 6. Website Hosting queries
+  if (
+    lower.includes('website') ||
+    lower.includes('ওয়েবসাইট') ||
+    lower.includes('সাইট হোস্ট') ||
+    lower.includes('static site') ||
+    lower.includes('web hosting') ||
+    lower.includes('html host')
+  ) {
+    if (isEn) {
+      return `🌐 **Website & Web App Hosting on HostingLiveFast:**
 
-How can I assist you right now? You can ask anything or try:
-• 🎨 **Send any picture/sketch to generate website design & full HTML/CSS code**
-• 🛠️ **Debug or write any Telegram bot or web script**
-• 💳 **Wallet deposit & payment verification**
-• 🛡️ **24/7 Telegram bot live keep-alive guidance**
-• 📞 **Direct contact with human admin**
+You can host modern responsive HTML, CSS, JavaScript web projects and frontend applications with zero hassle!
 
-Please type your question or paste your code/image below!`;
+• **Supported formats:** Single HTML files, CSS, JS, images, or a full project packed in a \`.zip\` archive.
+• **Instant Live Subdomains:** Get your website live immediately with secure SSL (HTTPS).
+• **Custom Domain:** Connect your own custom domain easily from the dashboard.
+• **How to upload:**
+  1. Go to the **"Websites"** page from the sidebar menu.
+  2. Click **"+ New Website"** / **"Upload"**.
+  3. Enter your site name, choose your subdomain slug, and upload your files or ZIP archive.
+  4. Your website is instantly live online around the world!`;
+    }
+
+    return `🌐 **হোস্টিংলাইভফাস্ট-এ ওয়েবসাইট হোস্টিং এর নিয়ম:**
+
+আপনি খুব সহজেই যেকোনো HTML, CSS, JavaScript এবং স্ট্যাটিক ওয়েবসাইট ফ্রিতে বা কম খরচে হোস্ট করতে পারেন:
+
+• **সমর্থিত ফাইল:** সিঙ্গেল HTML ফাইল অথবা সম্পূর্ণ প্রজেক্টের জিপ (\`.zip\`) ফাইল।
+• **তাত্ক্ষণিক লাইভ সাবডোমেইন:** সাইট আপলোড করার সাথে সাথেই বিশ্বব্যাপী লাইভ URL এবং SSL (HTTPS) পেয়ে যাবেন।
+• **কাস্টম ডোমেইন:** আপনার নিজের ডোমেইন থাকলে তাও যুক্ত করার সুবিধা রয়েছে।
+• **হোস্ট করার সহজ ধাপ:**
+  ১. সাইডবার মেনু থেকে **"ওয়েবসাইট" (Websites)** পেজে যান।
+  ২. **"+ New Website"** বাটনে ক্লিক করুন।
+  ৩. আপনার সাইটের নাম ও পছন্দের সাবডোমেইন নাম দিন এবং জিপ ফাইল আপলোড করুন।
+  ৪. সাথে সাথে আপনার সাইট ইন্টারনেটে সক্রিয় হয়ে যাবে!`;
   }
 
-  return `👋 হ্যালো! আমি হোস্টিংলাইভফাস্ট-এর **২৪/৭ এআই সাপোর্ট রোবট ও কোড ফিক্সার**।
+  // 7. Plans, Pricing & Free Trial queries
+  if (
+    lower.includes('plan') ||
+    lower.includes('pricing') ||
+    lower.includes('প্ল্যান') ||
+    lower.includes('প্যাকেজ') ||
+    lower.includes('দাম') ||
+    lower.includes('খরচ') ||
+    lower.includes('free trial') ||
+    lower.includes('ট্রায়াল') ||
+    lower.includes('ট্রায়াল') ||
+    lower.includes('price')
+  ) {
+    if (isEn) {
+      return `📦 **Hosting Plans, Pricing & Free Trial:**
 
-আমি আপনাকে কীভাবে সাহায্য করতে পারি? আপনি বাংলায় বা ইংরেজিতে যেকোনো প্রশ্ন করতে পারেন:
-• 🎨 **যেকোনো ছবি দিয়ে সুন্দর ওয়েবসাইট ডিজাইন ও সম্পূর্ণ কার্যকর কোড তৈরি**
-• 🛠️ **টেলিগ্রাম বটের ভুল কোড বা এরর স্বয়ংক্রিয়ভাবে ঠিক করা**
-• 🛡️ **বট যাতে ২৪ ঘণ্টা লাইভ থাকে তার এআই গার্ডিয়ান সাহায্য**
-• 💳 **ডিপোজিট ও ওয়ালেট ব্যালেন্স**
+HostingLiveFast offers the most affordable and reliable 24/7 Telegram bot and web hosting packages:
+
+• 🎁 **Free Trial (ফ্রি ট্রায়াল):** Test bot hosting for free! Experience 24/7 uptime and AI Guardian protection before upgrading.
+• ⚡ **1 Month Plan:** Perfect for running your bots with full resource limits.
+• 🚀 **3 Months & 6 Months Plans:** Discounted rates for uninterrupted bot and website operation.
+• 👑 **1 Year Plan:** Maximum savings and dedicated high-priority watchdog support.
+
+Go to the **"Plans"** page from the bottom navigation or sidebar to view real-time prices and activate your plan with your wallet balance!`;
+    }
+
+    return `📦 **হোস্টিং প্ল্যান, মূল্য ও ফ্রি ট্রায়াল (Free Trial):**
+
+হোস্টিংলাইভফাস্ট-এ অত্যন্ত সুলভ মূল্যে প্রিমিয়াম ২৪/৭ টেলিগ্রাম বট ও ওয়েবসাইট হোস্টিং প্যাকেজ রয়েছে:
+
+• 🎁 **ফ্রি ট্রায়াল (Free Trial):** নতুন ইউজারদের জন্য সম্পূর্ণ বিনামূল্যে টেস্ট করার সুযোগ! কোনো টাকা ছাড়াই বট হোস্ট করে ২৪/৭ লাইভ পারফরম্যান্স দেখুন।
+• ⚡ **১ মাসের প্যাকেজ:** মাসিক নিয়মিত বট ও ওয়েবসাইট চালানোর জন্য উপযোগী।
+• 🚀 **৩ মাস ও ৬ মাসের প্যাকেজ:** দীর্ঘমেয়াদী সাশ্রয়ী অফার।
+• 👑 **১ বছরের ভিআইপি প্যাকেজ:** সর্বোচ্চ ডিসকাউন্ট এবং হাই-প্রাইওরিটি এআই গার্ডিয়ান সাপোর্ট।
+
+নিচের মেনু বা সাইডবার থেকে **"প্ল্যান" (Plans)** পেজে গিয়ে আপনার পছন্দের প্যাকেজ বেছে নিন এবং ওয়ালেট ব্যালেন্স দিয়ে চালু করুন!`;
+  }
+
+  // 8. Social Tasks & Free Earning queries
+  if (
+    lower.includes('task') ||
+    lower.includes('টাস্ক') ||
+    lower.includes('রিওয়ার্ড') ||
+    lower.includes('রিওয়ার্ড') ||
+    lower.includes('reward') ||
+    lower.includes('ইনকাম') ||
+    lower.includes('earning') ||
+    lower.includes('free balance')
+  ) {
+    if (isEn) {
+      return `🎁 **Social Tasks & Free Wallet Earnings:**
+
+You can earn free wallet balance on HostingLiveFast without depositing money!
+
+1. Go to the **"Rewards / Social Tasks"** page from the sidebar.
+2. Complete available tasks (e.g., subscribing to official Telegram channel, YouTube, or joining groups).
+3. Submit your screenshot proof.
+4. Once verified, free USD/BDT balance will be credited to your wallet, which you can use to buy hosting plans!`;
+    }
+
+    return `🎁 **সোশ্যাল টাস্ক ও ফ্রিতে ব্যালেন্স ইনকাম:**
+
+কোনো টাকা ডিপোজিট না করেও আপনি ফ্রিতে ওয়ালেট ব্যালেন্স আয় করতে পারেন:
+
+১. সাইডবার মেনু থেকে **"টাস্ক ও রিওয়ার্ড" (Rewards)** পেজে যান।
+২. দেওয়া টাস্কগুলো পূরণ করুন (যেমন: টেলিগ্রাম চ্যানেলে জয়েন, ইউটিউব সাবস্ক্রাইব ইত্যাদি)।
+৩. কাজের স্ক্রিনশট প্রুফ সাবমিট করুন।
+৪. এডমিন ভেরিফাই করার সাথে সাথেই আপনার ওয়ালেটে ফ্রি ডলার/ব্যালেন্স যোগ হয়ে যাবে, যা দিয়ে আপনি সরাসরি বট হোস্ট করতে পারবেন!`;
+  }
+
+  // 9. Contact Admin & Human Support
+  if (
+    lower.includes('admin') ||
+    lower.includes('এডমিন') ||
+    lower.includes('contact') ||
+    lower.includes('যোগাযোগ') ||
+    lower.includes('help') ||
+    lower.includes('support') ||
+    lower.includes('নাম্বার') ||
+    lower.includes('number') ||
+    lower.includes('human')
+  ) {
+    if (isEn) {
+      return `📞 **Official Admin Contact & Live Support:**
+
+Need direct human assistance, balance verification, or custom hosting setups? You can reach the lead admin directly:
+
+• 🟢 **WhatsApp:** +88${whatsappNum.replace(/^0/, '')} (${whatsappNum})
+• ✈️ **Telegram:** @${telegramHandle} (https://t.me/${telegramHandle})
+• ✉️ **Email:** ${emailAddr}
+
+💬 When contacting, please include your registered account email and any Transaction ID (TrxID) for instant resolution.`;
+    }
+
+    return `📞 **সরাসরি এডমিনের সাথে যোগাযোগের ঠিকানা:**
+
+আপনার কোনো পেমেন্ট সমস্যা, ব্যালেন্স ভেরিফিকেশন বা সরাসরি কথা বলার প্রয়োজন হলে নিচে যোগাযোগ করুন:
+
+• 🟢 **হোয়াটসঅ্যাপ (WhatsApp):** ${whatsappNum} (+88${whatsappNum.replace(/^0/, '')})
+• ✈️ **টেলিগ্রাম (Telegram):** @${telegramHandle} (https://t.me/${telegramHandle})
+• ✉️ **অফিসিয়াল ইমেইল:** ${emailAddr}
+
+এডমিনের সাথে যোগাযোগ করার সময় আপনার একাউন্টের ইমেইল ও ট্রানজেকশন আইডি (TrxID) উল্লেখ করলে সবচেয়ে দ্রুত সমাধান পাবেন!`;
+  }
+
+  // 10. General Platform Overview & Features
+  if (
+    lower.includes('সুবিধা') ||
+    lower.includes('feature') ||
+    lower.includes('about') ||
+    lower.includes('hosting-live-fast') ||
+    lower.includes('hosting live fast') ||
+    lower.includes('হোস্টিং লাইভ ফাস্ট') ||
+    lower.includes('সার্ভিস') ||
+    lower.includes('service')
+  ) {
+    if (isEn) {
+      return `⚡ **Welcome to HostingLiveFast (hosting-live-fast)!**
+
+We are the premier 24/7 cloud runtime platform for developers and bot creators.
+
+🌟 **Top Features:**
+1. 🤖 **24/7 Bot Hosting:** Python (telebot, PTB, aiogram) & Node.js (telegraf).
+2. 🛡️ **AI Bot Guardian:** Automatic error detection, pip library auto-installation, and zero-downtime crash revival.
+3. 🌐 **Web Hosting:** Deploy static sites and web apps instantly with live URLs.
+4. 💳 **Instant Deposits:** Local bKash, Nagad & global Binance Pay USDT support.
+5. 📊 **Live Console & Terminal:** View real-time logs, CPU status, and process control.
+6. 🎯 **Social Earning Tasks:** Earn free hosting credits easily.
+
+What would you like to explore or do first? Ask me anything!`;
+    }
+
+    return `⚡ **হোস্টিংলাইভফাস্ট (hosting-live-fast) প্ল্যাটফর্মের মূল সুবিধাসমূহ:**
+
+আমাদের প্ল্যাটফর্মে আপনি পাবেন সবচেয়ে আধুনিক ক্লাউড হোস্টিং ও অটো-হিলিং প্রযুক্তি:
+
+🌟 **প্রধান সুবিধাসমূহ:**
+১. 🤖 **২৪/৭ টেলিগ্রাম বট হোস্টিং:** পাইথন ও নোডজেএস বটের জন্য সার্বক্ষণিক হাই-স্পিড ক্লাউড রানটাইম।
+২. 🛡️ **২৪ ঘণ্টা এআই বট গার্ডিয়ান:** বটের কোডে ভুল থাকলে ঠিক করা, প্যাকেজ অটো ইন্সটল এবং ক্র্যাশ হলে সাথে সাথে রিস্টার্ট করে চালু রাখা।
+৩. 🌐 **ওয়েবসাইট হোস্টিং:** HTML/CSS/JS দিয়ে তৈরি সাইট চোখের পলকে লাইভ করা।
+৪. 💳 **সহজ ডিপোজিট:** বিকাশ, নগদ ও বাইন্যান্স পে (USDT) দিয়ে ঝামেলাহীন পেমেন্ট।
+৫. 📊 **লাইভ কনসোল ও টার্মিনাল:** বটের লাইভ লগস ও কাজের অগ্রগতি সরাসরি দেখার সুযোগ।
+৬. 🎁 **ফ্রি ট্রায়াল ও আর্নিং টাস্ক:** ফ্রিতে ট্রায়াল নেওয়া ও সোশ্যাল টাস্ক করে ব্যালেন্স আয় করার সুবিধা।
+
+আপনার কোনো প্রশ্ন থাকলে বা কোনো সমস্যা হলে নির্দ্বিধায় আমাকে জিজ্ঞেস করুন!`;
+  }
+
+  // Default welcome response
+  if (isEn) {
+    return `👋 Hello! I am your **24/7 AI Live Support Assistant & Lead Engineer** at HostingLiveFast.
+
+I can help you with anything! You can ask me:
+• 💡 **Any question of your choice** (coding, tech, science, general knowledge, problem solving, etc.)
+• 🤖 **Hosting-live-fast services & 24/7 Telegram bot hosting**
+• 🛠️ **Debug and auto-fix your Python or Node.js bot code**
+• 🎨 **Upload pictures to generate responsive HTML/Tailwind websites**
+• 💳 **Wallet deposits via bKash, Nagad, or Binance Pay USDT**
+• 📞 **Direct contact with human admin**
+
+Please type your question or describe what you need below!`;
+  }
+
+  return `👋 হ্যালো! আমি হোস্টিংলাইভফাস্ট-এর **২৪/৭ এআই লাইভ সাপোর্ট ও কোড ফিক্সার সহকারী**।
+
+আমি আপনার যেকোনো প্রশ্নের উত্তর দিতে পারি এবং সাইটের বিষয়ে যেকোনো তথ্য ও সাহায্য করতে পারি:
+• 💡 **আপনার ইচ্ছামতো যেকোনো প্রশ্ন** (প্রোগ্রামিং, পড়াশোনা, বিজ্ঞান, সাধারণ জ্ঞান বা যেকোনো বিষয়)
+• 🤖 **হোস্টিংলাইভফাস্ট সাইটের সুবিধা ও ২৪ ঘণ্টা টেলিগ্রাম বট হোস্টিং**
+• 🛠️ **পাইথন বা নোডজেএস বটের কোড ঠিক করা ও ভুল সমাধান**
+• 🎨 **ছবি দিয়ে সম্পূর্ণ আকর্ষণীয় ওয়েবসাইট ও রেসপনসিভ কোড তৈরি**
+• 💳 **বিকাশ, নগদ ও বাইন্যান্স পে দিয়ে ডিপোজিট ও ব্যালেন্স গাইড**
 • 📞 **সরাসরি এডমিনের সাথে যোগাযোগ**
 
-দয়া করে আপনার সমস্যার কথা লিখুন বা কোড/ছবি পেস্ট করুন!`;
+দয়া করে নিচে আপনার প্রশ্নটি লিখুন বা কী বিষয়ে জানতে চান জানান!`;
 }
