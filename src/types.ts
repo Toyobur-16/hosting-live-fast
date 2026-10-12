@@ -92,7 +92,32 @@ export interface AuthUser {
   hasClaimedFreeTrial?: boolean;
   hasClaimedFreePlan?: boolean;
   freeTrialClaimedAt?: string;
+  autoBackupSettings?: UserAutoBackupSettings;
   createdAt: string;
+}
+
+export interface UserAutoBackupSettings {
+  enabled: boolean;
+  schedule: 'daily';
+  encryptionEnabled: boolean;
+  customPassword?: string;
+  hasCustomPassword?: boolean;
+  maxBackupsToKeep: number;
+  lastBackupAt?: string;
+  nextScheduledBackup?: string;
+  saveToAccountStorage: boolean;
+}
+
+export interface UserStorageStats {
+  usedBytes: number;
+  usedMb: number;
+  maxStorageMb: number;
+  freeMb: number;
+  percentUsed: number;
+  backupsCount: number;
+  backupsSizeBytes: number;
+  botsCount: number;
+  botsSizeBytes: number;
 }
 
 export interface FreeTrialSettings {
@@ -540,6 +565,11 @@ export interface BotBackupRecord {
   description: string;
   status: 'completed' | 'failed';
   restoredAt?: string;
+  encrypted?: boolean;
+  algorithm?: string;
+  userId?: string;
+  savedInAccountStorage?: boolean;
+  isCustomPassword?: boolean;
 }
 
 export interface BotStatus {
