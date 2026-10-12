@@ -540,6 +540,63 @@ export function saveSmtpSettingsFile(data: Partial<SmtpSettingsData>): boolean {
   }
 }
 
+const DISMISSED_NOTIFS_FILE = path.join(process.cwd(), 'hosted_bots', 'dismissed_notifications.json');
+
+interface DismissedStore {
+  welcomeDismissedUsers: string[];
+  userDismissedNotifs: Record<string, string[]>;
+  userClearedAllBefore: Record<string, number>;
+}
+
+function getDismissedStore(): DismissedStore {
+  try {
+    if (!fs.existsSync(DISMISSED_NOTIFS_FILE)) {
+      return { welcomeDismissedUsers: [], userDismissedNotifs: {}, userClearedAllBefore: {} };
+    }
+    const data = JSON.parse(fs.readFileSync(DISMISSED_NOTIFS_FILE, 'utf-8'));
+    return {
+      welcomeDismissedUsers: Array.isArray(data.welcomeDismissedUsers) ? data.welcomeDismissedUsers : [],
+      userDismissedNotifs: data.userDismissedNotifs && typeof data.userDismissedNotifs === 'object' ? data.userDismissedNotifs : {},
+      userClearedAllBefore: data.userClearedAllBefore && typeof data.userClearedAllBefore === 'object' ? data.userClearedAllBefore : {}
+    };
+  } catch {
+    return { welcomeDismissedUsers: [], userDismissedNotifs: {}, userClearedAllBefore: {} };
+  }
+}
+
+function saveDismissedStore(store: DismissedStore) {
+  try {
+    fs.writeFileSync(DISMISSED_NOTIFS_FILE, JSON.stringify(store, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to save dismissed store:', err);
+  }
+}
+
+export function isWelcomeDismissed(userId?: string, userEmail?: string): boolean {
+  if (!userId && !userEmail) return false;
+  const store = getDismissedStore();
+  const lowerEmail = (userEmail || '').toLowerCase();
+  return store.welcomeDismissedUsers.some((u) => {
+    const lu = u.toLowerCase();
+    return (userId && lu === userId.toLowerCase()) || (lowerEmail && lu === lowerEmail);
+  });
+}
+
+export function markWelcomeDismissed(userId?: string, userEmail?: string) {
+  if (!userId && !userEmail) return;
+  const store = getDismissedStore();
+  if (userId && !store.welcomeDismissedUsers.includes(userId)) {
+    store.welcomeDismissedUsers.push(userId);
+  }
+  if (userEmail) {
+    const lowerEmail = userEmail.toLowerCase();
+    if (!store.welcomeDismissedUsers.includes(lowerEmail)) {
+      store.welcomeDismissedUsers.push(lowerEmail);
+    }
+  }
+  saveDismissedStore(store);
+}
+
 // In-memory or file-based notifications store for users
 export function getStoredNotifications(): any[] {
   try {
@@ -570,6 +627,9 @@ export function saveStoredNotifications(list: any[]) {
 
 export function ensureUserWelcomeNotification(userId: string, userEmail?: string, userName?: string) {
   try {
+    if (isWelcomeDismissed(userId, userEmail)) {
+      return;
+    }
     const list = getStoredNotifications();
     const cleanId = `welcome_${userId || userEmail || 'all'}`;
     const cleanEmail = (userEmail || '').toLowerCase();
@@ -592,12 +652,43 @@ export function ensureUserWelcomeNotification(userId: string, userEmail?: string
   } catch {}
 }
 
-export function getUserNotifications(userId: string, userEmail?: string): any[] {
+export function getUserNotifications(userId?: string, userEmail?: string): any[] {
   const all = getStoredNotifications();
   const lowerEmail = (userEmail || '').toLowerCase();
   const effectiveUserId = userId || lowerEmail;
+  const store = getDismissedStore();
+
+  const userClearedTime = Math.max(
+    (effectiveUserId ? store.userClearedAllBefore[effectiveUserId] : 0) || 0,
+    (lowerEmail ? store.userClearedAllBefore[lowerEmail] : 0) || 0
+  );
+
+  const userDismissedIds = new Set<string>([
+    ...((effectiveUserId && store.userDismissedNotifs[effectiveUserId]) || []),
+    ...((lowerEmail && store.userDismissedNotifs[lowerEmail]) || [])
+  ]);
+
+  const welcomeDismissed = isWelcomeDismissed(userId, userEmail);
 
   return all.filter((n) => {
+    // Check if ID was explicitly dismissed by this user
+    if (n.id && userDismissedIds.has(n.id)) {
+      return false;
+    }
+
+    // Check if cleared all before notification createdAt
+    if (userClearedTime > 0 && n.createdAt) {
+      const createdMs = new Date(n.createdAt).getTime();
+      if (!isNaN(createdMs) && createdMs <= userClearedTime) {
+        return false;
+      }
+    }
+
+    // If welcome dismissed, never show welcome notifications
+    if (welcomeDismissed && (n.type === 'welcome' || n.id?.startsWith('welcome_') || n.id === 'notif_welcome_system_broadcast')) {
+      return false;
+    }
+
     // Strictly exclude any SMTP warning alerts or error notices
     if (
       n.id === 'notif_admin_smtp_535_alert' ||
@@ -664,11 +755,32 @@ export function markNotificationAsRead(notifId: string, userId?: string): boolea
   }
 }
 
-export function clearNotification(notifId: string, userId?: string, userEmail?: string): boolean {
+export function clearNotification(notifId: string, userId?: string, userEmail?: string, isAdmin = false): boolean {
   try {
     const list = getStoredNotifications();
     const lowerEmail = (userEmail || '').toLowerCase();
     const effectiveUserId = userId || lowerEmail;
+    const store = getDismissedStore();
+
+    // If deleting a welcome notification, mark welcome dismissed forever
+    if (notifId.startsWith('welcome_') || notifId.includes('welcome')) {
+      markWelcomeDismissed(userId, userEmail);
+    }
+
+    // Add notifId to user dismissed list in store
+    if (effectiveUserId) {
+      if (!store.userDismissedNotifs[effectiveUserId]) store.userDismissedNotifs[effectiveUserId] = [];
+      if (!store.userDismissedNotifs[effectiveUserId].includes(notifId)) {
+        store.userDismissedNotifs[effectiveUserId].push(notifId);
+      }
+    }
+    if (lowerEmail && lowerEmail !== effectiveUserId) {
+      if (!store.userDismissedNotifs[lowerEmail]) store.userDismissedNotifs[lowerEmail] = [];
+      if (!store.userDismissedNotifs[lowerEmail].includes(notifId)) {
+        store.userDismissedNotifs[lowerEmail].push(notifId);
+      }
+    }
+    saveDismissedStore(store);
 
     let modified = false;
     const remaining: any[] = [];
@@ -676,7 +788,13 @@ export function clearNotification(notifId: string, userId?: string, userEmail?: 
     for (const n of list) {
       if (n.id === notifId) {
         modified = true;
-        // If it's a broadcast or shared notification, record it in dismissedBy for this user
+        // Check if admin is deleting: remove completely from system
+        if (isAdmin) {
+          FirebaseSync.deleteNotificationFromCloud(notifId).catch(() => {});
+          continue; // Delete completely
+        }
+
+        // If it's a broadcast or shared notification
         if (n.userId === 'all' || n.target === 'all' || n.type === 'broadcast') {
           n.dismissedBy = Array.isArray(n.dismissedBy) ? n.dismissedBy : [];
           if (effectiveUserId && !n.dismissedBy.includes(effectiveUserId)) {
@@ -688,6 +806,7 @@ export function clearNotification(notifId: string, userId?: string, userEmail?: 
           remaining.push(n);
         } else {
           // Direct user notification: delete it completely
+          FirebaseSync.deleteNotificationFromCloud(notifId).catch(() => {});
           // do not add to remaining
         }
       } else {
@@ -704,29 +823,48 @@ export function clearNotification(notifId: string, userId?: string, userEmail?: 
   }
 }
 
-export function clearAllUserNotifications(userId?: string, userEmail?: string): boolean {
+export function clearAllUserNotifications(userId?: string, userEmail?: string, isAdmin = false): boolean {
   try {
     const list = getStoredNotifications();
     const lowerEmail = (userEmail || '').toLowerCase();
     const effectiveUserId = userId || lowerEmail;
+    const store = getDismissedStore();
+
+    // Mark welcome as dismissed forever for this user
+    markWelcomeDismissed(userId, userEmail);
+
+    const now = Date.now();
+    if (effectiveUserId) {
+      store.userClearedAllBefore[effectiveUserId] = now;
+    }
+    if (lowerEmail) {
+      store.userClearedAllBefore[lowerEmail] = now;
+    }
+    saveDismissedStore(store);
 
     const remaining: any[] = [];
 
     for (const n of list) {
+      // If admin requests clearAll, remove all from system
+      if (isAdmin && (n.userId === 'all' || (userId && n.userId === userId) || (lowerEmail && n.userEmail?.toLowerCase() === lowerEmail))) {
+        FirebaseSync.deleteNotificationFromCloud(n.id).catch(() => {});
+        continue;
+      }
+
       const isUserNotif =
         (userId && n.userId === userId) ||
         (lowerEmail && n.userEmail && n.userEmail.toLowerCase() === lowerEmail) ||
-        (lowerEmail && n.userId && n.userId.toLowerCase() === lowerEmail);
+        (lowerEmail && n.userId && n.userId.toLowerCase() === lowerEmail) ||
+        (effectiveUserId && n.id === `welcome_${effectiveUserId}`);
 
       const isBroadcast = n.userId === 'all' || n.target === 'all' || n.type === 'broadcast';
 
       if (isUserNotif) {
-        // Remove completely
+        FirebaseSync.deleteNotificationFromCloud(n.id).catch(() => {});
         continue;
       }
 
       if (isBroadcast) {
-        // Dismiss for this user
         n.dismissedBy = Array.isArray(n.dismissedBy) ? n.dismissedBy : [];
         if (effectiveUserId && !n.dismissedBy.includes(effectiveUserId)) {
           n.dismissedBy.push(effectiveUserId);
@@ -735,9 +873,10 @@ export function clearAllUserNotifications(userId?: string, userEmail?: string): 
           n.dismissedBy.push(lowerEmail);
         }
         remaining.push(n);
-      } else {
-        remaining.push(n);
+        continue;
       }
+
+      remaining.push(n);
     }
 
     saveStoredNotifications(remaining);

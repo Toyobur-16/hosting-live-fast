@@ -1891,6 +1891,22 @@ export class FirebaseSync {
     }
   }
 
+  static async deleteNotificationFromCloud(notifId: string): Promise<boolean> {
+    if (!notifId) return false;
+    try {
+      const docId = encodeURIComponent(String(notifId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const idToken = await getAdminIdToken();
+      const headers: Record<string, string> = {
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      };
+      const url = `${BASE_URL}/notifications/${docId}?key=${API_KEY}`;
+      const res = await fetch(url, { method: 'DELETE', headers }).catch(() => null);
+      return Boolean(res && res.ok);
+    } catch {
+      return false;
+    }
+  }
+
   static async loadNotificationsFromCloud(): Promise<any[]> {
     const list: any[] = [];
     try {
@@ -1913,4 +1929,5 @@ export class FirebaseSync {
     return list;
   }
 }
+
 
