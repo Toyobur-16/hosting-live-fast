@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Settings, FileCode, Package, Database, ShieldCheck, Cloud, ChevronRight, HardDrive, ArrowLeft,
-  Bell, BellOff, Volume2, History, Rocket, Tag, Archive
+  Bell, BellOff, Volume2, History, Rocket, Tag, Archive, Lock, Unlock, Key, CheckCircle2,
+  AlertTriangle, RefreshCw, Sparkles, FolderArchive, Clock
 } from 'lucide-react';
 import { ScriptEditor } from './ScriptEditor';
 import { DatabaseManager } from './DatabaseManager';
@@ -9,7 +10,7 @@ import { HostingGuide } from './HostingGuide';
 import { PipManagerModal } from './PipManagerModal';
 import { DeploymentHistoryView } from './DeploymentHistoryView';
 import { BotBackupsView } from './BotBackupsView';
-import { HostedBot, AuthUser } from '../types';
+import { HostedBot, AuthUser, UserAutoBackupSettings, UserStorageStats } from '../types';
 import { playBotStoppedAlert } from '../utils/audioAlert';
 
 interface SettingsModalProps {
@@ -26,6 +27,7 @@ interface SettingsModalProps {
   initialTab?: string;
   soundAlertEnabled?: boolean;
   onToggleSoundAlert?: (enabled: boolean) => void;
+  onTestIdleWarning?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -41,10 +43,74 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUserUpdated,
   initialTab = 'overview',
   soundAlertEnabled = true,
-  onToggleSoundAlert
+  onToggleSoundAlert,
+  onTestIdleWarning
 }) => {
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [showPip, setShowPip] = useState(false);
+
+  // Auto-Backup & Account Storage State
+  const [autoBackupConfig, setAutoBackupConfig] = useState<UserAutoBackupSettings | null>(null);
+  const [storageStats, setStorageStats] = useState<UserStorageStats | null>(null);
+  const [loadingAutoBackup, setLoadingAutoBackup] = useState(false);
+  const [updatingAutoBackup, setUpdatingAutoBackup] = useState(false);
+  const [runningDailyNow, setRunningDailyNow] = useState(false);
+  const [backupSuccessToast, setBackupSuccessToast] = useState<string | null>(null);
+  const [backupErrorToast, setBackupErrorToast] = useState<string | null>(null);
+
+  // Idle Session Security State
+  const [idleTimerEnabled, setIdleTimerEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('bot_idle_timer_enabled');
+      return saved !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('bot_idle_timeout_min');
+      return saved ? parseInt(saved, 10) : 15;
+    } catch {
+      return 15;
+    }
+  });
+
+  const handleToggleIdleTimer = (newVal: boolean) => {
+    setIdleTimerEnabled(newVal);
+    localStorage.setItem('bot_idle_timer_enabled', String(newVal));
+    window.dispatchEvent(new CustomEvent('idle-settings-updated'));
+  };
+
+  const handleChangeIdleTimeout = (minutes: number) => {
+    setIdleTimeoutMinutes(minutes);
+    localStorage.setItem('bot_idle_timeout_min', String(minutes));
+    window.dispatchEvent(new CustomEvent('idle-settings-updated'));
+  };
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('bot_auth_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const fetchAutoBackupSettings = async () => {
+    setLoadingAutoBackup(true);
+    try {
+      const res = await fetch('/api/user/auto-backup-settings', {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config) setAutoBackupConfig(data.config);
+        if (data.storage) setStorageStats(data.storage);
+      }
+    } catch (err) {
+      console.warn('[SettingsModal] Failed to load auto-backup settings:', err);
+    } finally {
+      setLoadingAutoBackup(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -52,18 +118,126 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   }, [initialTab, isOpen]);
 
+  useEffect(() => {
+    if (isOpen) {
+      fetchAutoBackupSettings();
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const selectedBot = bots.find((b) => b.id === selectedBotId) || (bots.length > 0 ? bots[0] : null);
+
+  const handleToggleAutoBackup = async (enabled: boolean) => {
+    setUpdatingAutoBackup(true);
+    setBackupErrorToast(null);
+    try {
+      const res = await fetch('/api/user/auto-backup-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ enabled })
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to update auto-backup setting');
+      }
+      const data = await res.json();
+      if (data.config) setAutoBackupConfig(data.config);
+      if (data.storage) setStorageStats(data.storage);
+      setBackupSuccessToast(
+        enabled
+          ? (lang === 'bn' ? 'দৈনিক এনক্রিপ্টেড অটো-ব্যাকআপ সক্রিয় করা হয়েছে!' : 'Daily encrypted auto-backup enabled!')
+          : (lang === 'bn' ? 'অটো-ব্যাকআপ সাময়িকভাবে বন্ধ করা হয়েছে।' : 'Daily auto-backup paused.')
+      );
+      setTimeout(() => setBackupSuccessToast(null), 3500);
+    } catch (err: any) {
+      setBackupErrorToast(err.message || 'Error updating auto-backup setting');
+      setTimeout(() => setBackupErrorToast(null), 4000);
+    } finally {
+      setUpdatingAutoBackup(false);
+    }
+  };
+
+  const handleToggleEncryption = async (encryptionEnabled: boolean) => {
+    setUpdatingAutoBackup(true);
+    setBackupErrorToast(null);
+    try {
+      const res = await fetch('/api/user/auto-backup-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ encryptionEnabled })
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to update encryption setting');
+      }
+      const data = await res.json();
+      if (data.config) setAutoBackupConfig(data.config);
+      setBackupSuccessToast(
+        encryptionEnabled
+          ? (lang === 'bn' ? '🔒 AES-256 মিলিটারি এনক্রিপশন সক্রিয়!' : '🔒 AES-256 encryption enabled!')
+          : (lang === 'bn' ? 'এনক্রিপশন বন্ধ করা হয়েছে।' : 'Encryption disabled.')
+      );
+      setTimeout(() => setBackupSuccessToast(null), 3500);
+    } catch (err: any) {
+      setBackupErrorToast(err.message || 'Error updating encryption');
+      setTimeout(() => setBackupErrorToast(null), 4000);
+    } finally {
+      setUpdatingAutoBackup(false);
+    }
+  };
+
+  const handleRunDailyBackupNow = async () => {
+    if (!selectedBot) return;
+    setRunningDailyNow(true);
+    setBackupErrorToast(null);
+    try {
+      const res = await fetch('/api/user/auto-backup/run-now', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ botId: selectedBot.id })
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to run daily backup');
+      }
+      const data = await res.json();
+      if (data.storage) setStorageStats(data.storage);
+      setBackupSuccessToast(
+        lang === 'bn'
+          ? `🔒 '${selectedBot.name}' এর দৈনিক এনক্রিপ্টেড ব্যাকআপ অ্যাকাউন্ট স্টোরেজে সফলভাবে তৈরি হয়েছে!`
+          : `🔒 Daily encrypted backup for '${selectedBot.name}' created successfully in account storage!`
+      );
+      setTimeout(() => setBackupSuccessToast(null), 5000);
+      onBotsUpdated();
+    } catch (err: any) {
+      setBackupErrorToast(err.message || 'Error triggering daily backup');
+      setTimeout(() => setBackupErrorToast(null), 4500);
+    } finally {
+      setRunningDailyNow(false);
+    }
+  };
+
+  const isAutoEnabled = autoBackupConfig?.enabled !== false;
+  const isEncEnabled = autoBackupConfig?.encryptionEnabled !== false;
 
   const SETTING_ITEMS = [
     {
       id: 'backups',
       icon: Archive,
-      titleBn: 'বট ফাইল ব্যাকআপ ও রিস্টোর',
-      titleEn: 'Bot Files Backups & Restore',
-      descBn: 'স্বয়ংক্রিয় ২৪ ঘণ্টার ব্যাকআপ, ইনস্ট্যান্ট স্ন্যাপশট ও যেকোনো ব্যাকআপ থেকে রিস্টোর',
-      descEn: '24-hour recurring auto-backups, instant snapshots, and one-click file restore',
+      titleBn: 'অটো-ব্যাকআপ ও অ্যাকাউন্ট স্টোরেজ',
+      titleEn: 'Auto-Backup & Encrypted Storage',
+      descBn: 'দৈনিক স্বয়ংক্রিয় AES-256 এনক্রিপ্ট ব্যাকআপ, অ্যাকাউন্ট ক্লাউড স্টোরেজ ও রিস্টোর',
+      descEn: 'Daily recurring AES-256 encrypted backups, account storage & one-click restore',
       color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
     },
     {
@@ -158,7 +332,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </h3>
                 <p className="text-xs text-[#64748b] dark:text-[#94a3b8]">
                   {activeTab === 'overview'
-                    ? (lang === 'bn' ? 'বট ম্যানেজমেন্ট, ফাইল ও ডাটাবেজ নিয়ন্ত্রণ' : 'Advanced management tools, files and configuration')
+                    ? (lang === 'bn' ? 'বট ম্যানেজমেন্ট, অটো-ব্যাকআপ ও স্টোরেজ নিয়ন্ত্রণ' : 'Advanced management tools, files, backups and configuration')
                     : (lang === 'bn'
                         ? SETTING_ITEMS.find((i) => i.id === activeTab)?.descBn
                         : SETTING_ITEMS.find((i) => i.id === activeTab)?.descEn) || ''}
@@ -231,6 +405,182 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 )}
 
+                {/* Toast Messages */}
+                {backupSuccessToast && (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{backupSuccessToast}</span>
+                  </div>
+                )}
+
+                {backupErrorToast && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-2xl text-xs text-rose-800 dark:text-rose-300 flex items-center gap-2 animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{backupErrorToast}</span>
+                  </div>
+                )}
+
+                {/* Auto-Backup Feature Card in Settings Modal */}
+                <div
+                  id="auto-backup-feature-card"
+                  className="bg-gradient-to-br from-amber-50/50 via-white to-blue-50/40 dark:from-[#141d2e] dark:via-[#161f30] dark:to-[#0f172a] border border-amber-200/80 dark:border-[#1f293d] hover:border-amber-400/60 rounded-3xl p-5 sm:p-6 shadow-sm transition-all space-y-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5">
+                      <div
+                        className={`w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 transition-colors shadow-sm ${
+                          isAutoEnabled
+                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-500 dark:text-amber-400'
+                            : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
+                        }`}
+                      >
+                        <Archive className="w-6 h-6 stroke-[2.2]" />
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-sm font-bold text-[#1e293b] dark:text-white">
+                            {lang === 'bn' ? 'ডেইলি অটো-ব্যাকআপ (Auto-Backup)' : 'Daily Auto-Backup Feature'}
+                          </h4>
+                          <span
+                            className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase border ${
+                              isAutoEnabled
+                                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
+                            }`}
+                          >
+                            {isAutoEnabled ? (lang === 'bn' ? 'চালু' : 'Active') : (lang === 'bn' ? 'বন্ধ' : 'Paused')}
+                          </span>
+                          {isEncEnabled && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                              <Lock className="w-3 h-3" />
+                              <span>AES-256 Encrypted</span>
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#64748b] dark:text-[#94a3b8] mt-1 leading-relaxed">
+                          {lang === 'bn'
+                            ? 'প্রতি ২৪ ঘণ্টায় স্বয়ংক্রিয়ভাবে বট ফাইলের এনক্রিপ্টেড ব্যাকআপ তৈরি হয়ে ইউজারের অ্যাকাউন্ট স্টোরেজে সেভ হবে।'
+                            : 'Enables recurring 24-hour encrypted backups of your bot code and database saved directly in your account storage.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
+                      <span className="text-xs font-semibold text-[#1e293b] dark:text-white">
+                        {isAutoEnabled ? (lang === 'bn' ? 'অটো-ব্যাকআপ সক্রিয়' : 'Auto-Backup Enabled') : (lang === 'bn' ? 'অটো-ব্যাকআপ বন্ধ' : 'Disabled')}
+                      </span>
+                      <button
+                        type="button"
+                        id="btn-toggle-auto-backup"
+                        role="switch"
+                        aria-checked={isAutoEnabled}
+                        disabled={updatingAutoBackup}
+                        onClick={() => handleToggleAutoBackup(!isAutoEnabled)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#0088cc] ${
+                          isAutoEnabled ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                        title={isAutoEnabled ? 'Disable daily auto backup' : 'Enable daily auto backup'}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isAutoEnabled ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Account Storage & Encryption Details Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 text-xs">
+                    {/* Storage Meter */}
+                    <div className="p-3 rounded-2xl bg-white/70 dark:bg-[#111827]/70 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                        <span className="flex items-center gap-1.5">
+                          <HardDrive className="w-3.5 h-3.5 text-amber-500" />
+                          <span>{lang === 'bn' ? 'অ্যাকাউন্ট স্টোরেজ ব্যবহার:' : 'Account Storage Used:'}</span>
+                        </span>
+                        <span className="font-mono text-slate-800 dark:text-slate-200 font-bold">
+                          {storageStats ? `${storageStats.usedMb} MB / ${storageStats.maxStorageMb} MB (${storageStats.percentUsed}%)` : '0 MB'}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            (storageStats?.percentUsed || 0) > 85 ? 'bg-rose-500' : (storageStats?.percentUsed || 0) > 60 ? 'bg-amber-400' : 'bg-emerald-500'
+                          }`}
+                          style={{ width: `${Math.min(100, Math.max(4, storageStats?.percentUsed || 5))}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-0.5">
+                        <span>{storageStats?.backupsCount ?? 0} {lang === 'bn' ? 'টি ব্যাকআপ ফাইল' : 'backups stored'}</span>
+                        <span>{storageStats?.freeMb ?? 50} MB {lang === 'bn' ? 'ফ্রি স্পেস' : 'free'}</span>
+                      </div>
+                    </div>
+
+                    {/* Encryption Setting */}
+                    <div className="p-3 rounded-2xl bg-white/70 dark:bg-[#111827]/70 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`p-2 rounded-xl ${isEncEnabled ? 'bg-blue-500/10 text-blue-500' : 'bg-slate-100 text-slate-400'}`}>
+                          {isEncEnabled ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 dark:text-white block">
+                            {lang === 'bn' ? 'AES-256 এনক্রিপশন' : 'AES-256 Encryption'}
+                          </span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                            {isEncEnabled
+                              ? (lang === 'bn' ? 'মিলিটারি-গ্রেড সুরক্ষায় সংরক্ষিত' : 'Authenticated AES-GCM security')
+                              : (lang === 'bn' ? 'স্ট্যান্ডার্ড জিপ আর্কাইভ' : 'Standard unencrypted zip')}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleEncryption(!isEncEnabled)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                          isEncEnabled
+                            ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {isEncEnabled ? (lang === 'bn' ? 'এনক্রিপ্ট চালু' : 'Encrypted ON') : (lang === 'bn' ? 'বন্ধ' : 'OFF')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons Row */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('backups')}
+                      className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>{lang === 'bn' ? 'ব্যাকআপের তালিকা ও বিস্তারিত কনফিগারেশন দেখুন' : 'Manage All Backups & Restore Files'}</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRunDailyBackupNow}
+                      disabled={runningDailyNow}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer hover:scale-[1.02] disabled:opacity-50"
+                    >
+                      {runningDailyNow ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {runningDailyNow
+                          ? (lang === 'bn' ? 'ব্যাকআপ হচ্ছে...' : 'Backing up...')
+                          : (lang === 'bn' ? 'দৈনিক ব্যাকআপ রান করুন' : 'Run Daily Backup Now')}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Sound Alert Notification Toggle */}
                 <div 
                   id="bot-sound-alert-card"
@@ -302,6 +652,112 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
 
+                {/* Idle Session Security & Warning Card */}
+                <div 
+                  id="idle-session-security-card"
+                  className="bg-white dark:bg-[#161f30] border border-[#e2e8f0] dark:border-[#1f293d] rounded-2xl p-4 sm:p-5 flex flex-col gap-4 transition-all"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5">
+                      <div
+                        className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 transition-colors ${
+                          idleTimerEnabled
+                            ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
+                            : 'text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        <Clock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-bold text-[#1e293b] dark:text-white">
+                            {lang === 'bn' ? 'সেশন নিষ্ক্রিয়তা নিরাপত্তা ও ওয়ার্নিং' : 'Idle Session Security & Warning'}
+                          </h4>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                              idleTimerEnabled
+                                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            {idleTimerEnabled ? (lang === 'bn' ? 'সক্রিয়' : 'Active') : (lang === 'bn' ? 'নিষ্ক্রিয়' : 'Disabled')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#64748b] dark:text-[#94a3b8] mt-1 leading-relaxed">
+                          {lang === 'bn'
+                            ? 'দীর্ঘক্ষণ নিষ্ক্রিয় থাকলে ৬০ সেকেন্ডের কাউন্টডাউন সহ "Session Expiring" ওয়ার্নিং প্রদর্শিত হবে এবং এক ক্লিকেই সেশন বাড়ানো যাবে।'
+                            : 'Displays a 60-second "Session Expiring" warning modal when inactive, providing a one-click button to extend the session.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
+                      {onTestIdleWarning && (
+                        <button
+                          type="button"
+                          id="btn-test-idle-warning"
+                          onClick={() => {
+                            onClose();
+                            setTimeout(() => {
+                              onTestIdleWarning();
+                            }, 150);
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-800/70 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 transition-colors cursor-pointer"
+                          title={lang === 'bn' ? 'ওয়ার্নিং মোডাল টেস্ট করুন' : 'Test warning modal'}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>{lang === 'bn' ? 'টেস্ট ওয়ার্নিং' : 'Test Warning'}</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        id="btn-toggle-idle-timer"
+                        role="switch"
+                        aria-checked={idleTimerEnabled}
+                        onClick={() => handleToggleIdleTimer(!idleTimerEnabled)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#0088cc] ${
+                          idleTimerEnabled ? 'bg-[#0088cc]' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                        title={idleTimerEnabled ? (lang === 'bn' ? 'বন্ধ করুন' : 'Disable') : (lang === 'bn' ? 'চালু করুন' : 'Enable')}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            idleTimerEnabled ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Timeout Duration Selector */}
+                  {idleTimerEnabled && (
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <span className="text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-slate-400" />
+                        {lang === 'bn' ? 'নিষ্ক্রিয়তার সময়সীমা (Inactivity Limit):' : 'Inactivity Timeout Limit:'}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {[5, 10, 15, 30, 60].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            onClick={() => handleChangeIdleTimeout(mins)}
+                            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                              idleTimeoutMinutes === mins
+                                ? 'bg-sky-600 text-white shadow-xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {mins} {lang === 'bn' ? 'মিনিট' : 'min'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Selected Bot Version & Deployment Quick Banner */}
                 {selectedBot && (
                   <div className="p-4 bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-blue-500/10 border border-purple-200 dark:border-purple-900/50 rounded-2xl flex flex-wrap items-center justify-between gap-3">
@@ -333,7 +789,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
                       >
                         <Archive className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>{lang === 'bn' ? '২৪ঘণ্টা ব্যাকআপ' : '24h Backups'}</span>
+                        <span>{lang === 'bn' ? 'অটো-ব্যাকআপ' : 'Auto-Backups'}</span>
                       </button>
 
                       <button
@@ -387,6 +843,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 lang={lang}
                 botId={selectedBot?.id}
                 botName={selectedBot?.name}
+                currentUser={currentUser}
                 onBotsUpdated={onBotsUpdated}
               />
             ) : activeTab === 'deployments' ? (

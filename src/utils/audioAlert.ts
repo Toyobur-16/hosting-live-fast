@@ -83,3 +83,45 @@ export function playDepositSuccessSound(): void {
     console.warn('Could not play deposit success audio chime:', e);
   }
 }
+
+/**
+ * Generates an attentive gentle reminder tone when user session is about to expire.
+ */
+export function playSessionWarningSound(): void {
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+
+    const now = ctx.currentTime;
+    const tones = [
+      { freq: 587.33, start: 0, duration: 0.16 }, // D5
+      { freq: 440.0, start: 0.12, duration: 0.22 }, // A4
+      { freq: 659.25, start: 0.3, duration: 0.28 } // E5
+    ];
+
+    tones.forEach((tone) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(tone.freq, now + tone.start);
+
+      gain.gain.setValueAtTime(0.001, now + tone.start);
+      gain.gain.linearRampToValueAtTime(0.18, now + tone.start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + tone.start + tone.duration);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + tone.start);
+      osc.stop(now + tone.start + tone.duration + 0.02);
+    });
+  } catch (e) {
+    console.warn('Could not play session warning sound:', e);
+  }
+}

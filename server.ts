@@ -92,7 +92,11 @@ import {
   deleteBotBackup,
   getBotBackupStats,
   run24HourAutoBackupCycle,
-  start24HourBackupScheduler
+  start24HourBackupScheduler,
+  getUserAutoBackupConfig,
+  saveUserAutoBackupConfig,
+  getUserStorageStats,
+  getAllUserBackups
 } from './server/botBackupManager';
 import {
   getDepositMethods,
@@ -3086,6 +3090,31 @@ app.get('/api/auth/me', (req, res) => {
     authenticated: true,
     success: true,
     user: enriched
+  });
+});
+
+// Extend & Refresh Authenticated Session (Idle Timer Heartbeat & Extension)
+app.post('/api/auth/extend-session', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      authenticated: false,
+      error: 'সেশন সক্রিয় নেই বা মেয়াদ শেষ হয়ে গেছে (Session not active or expired)'
+    });
+  }
+  const enriched = enrichUserWithPlanAndRole(user);
+  const newToken = generateAuthToken(enriched);
+  const sessions = getSessions();
+  sessions[newToken] = user.id;
+  saveSessions(sessions);
+
+  res.json({
+    success: true,
+    authenticated: true,
+    token: newToken,
+    user: enriched,
+    message: 'সেশন সফলভাবে বর্ধিত করা হয়েছে (Session extended successfully)'
   });
 });
 
@@ -7911,7 +7940,7 @@ app.get('/api/bots/:id/backups', (req, res) => {
 
 app.post('/api/bots/:id/backups', (req, res) => {
   const { id } = req.params;
-  const { description } = req.body;
+  const { description, encrypted, password, saveToAccountStorage } = req.body;
   const reg = getRegistry();
   const bot = reg.find((b: any) => b.id === id);
   if (!bot) return res.status(404).json({ error: 'Bot not found' });
@@ -7922,15 +7951,23 @@ app.post('/api/bots/:id/backups', (req, res) => {
   }
 
   try {
-    const backup = createBotBackup(bot, 'manual', description);
-    appendLog(id, 'info', `💾 Manual bot file backup snapshot created: ${backup.description} (${backup.filesCount} files)`);
+    const isEncrypted = Boolean(encrypted);
+    const backup = createBotBackup(bot, 'manual', description, {
+      encrypted: isEncrypted,
+      password: password ? String(password).trim() : undefined,
+      userId: user?.id,
+      saveToAccountStorage: saveToAccountStorage !== false
+    });
+    const encTag = isEncrypted ? ' [AES-256 Encrypted]' : '';
+    appendLog(id, 'info', `💾 Manual bot file backup snapshot created: ${backup.description}${encTag} (${backup.filesCount} files)`);
 
     res.json({
       success: true,
       message: 'Backup created successfully',
       backup,
       backups: getBotBackups(id),
-      stats: getBotBackupStats(id)
+      stats: getBotBackupStats(id),
+      userStorage: user ? getUserStorageStats(user.id, user.maxStorageMb || 50, getRegistry) : null
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to create backup' });
@@ -7939,7 +7976,7 @@ app.post('/api/bots/:id/backups', (req, res) => {
 
 app.post('/api/bots/:id/backups/:backupId/restore', (req, res) => {
   const { id, backupId } = req.params;
-  const { restart = true } = req.body;
+  const { restart = true, password } = req.body;
   const reg = getRegistry();
   const bot = reg.find((b: any) => b.id === id);
   if (!bot) return res.status(404).json({ error: 'Bot not found' });
@@ -7955,7 +7992,10 @@ app.post('/api/bots/:id/backups/:backupId/restore', (req, res) => {
       stopBotProcess(id);
     }
 
-    const restoreResult = restoreBotBackup(bot, backupId);
+    const restoreResult = restoreBotBackup(bot, backupId, {
+      password: password ? String(password).trim() : undefined,
+      userId: user?.id
+    });
 
     // Record deployment release for history tracking
     recordBotDeployment(id, {
@@ -8000,7 +8040,7 @@ app.delete('/api/bots/:id/backups/:backupId', (req, res) => {
     return res.status(403).json({ error: 'ব্যাকআপ মোছার অনুমতি আপনার নেই' });
   }
 
-  const success = deleteBotBackup(id, backupId);
+  const success = deleteBotBackup(id, backupId, user?.id);
   if (!success) {
     return res.status(404).json({ error: 'Backup not found' });
   }
@@ -8011,7 +8051,8 @@ app.delete('/api/bots/:id/backups/:backupId', (req, res) => {
     success: true,
     message: 'Backup deleted successfully',
     backups: getBotBackups(id),
-    stats: getBotBackupStats(id)
+    stats: getBotBackupStats(id),
+    userStorage: user ? getUserStorageStats(user.id, user.maxStorageMb || 50, getRegistry) : null
   });
 });
 
@@ -8026,13 +8067,18 @@ app.get('/api/bots/:id/backups/:backupId/download', (req, res) => {
     return res.status(403).json({ error: 'ব্যাকআপ ডাউনলোড করার অনুমতি আপনার নেই' });
   }
 
-  const zipPath = getBotBackupZipPath(id, backupId);
-  if (!zipPath) {
+  const zipPath = getBotBackupZipPath(id, backupId, user?.id);
+  if (!zipPath || !fs.existsSync(zipPath)) {
     return res.status(404).json({ error: 'Backup archive not found' });
   }
 
+  const isEncrypted = zipPath.endsWith('.enc.zip') || zipPath.endsWith('.enc');
   const safeBotName = (bot.name || 'bot').replace(/[^a-zA-Z0-9_-]/g, '_');
-  res.download(zipPath, `${safeBotName}_backup_${backupId}.zip`);
+  const downloadFileName = isEncrypted
+    ? `${safeBotName}_encrypted_backup_${backupId}.enc.zip`
+    : `${safeBotName}_backup_${backupId}.zip`;
+
+  res.download(zipPath, downloadFileName);
 });
 
 app.post('/api/bots/:id/backups/trigger-auto', (req, res) => {
@@ -8047,19 +8093,168 @@ app.post('/api/bots/:id/backups/trigger-auto', (req, res) => {
   }
 
   try {
-    const backup = createBotBackup(bot, 'auto_24h', 'Automatic 24-Hour Backup');
-    appendLog(id, 'info', `💾 [Auto-Backup] 24-Hour scheduled backup triggered manually (${backup.filesCount} files)`);
+    const userCfg = user ? getUserAutoBackupConfig(user.id) : null;
+    const isEnc = userCfg ? userCfg.encryptionEnabled !== false : true;
+    const desc = isEnc ? '🔒 Daily Encrypted Auto-Backup (AES-256)' : 'Automatic 24-Hour Backup';
+
+    const backup = createBotBackup(bot, 'auto_24h', desc, {
+      encrypted: isEnc,
+      password: userCfg?.customPassword,
+      userId: user?.id,
+      saveToAccountStorage: true
+    });
+
+    const encLabel = isEnc ? ' (AES-256 Encrypted in Account Storage)' : '';
+    appendLog(id, 'info', `💾 [Auto-Backup] Daily 24-hour backup created manually${encLabel} (${backup.filesCount} files)`);
 
     res.json({
       success: true,
-      message: '24-hour automatic backup generated successfully',
+      message: 'Daily auto-backup generated successfully',
       backup,
       backups: getBotBackups(id),
-      stats: getBotBackupStats(id)
+      stats: getBotBackupStats(id),
+      userStorage: user ? getUserStorageStats(user.id, user.maxStorageMb || 50, getRegistry) : null
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// User Account Storage & Auto-Backup Settings Management Routes
+app.get('/api/user/auto-backup-settings', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'অনুগ্রহ করে প্রথমে লগইন করুন (Authentication required)' });
+  }
+
+  const config = getUserAutoBackupConfig(user.id);
+  const storage = getUserStorageStats(user.id, user.maxStorageMb || 50, getRegistry);
+  const backups = getAllUserBackups(user.id, getRegistry);
+
+  res.json({
+    success: true,
+    config,
+    storage,
+    backupsCount: backups.length
+  });
+});
+
+app.post('/api/user/auto-backup-settings', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'অনুগ্রহ করে প্রথমে লগইন করুন (Authentication required)' });
+  }
+
+  const { enabled, encryptionEnabled, customPassword, maxBackupsToKeep, saveToAccountStorage } = req.body;
+
+  const updatedConfig = saveUserAutoBackupConfig(user.id, {
+    enabled: typeof enabled === 'boolean' ? enabled : undefined,
+    encryptionEnabled: typeof encryptionEnabled === 'boolean' ? encryptionEnabled : undefined,
+    customPassword: customPassword !== undefined ? String(customPassword).trim() : undefined,
+    maxBackupsToKeep: typeof maxBackupsToKeep === 'number' ? maxBackupsToKeep : undefined,
+    saveToAccountStorage: typeof saveToAccountStorage === 'boolean' ? saveToAccountStorage : undefined
+  });
+
+  // Also persist on user account object in accounts.json for seamless syncing
+  try {
+    const accounts = getAccounts();
+    const accIdx = accounts.findIndex((a: any) => a.id === user.id);
+    if (accIdx !== -1) {
+      accounts[accIdx].autoBackupSettings = updatedConfig;
+      saveAccounts(accounts);
+    }
+  } catch {}
+
+  const storage = getUserStorageStats(user.id, user.maxStorageMb || 50, getRegistry);
+
+  res.json({
+    success: true,
+    message: 'Auto-backup settings saved successfully',
+    config: updatedConfig,
+    storage
+  });
+});
+
+app.get('/api/user/storage-stats', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const storage = getUserStorageStats(user.id, user.maxStorageMb || 50, getRegistry);
+  res.json({
+    success: true,
+    storage
+  });
+});
+
+app.get('/api/user/backups', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const backups = getAllUserBackups(user.id, getRegistry);
+  const storage = getUserStorageStats(user.id, user.maxStorageMb || 50, getRegistry);
+
+  res.json({
+    success: true,
+    backups,
+    storage
+  });
+});
+
+app.post('/api/user/auto-backup/run-now', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const { botId } = req.body;
+  const reg = getRegistry();
+  const userBots = reg.filter((b: any) => canUserAccessBot(b, user));
+
+  if (userBots.length === 0) {
+    return res.status(400).json({ error: 'আপনার কোনো সক্রিয় বট নেই (No hosted bots found in your account)' });
+  }
+
+  const targetBots = botId ? userBots.filter((b: any) => b.id === botId) : userBots;
+  if (targetBots.length === 0) {
+    return res.status(404).json({ error: 'নির্দিষ্ট বটটি খুঁজে পাওয়া যায়নি' });
+  }
+
+  const userCfg = getUserAutoBackupConfig(user.id);
+  const isEnc = userCfg ? userCfg.encryptionEnabled !== false : true;
+  const createdBackups = [];
+
+  for (const bot of targetBots) {
+    try {
+      const backup = createBotBackup(
+        bot,
+        'auto_24h',
+        isEnc ? '🔒 Daily Encrypted Auto-Backup (AES-256)' : 'Automatic 24-Hour Backup',
+        {
+          encrypted: isEnc,
+          password: userCfg?.customPassword,
+          userId: user.id,
+          saveToAccountStorage: true
+        }
+      );
+      createdBackups.push(backup);
+      appendLog(bot.id, 'info', `💾🔒 [Auto-Backup] Manual trigger: Encrypted backup saved to account storage (${(backup.totalSizeBytes / 1024).toFixed(1)} KB)`);
+    } catch (err: any) {
+      console.warn(`[AutoBackup Run Now] Failed for bot ${bot.id}:`, err);
+    }
+  }
+
+  const storage = getUserStorageStats(user.id, user.maxStorageMb || 50, getRegistry);
+
+  res.json({
+    success: true,
+    message: `${createdBackups.length} টি বটের জন্য দৈনিক এনক্রিপ্টেড ব্যাকআপ সফলভাবে স্টোরেজে সেভ হয়েছে`,
+    createdBackups,
+    storage
+  });
 });
 
 // 5. Python Syntax Checker
@@ -9585,8 +9780,8 @@ async function initSiteConfigSync() {
     });
     // Start Cloud SMTP Relay Worker to dispatch any emails queued over HTTPS Port 443
     startCloudSmtpRelayWorker();
-    // Start 24-Hour recurring automatic bot backup service
-    start24HourBackupScheduler(getRegistry, appendLog);
+    // Start 24-Hour recurring automatic bot backup service (Daily Encrypted Auto-Backup)
+    start24HourBackupScheduler(getRegistry, appendLog, getAccounts);
     // Start 24/7 AI Bot Guardian & Auto-Healing Watchdog
     start24HourAiBotGuardian(
       getRegistry,

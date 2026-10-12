@@ -27,6 +27,8 @@ import { FAQPage } from './components/FAQPage';
 import { AiLiveSupportWidget } from './components/AiLiveSupportWidget';
 import { AiBotPromptModal } from './components/AiBotPromptModal';
 import { WelcomeModal } from './components/WelcomeModal';
+import { SessionExpiringModal } from './components/SessionExpiringModal';
+import { useIdleTimer } from './hooks/useIdleTimer';
 import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 import { checkIsAdmin } from './utils/adminCheck';
@@ -749,6 +751,57 @@ export default function App() {
     setToastMessage(lang === 'bn' ? 'সফলভাবে লগআউট করা হয়েছে' : 'Logged out successfully');
   };
 
+  // Idle Timer Session Extension & Inactivity Warning Handler
+  const handleExtendSession = async () => {
+    try {
+      const token = localStorage.getItem('bot_auth_token');
+      if (!token) return;
+      const res = await fetch('/api/auth/extend-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success && data.token) {
+        localStorage.setItem('bot_auth_token', data.token);
+        if (data.user) {
+          localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+          setCurrentUser(data.user);
+        }
+        setToastMessage(lang === 'bn' ? '✓ সেশন সফলভাবে বর্ধিত করা হয়েছে!' : '✓ Session extended successfully!');
+      } else {
+        await checkAuth();
+        setToastMessage(lang === 'bn' ? '✓ সেশন সচল রাখা হয়েছে!' : '✓ Session kept active!');
+      }
+    } catch {
+      await checkAuth();
+    }
+  };
+
+  const handleIdleTimeout = () => {
+    handleLogout();
+    setToastMessage(
+      lang === 'bn'
+        ? 'নিষ্ক্রিয়তার কারণে আপনার লগইন সেশনের মেয়াদ শেষ হয়েছে।'
+        : 'Your session expired due to inactivity. Please log in again.'
+    );
+    openAuthModal('login');
+  };
+
+  const {
+    isWarningOpen: isSessionWarningOpen,
+    secondsRemaining: sessionWarningSeconds,
+    isExtending: isExtendingSession,
+    extendSession: handleExtendSessionClick,
+    triggerTestWarning: triggerTestSessionWarning
+  } = useIdleTimer({
+    enabled: Boolean(currentUser),
+    onTimeout: handleIdleTimeout,
+    onExtendSession: handleExtendSession
+  });
+
   const selectedBot = bots.find((b) => b.id === selectedBotId);
 
   // Plan-Gated Deployment Handler requested by user:
@@ -1171,6 +1224,7 @@ export default function App() {
           initialTab={settingsInitialTab}
           soundAlertEnabled={soundAlertEnabled}
           onToggleSoundAlert={handleToggleSoundAlert}
+          onTestIdleWarning={triggerTestSessionWarning}
         />
       )}
 
@@ -1270,6 +1324,18 @@ export default function App() {
         onClose={() => setShowWelcomeModal(false)}
         siteSettings={siteSettings}
         user={currentUser}
+        lang={lang}
+      />
+
+      {/* Idle Timer Session Expiring Warning Modal */}
+      <SessionExpiringModal
+        isOpen={isSessionWarningOpen}
+        user={currentUser}
+        secondsRemaining={sessionWarningSeconds}
+        totalWarningSeconds={60}
+        isExtending={isExtendingSession}
+        onExtend={handleExtendSessionClick}
+        onLogout={handleLogout}
         lang={lang}
       />
     </div>
