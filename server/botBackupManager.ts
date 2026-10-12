@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import AdmZip from 'adm-zip';
+import { UserAutoBackupSettings, UserStorageStats } from '../src/types';
 
 export interface BotBackupFile {
   name: string;
@@ -16,15 +18,21 @@ export interface BotBackupRecord {
   trigger: 'auto_24h' | 'manual';
   filesCount: number;
   totalSizeBytes: number;
-  zipFileName: string;
+  zipFileName?: string;
   files: BotBackupFile[];
   description: string;
   status: 'completed' | 'failed';
   restoredAt?: string;
+  encrypted?: boolean;
+  algorithm?: string;
+  userId?: string;
+  savedInAccountStorage?: boolean;
+  isCustomPassword?: boolean;
 }
 
 const HOSTED_BOTS_DIR = path.join(process.cwd(), 'hosted_bots');
 const BOT_BACKUPS_BASE_DIR = path.join(HOSTED_BOTS_DIR, 'bot_backups');
+const USER_BACKUP_CONFIGS_FILE = path.join(HOSTED_BOTS_DIR, 'user_backup_configs.json');
 
 const EXCLUDED_FILES = new Set([
   'bot.log',
@@ -35,6 +43,34 @@ const EXCLUDED_FILES = new Set([
   '.DS_Store',
   'node_modules'
 ]);
+
+const DEFAULT_BACKUP_SECRET = process.env.VERIFICATION_SECRET || 'hlf_auto_backup_aes256_key_2026';
+
+function deriveKey(password?: string): { key: Buffer; salt: Buffer } {
+  const secret = password && password.trim() ? password.trim() : DEFAULT_BACKUP_SECRET;
+  const salt = Buffer.from('hlf_backup_salt_vector_v1');
+  const key = crypto.scryptSync(secret, salt, 32);
+  return { key, salt };
+}
+
+function encryptBuffer(data: Buffer, password?: string): Buffer {
+  const { key } = deriveKey(password);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+  return Buffer.concat([iv, encrypted]);
+}
+
+function decryptBuffer(encryptedData: Buffer, password?: string): Buffer {
+  if (encryptedData.length < 17) {
+    throw new Error('Invalid encrypted backup payload: payload too short');
+  }
+  const { key } = deriveKey(password);
+  const iv = encryptedData.subarray(0, 16);
+  const ciphertext = encryptedData.subarray(16);
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+}
 
 function getBotBackupsDir(botId: string): string {
   const dir = path.join(BOT_BACKUPS_BASE_DIR, botId);
@@ -72,11 +108,18 @@ export function getBotBackupById(botId: string, backupId: string): BotBackupReco
   return backups.find((b) => b.id === backupId) || null;
 }
 
-export function getBotBackupZipPath(botId: string, backupId: string): string | null {
+export function getBotBackupZipPath(botId: string, backupId: string, _userId?: string): string | null {
   const backup = getBotBackupById(botId, backupId);
-  if (!backup) return null;
-  const zipPath = path.join(getBotBackupsDir(botId), backup.zipFileName || `${backupId}.zip`);
-  return fs.existsSync(zipPath) ? zipPath : null;
+  const botDir = getBotBackupsDir(botId);
+  if (backup?.zipFileName) {
+    const p = path.join(botDir, backup.zipFileName);
+    if (fs.existsSync(p)) return p;
+  }
+  const candidateEnc = path.join(botDir, `${backupId}.enc.zip`);
+  if (fs.existsSync(candidateEnc)) return candidateEnc;
+  const candidateZip = path.join(botDir, `${backupId}.zip`);
+  if (fs.existsSync(candidateZip)) return candidateZip;
+  return null;
 }
 
 function getAllBotFiles(dir: string, baseDir: string = dir): { relativePath: string; fullPath: string; size: number; mtime: Date }[] {
@@ -112,7 +155,13 @@ function getAllBotFiles(dir: string, baseDir: string = dir): { relativePath: str
 export function createBotBackup(
   bot: any,
   trigger: 'auto_24h' | 'manual',
-  description?: string
+  description?: string,
+  options?: {
+    encrypted?: boolean;
+    password?: string;
+    userId?: string;
+    saveToAccountStorage?: boolean;
+  }
 ): BotBackupRecord {
   const botDir = path.join(HOSTED_BOTS_DIR, bot.dirName || bot.id);
   if (!fs.existsSync(botDir)) {
@@ -144,11 +193,18 @@ export function createBotBackup(
   }
 
   const backupId = `bak_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const zipFileName = `${backupId}.zip`;
+  const isEncrypted = Boolean(options?.encrypted);
+  const zipFileName = isEncrypted ? `${backupId}.enc.zip` : `${backupId}.zip`;
   const botBackupsDir = getBotBackupsDir(bot.id);
   const zipFilePath = path.join(botBackupsDir, zipFileName);
 
-  zip.writeZip(zipFilePath);
+  const zipBuffer = zip.toBuffer();
+  if (isEncrypted) {
+    const encData = encryptBuffer(zipBuffer, options?.password);
+    fs.writeFileSync(zipFilePath, encData);
+  } else {
+    fs.writeFileSync(zipFilePath, zipBuffer);
+  }
 
   let zipSize = 0;
   try {
@@ -168,7 +224,12 @@ export function createBotBackup(
     zipFileName,
     files: fileSummaries,
     description: description || (trigger === 'auto_24h' ? 'Automatic 24-Hour Backup' : 'Manual File Snapshot'),
-    status: 'completed'
+    status: 'completed',
+    encrypted: isEncrypted,
+    algorithm: isEncrypted ? 'aes-256-cbc' : undefined,
+    userId: options?.userId || bot.ownerId || bot.owner,
+    savedInAccountStorage: options?.saveToAccountStorage !== false,
+    isCustomPassword: Boolean(options?.password)
   };
 
   const currentBackups = getBotBackups(bot.id);
@@ -193,7 +254,8 @@ export function createBotBackup(
 
 export function restoreBotBackup(
   bot: any,
-  backupId: string
+  backupId: string,
+  options?: { password?: string; userId?: string }
 ): { success: boolean; backup: BotBackupRecord; restoredFilesCount: number } {
   const botBackupsDir = getBotBackupsDir(bot.id);
   const backups = getBotBackups(bot.id);
@@ -204,7 +266,7 @@ export function restoreBotBackup(
   }
 
   const target = backups[targetIndex];
-  const zipPath = path.join(botBackupsDir, target.zipFileName || `${backupId}.zip`);
+  const zipPath = getBotBackupZipPath(bot.id, backupId, options?.userId) || path.join(botBackupsDir, target.zipFileName || `${backupId}.zip`);
 
   if (!fs.existsSync(zipPath)) {
     throw new Error('Backup archive .zip file not found on disk');
@@ -215,8 +277,22 @@ export function restoreBotBackup(
     fs.mkdirSync(botDir, { recursive: true });
   }
 
+  const isEncrypted = Boolean(target.encrypted) || zipPath.endsWith('.enc.zip') || zipPath.endsWith('.enc');
+
+  let zip: AdmZip;
+  if (isEncrypted) {
+    try {
+      const encryptedData = fs.readFileSync(zipPath);
+      const decrypted = decryptBuffer(encryptedData, options?.password);
+      zip = new AdmZip(decrypted);
+    } catch (err: any) {
+      throw new Error('পাসওয়ার্ড ভুল অথবা এনক্রিপ্টেড ব্যাকআপ ডিক্রিপশন ব্যর্থ হয়েছে (Decryption failed - incorrect password or corrupt backup)');
+    }
+  } else {
+    zip = new AdmZip(zipPath);
+  }
+
   // Extract all files from backup archive, overwriting workspace files
-  const zip = new AdmZip(zipPath);
   zip.extractAllTo(botDir, true);
 
   // Mark restoredAt timestamp on backup record
@@ -231,7 +307,7 @@ export function restoreBotBackup(
   };
 }
 
-export function deleteBotBackup(botId: string, backupId: string): boolean {
+export function deleteBotBackup(botId: string, backupId: string, _userId?: string): boolean {
   const botBackupsDir = getBotBackupsDir(botId);
   const backups = getBotBackups(botId);
   const target = backups.find((b) => b.id === backupId);
@@ -245,6 +321,10 @@ export function deleteBotBackup(botId: string, backupId: string): boolean {
     const zipPath = path.join(botBackupsDir, target.zipFileName || `${backupId}.zip`);
     if (fs.existsSync(zipPath)) {
       fs.unlinkSync(zipPath);
+    }
+    const encPath = path.join(botBackupsDir, `${backupId}.enc.zip`);
+    if (fs.existsSync(encPath)) {
+      fs.unlinkSync(encPath);
     }
   } catch {}
 
@@ -270,7 +350,6 @@ export function getBotBackupStats(botId: string): {
     const nextTime = new Date(latestAuto.timestamp).getTime() + TWENTY_FOUR_HOURS;
     nextScheduledAutoBackup = new Date(nextTime).toISOString();
   } else {
-    // If no auto backup exists yet, next is scheduled soon
     nextScheduledAutoBackup = new Date().toISOString();
   }
 
@@ -282,6 +361,110 @@ export function getBotBackupStats(botId: string): {
     lastAutoBackupTime: latestAuto?.timestamp || null,
     nextScheduledAutoBackup,
     totalSizeBytes
+  };
+}
+
+export function getUserAutoBackupConfig(userId: string): UserAutoBackupSettings {
+  const defaults: UserAutoBackupSettings = {
+    enabled: true,
+    schedule: 'daily',
+    encryptionEnabled: true,
+    hasCustomPassword: false,
+    maxBackupsToKeep: 15,
+    saveToAccountStorage: true
+  };
+  try {
+    if (fs.existsSync(USER_BACKUP_CONFIGS_FILE)) {
+      const all = JSON.parse(fs.readFileSync(USER_BACKUP_CONFIGS_FILE, 'utf-8'));
+      if (all && all[userId]) {
+        return {
+          ...defaults,
+          ...all[userId],
+          hasCustomPassword: Boolean(all[userId].customPassword)
+        };
+      }
+    }
+  } catch {}
+  return defaults;
+}
+
+export function saveUserAutoBackupConfig(
+  userId: string,
+  updates: Partial<UserAutoBackupSettings>
+): UserAutoBackupSettings {
+  let all: Record<string, any> = {};
+  try {
+    if (fs.existsSync(USER_BACKUP_CONFIGS_FILE)) {
+      all = JSON.parse(fs.readFileSync(USER_BACKUP_CONFIGS_FILE, 'utf-8')) || {};
+    }
+  } catch {
+    all = {};
+  }
+  const current = getUserAutoBackupConfig(userId);
+  const updated: UserAutoBackupSettings = {
+    ...current,
+    ...updates,
+    hasCustomPassword: updates.customPassword !== undefined ? Boolean(updates.customPassword) : current.hasCustomPassword
+  };
+  all[userId] = updated;
+  try {
+    if (!fs.existsSync(HOSTED_BOTS_DIR)) {
+      fs.mkdirSync(HOSTED_BOTS_DIR, { recursive: true });
+    }
+    fs.writeFileSync(USER_BACKUP_CONFIGS_FILE, JSON.stringify(all, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[BotBackupManager] Error writing user backup config file:', err);
+  }
+  return updated;
+}
+
+export function getAllUserBackups(userId: string, getRegistryFn?: () => any[]): BotBackupRecord[] {
+  const bots = typeof getRegistryFn === 'function' ? getRegistryFn() : [];
+  const userBots = bots.filter((b: any) => b.ownerId === userId || b.owner === userId || b.userId === userId);
+  const results: BotBackupRecord[] = [];
+  for (const bot of userBots) {
+    const list = getBotBackups(bot.id);
+    results.push(...list);
+  }
+  return results.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
+export function getUserStorageStats(
+  userId: string,
+  maxStorageMb: number = 50,
+  getRegistryFn?: () => any[]
+): UserStorageStats {
+  const bots = typeof getRegistryFn === 'function' ? getRegistryFn() : [];
+  const userBots = bots.filter((b: any) => b.ownerId === userId || b.owner === userId || b.userId === userId);
+
+  let botsSizeBytes = 0;
+  for (const b of userBots) {
+    const botDir = path.join(HOSTED_BOTS_DIR, b.dirName || b.id);
+    if (fs.existsSync(botDir)) {
+      const files = getAllBotFiles(botDir);
+      botsSizeBytes += files.reduce((acc, f) => acc + f.size, 0);
+    }
+  }
+
+  const userBackups = getAllUserBackups(userId, getRegistryFn);
+  const backupsSizeBytes = userBackups.reduce((acc, b) => acc + (b.totalSizeBytes || 0), 0);
+
+  const usedBytes = botsSizeBytes + backupsSizeBytes;
+  const usedMb = Number((usedBytes / (1024 * 1024)).toFixed(2));
+  const safeMax = maxStorageMb || 50;
+  const freeMb = Math.max(0, Number((safeMax - usedMb).toFixed(2)));
+  const percentUsed = Math.min(100, Math.round((usedMb / safeMax) * 100));
+
+  return {
+    usedBytes,
+    usedMb,
+    maxStorageMb: safeMax,
+    freeMb,
+    percentUsed,
+    backupsCount: userBackups.length,
+    backupsSizeBytes,
+    botsCount: userBots.length,
+    botsSizeBytes
   };
 }
 
@@ -313,7 +496,15 @@ export function run24HourAutoBackupCycle(
         !latestAuto || now - new Date(latestAuto.timestamp).getTime() >= TWENTY_FOUR_HOURS_MS;
 
       if (shouldBackup) {
-        const backupRecord = createBotBackup(bot, 'auto_24h', 'Automatic 24-Hour Backup');
+        const userCfg = (bot.ownerId || bot.owner) ? getUserAutoBackupConfig(bot.ownerId || bot.owner) : null;
+        const isEncrypted = userCfg ? userCfg.encryptionEnabled !== false : true;
+        const desc = isEncrypted ? '🔒 Daily Encrypted Auto-Backup (AES-256)' : 'Automatic 24-Hour Backup';
+        const backupRecord = createBotBackup(bot, 'auto_24h', desc, {
+          encrypted: isEncrypted,
+          password: userCfg?.customPassword,
+          userId: bot.ownerId || bot.owner,
+          saveToAccountStorage: true
+        });
         results.createdCount++;
         if (appendLogFn) {
           appendLogFn(
@@ -338,7 +529,8 @@ export function run24HourAutoBackupCycle(
 
 export function start24HourBackupScheduler(
   getBotsFn: () => any[],
-  appendLogFn?: (botId: string, level: string, msg: string) => void
+  appendLogFn?: (botId: string, level: string, msg: string) => void,
+  _getAccountsFn?: () => any[]
 ): NodeJS.Timeout {
   console.log('[BotBackupManager] Initializing 24-Hour recurring automatic bot backup service...');
 

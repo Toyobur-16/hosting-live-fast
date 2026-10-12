@@ -1,0 +1,19 @@
+{
+  "welcomeDismissedUsers": [
+    "user_1790505060123_bmdw",
+    "badsharahmanbd@gmail.com"
+  ],
+  "userDismissedNotifs": {
+    "user_1790505060123_bmdw": [
+      "welcome_user_1790505060123_bmdw",
+      "notif_welcome_system_broadcast",
+      "test_notif_123"
+    ],
+    "badsharahmanbd@gmail.com": [
+      "welcome_user_1790505060123_bmdw",
+      "notif_welcome_system_broadcast",
+      "test_notif_123"
+    ]
+  },
+  "userClearedAllBefore": {}
+}

@@ -3070,7 +3070,9 @@ app.post('/api/auth/login', async (req, res) => {
   sessions[token] = user.id;
   saveSessions(sessions);
 
-  ensureUserWelcomeNotification(user.id, user.email, user.name);
+  if (!user.welcomeDismissed && !user.hasReceivedWelcomeNotification) {
+    ensureUserWelcomeNotification(user.id, user.email, user.name);
+  }
 
   res.json({
     success: true,
@@ -5105,7 +5107,6 @@ app.get('/api/notifications', (req, res) => {
     const publicNotifs = getUserNotifications('', '');
     return res.json({ notifications: publicNotifs.slice(0, 10) });
   }
-  ensureUserWelcomeNotification(user.id, user.email, user.name);
   res.json({ notifications: getUserNotifications(user.id, user.email) });
 });
 
@@ -5118,11 +5119,15 @@ app.post('/api/notifications/mark-read', (req, res) => {
 
 app.post('/api/notifications/clear', (req, res) => {
   const user = getAuthUser(req);
-  const { id } = req.body;
+  const { id, userId, userEmail } = req.body;
+  const effectiveUserId = user?.id || userId;
+  const effectiveEmail = user?.email || userEmail;
+  const isAdmin = user ? isUserAdmin(user) : false;
+
   if (!id || id === 'all') {
-    clearAllUserNotifications(user?.id, user?.email);
+    clearAllUserNotifications(effectiveUserId, effectiveEmail, isAdmin);
   } else {
-    clearNotification(id, user?.id, user?.email);
+    clearNotification(id, effectiveUserId, effectiveEmail, isAdmin);
   }
   res.json({ success: true, message: 'Notification(s) cleared successfully' });
 });
@@ -5130,10 +5135,14 @@ app.post('/api/notifications/clear', (req, res) => {
 app.delete('/api/notifications/:id', (req, res) => {
   const user = getAuthUser(req);
   const { id } = req.params;
+  const effectiveUserId = user?.id;
+  const effectiveEmail = user?.email;
+  const isAdmin = user ? isUserAdmin(user) : false;
+
   if (id === 'all') {
-    clearAllUserNotifications(user?.id, user?.email);
+    clearAllUserNotifications(effectiveUserId, effectiveEmail, isAdmin);
   } else {
-    clearNotification(id, user?.id, user?.email);
+    clearNotification(id, effectiveUserId, effectiveEmail, isAdmin);
   }
   res.json({ success: true, message: 'Notification cleared' });
 });

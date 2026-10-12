@@ -30,6 +30,7 @@ interface BotBackupsViewProps {
   botId?: string;
   botName?: string;
   lang: 'bn' | 'en';
+  currentUser?: any;
   onBotsUpdated?: () => void;
 }
 
@@ -37,6 +38,7 @@ export const BotBackupsView: React.FC<BotBackupsViewProps> = ({
   botId,
   botName,
   lang,
+  currentUser,
   onBotsUpdated
 }) => {
   const [backups, setBackups] = useState<BotBackupRecord[]>([]);

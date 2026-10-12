@@ -20,6 +20,25 @@ interface NotificationsModalProps {
   lang: 'bn' | 'en';
 }
 
+const getLocalDismissedIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem('hlf_dismissed_notifications');
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch {}
+  return new Set();
+};
+
+const getLocalClearedAllTime = (): number => {
+  try {
+    const raw = localStorage.getItem('hlf_cleared_all_notifs_time');
+    if (raw) return parseInt(raw, 10) || 0;
+  } catch {}
+  return 0;
+};
+
 export function NotificationsModal({ isOpen, onClose, currentUser, lang }: NotificationsModalProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,7 +54,20 @@ export function NotificationsModal({ isOpen, onClose, currentUser, lang }: Notif
       const res = await fetch('/api/notifications', { headers });
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data.notifications || []);
+        const dismissedIds = getLocalDismissedIds();
+        const clearedTime = getLocalClearedAllTime();
+
+        const filtered = (data.notifications || []).filter((item: NotificationItem) => {
+          if (!item || !item.id) return false;
+          if (dismissedIds.has(item.id)) return false;
+          if (clearedTime > 0 && item.createdAt) {
+            const ms = new Date(item.createdAt).getTime();
+            if (!isNaN(ms) && ms <= clearedTime) return false;
+          }
+          return true;
+        });
+
+        setNotifications(filtered);
       }
     } catch {
       // ignore
@@ -63,6 +95,7 @@ export function NotificationsModal({ isOpen, onClose, currentUser, lang }: Notif
       });
 
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      window.dispatchEvent(new CustomEvent('notifications-updated'));
     } catch {}
   };
 
@@ -79,15 +112,25 @@ export function NotificationsModal({ isOpen, onClose, currentUser, lang }: Notif
       });
 
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+      window.dispatchEvent(new CustomEvent('notifications-updated'));
     } catch {}
   };
 
   const handleClearSingle = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     try {
-      // Optimistically remove from state immediately
+      // 1. Optimistically remove from state immediately
       setNotifications((prev) => prev.filter((n) => n.id !== id));
 
+      // 2. Persist in localStorage so it can NEVER resurface on this browser
+      try {
+        const dismissed = getLocalDismissedIds();
+        dismissed.add(id);
+        localStorage.setItem('hlf_dismissed_notifications', JSON.stringify(Array.from(dismissed)));
+        window.dispatchEvent(new CustomEvent('notifications-updated'));
+      } catch {}
+
+      // 3. Send delete request to server
       const token = localStorage.getItem('bot_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -95,11 +138,14 @@ export function NotificationsModal({ isOpen, onClose, currentUser, lang }: Notif
       await fetch('/api/notifications/clear', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ id })
+        body: JSON.stringify({
+          id,
+          userId: currentUser?.id,
+          userEmail: currentUser?.email
+        })
       });
     } catch {
-      // Re-sync on failure
-      fetchNotifications();
+      // Keep optimistic delete even if network drops
     }
   };
 
@@ -107,9 +153,22 @@ export function NotificationsModal({ isOpen, onClose, currentUser, lang }: Notif
     if (notifications.length === 0) return;
     try {
       setClearing(true);
-      // Optimistically clear all notifications from state immediately
+      const allIds = notifications.map((n) => n.id);
+
+      // 1. Clear local state
       setNotifications([]);
 
+      // 2. Persist in localStorage
+      try {
+        const now = Date.now();
+        localStorage.setItem('hlf_cleared_all_notifs_time', String(now));
+        const dismissed = getLocalDismissedIds();
+        allIds.forEach((id) => dismissed.add(id));
+        localStorage.setItem('hlf_dismissed_notifications', JSON.stringify(Array.from(dismissed)));
+        window.dispatchEvent(new CustomEvent('notifications-updated'));
+      } catch {}
+
+      // 3. Send clear-all request to server
       const token = localStorage.getItem('bot_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -117,10 +176,14 @@ export function NotificationsModal({ isOpen, onClose, currentUser, lang }: Notif
       await fetch('/api/notifications/clear', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ id: 'all' })
+        body: JSON.stringify({
+          id: 'all',
+          userId: currentUser?.id,
+          userEmail: currentUser?.email
+        })
       });
     } catch {
-      fetchNotifications();
+      // Keep optimistic clear
     } finally {
       setClearing(false);
     }

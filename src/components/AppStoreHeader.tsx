@@ -65,7 +65,7 @@ export function AppStoreHeader({
   const { isDownloaded } = usePWAInstall();
   const [unreadNotifications, setUnreadNotifications] = useState<number>(0);
 
-  useEffect(() => {
+  const fetchUnreadCount = () => {
     const token = localStorage.getItem('bot_auth_token');
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -73,12 +73,40 @@ export function AppStoreHeader({
     fetch('/api/notifications', { headers })
       .then((res) => res.json())
       .then((data) => {
-        if (data.notifications) {
-          const unread = data.notifications.filter((n: any) => !n.read).length;
+        if (data.notifications && Array.isArray(data.notifications)) {
+          let dismissedSet = new Set<string>();
+          try {
+            const raw = localStorage.getItem('hlf_dismissed_notifications');
+            if (raw) dismissedSet = new Set(JSON.parse(raw));
+          } catch {}
+
+          let clearedTime = 0;
+          try {
+            const rawTime = localStorage.getItem('hlf_cleared_all_notifs_time');
+            if (rawTime) clearedTime = parseInt(rawTime, 10) || 0;
+          } catch {}
+
+          const unread = data.notifications.filter((n: any) => {
+            if (!n || n.read) return false;
+            if (dismissedSet.has(n.id)) return false;
+            if (clearedTime > 0 && n.createdAt) {
+              const ms = new Date(n.createdAt).getTime();
+              if (!isNaN(ms) && ms <= clearedTime) return false;
+            }
+            return true;
+          }).length;
+
           setUnreadNotifications(unread);
         }
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+    const handleUpdate = () => fetchUnreadCount();
+    window.addEventListener('notifications-updated', handleUpdate);
+    return () => window.removeEventListener('notifications-updated', handleUpdate);
   }, [user]);
 
   const getUserInitial = () => {
