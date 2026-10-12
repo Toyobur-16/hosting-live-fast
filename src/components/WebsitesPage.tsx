@@ -151,14 +151,38 @@ export const WebsitesPage: React.FC<WebsitesPageProps> = ({
 
   useEffect(() => {
     fetchWebsites();
+
+    try {
+      const cached = localStorage.getItem('hlf_site_settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.websiteVideoUrl || parsed.hostingVideoUrl) {
+          setWebsiteVideoUrl(parsed.websiteVideoUrl || parsed.hostingVideoUrl);
+        }
+      }
+    } catch {}
+
     fetch('/api/site-settings')
       .then((res) => res.json())
       .then((data) => {
-        if (data.settings?.websiteVideoUrl || data.settings?.hostingVideoUrl) {
-          setWebsiteVideoUrl(data.settings.websiteVideoUrl || data.settings.hostingVideoUrl);
+        const s = data?.settings || data;
+        const candidate = s?.websiteVideoUrl || s?.hostingVideoUrl;
+        if (candidate) {
+          setWebsiteVideoUrl(candidate);
         }
       })
       .catch(() => {});
+
+    const handleSettingsUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<any>;
+      const s = customEvent.detail;
+      if (s?.websiteVideoUrl || s?.hostingVideoUrl) {
+        setWebsiteVideoUrl(s.websiteVideoUrl || s.hostingVideoUrl);
+      }
+    };
+
+    window.addEventListener('site-settings-updated', handleSettingsUpdate);
+    return () => window.removeEventListener('site-settings-updated', handleSettingsUpdate);
   }, [user]);
 
   // Transliterate Bangla to clean Latin slug

@@ -1122,6 +1122,7 @@ export default function App() {
         {activeTab === 'guide' && (
           <HostingTutorialPage
             lang={lang}
+            videoUrl={siteSettings.hostingVideoUrl}
             onNavigateToWallet={() => setActiveTab('wallet')}
             onNavigateToPlans={() => setActiveTab('plans')}
             onNavigateToDeploy={handleDeployNewBot}

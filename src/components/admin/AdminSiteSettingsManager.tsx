@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon, Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Sliders, Upload, Loader2, Trash2, Film, Play, ExternalLink, Wallet, Bell, MoreVertical, Smartphone, Download, FileCheck, PartyPopper, Eye, MessageSquareQuote } from 'lucide-react';
 import { SiteSettings } from '../../types';
-import { getEmbedVideoUrl } from '../HostingTutorialSection';
+import { getEmbedVideoUrl, VideoEmbedPlayer, parseVideoUrl } from '../HostingTutorialSection';
 import { normalizeLogoUrl, optimizeLogoImage } from '../../utils/logoUrl';
 import { db, doc, setDoc, onSnapshot } from '../../lib/firebase';
 import { WelcomeModal } from '../WelcomeModal';
@@ -835,64 +835,152 @@ export function AdminSiteSettingsManager() {
         </div>
 
         {/* Video Tutorial Settings */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#080e1b] border border-slate-200 dark:border-[#162035] space-y-4">
-          <div className="flex items-center gap-2 text-xs font-black uppercase text-amber-500 tracking-wider">
-            <Film className="w-4 h-4" />
-            <span>হোস্টিং ভিডিও টিউটোরিয়াল সেটিংস (Video Tutorials)</span>
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#080e1b] border border-slate-200 dark:border-[#162035] space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-xs font-black uppercase text-amber-500 tracking-wider">
+              <Film className="w-4 h-4" />
+              <span>হোস্টিং ভিডিও টিউটোরিয়াল সেটিংস (Video Tutorials)</span>
+            </div>
+            <span className="text-[11px] text-slate-400">
+              YouTube, Shorts, Live, Google Drive, MP4 বা Iframe কোড সাপোর্ট করে
+            </span>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              🎬 কিভাবে হোস্টিং নিবেন - ভিডিও লিংক (YouTube URL)
-            </label>
+          {/* 1. Hosting Tutorial Video */}
+          <div className="p-4 rounded-xl bg-white dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                🎬 ১. কিভাবে হোস্টিং নিবেন - ভিডিও লিংক (Hosting Video URL)
+              </label>
+              {settings.hostingVideoUrl && (
+                parseVideoUrl(settings.hostingVideoUrl).embedUrl ? (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>ভিডিও প্রস্তুত (Valid Link)</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 text-[10px] font-bold flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>অবৈধ লিংক</span>
+                  </span>
+                )
+              )}
+            </div>
+
             <input
               type="text"
               value={settings.hostingVideoUrl || ''}
               onChange={(e) => setSettings({ ...settings, hostingVideoUrl: e.target.value })}
-              placeholder="e.g. https://www.youtube.com/watch?v=YOUR_VIDEO_ID বা https://youtu.be/..."
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500 font-mono"
+              placeholder="e.g. https://www.youtube.com/watch?v=... বা https://youtu.be/... বা shorts/..."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#0a101d] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500 font-mono"
             />
-            <p className="text-[11px] text-slate-500 mt-1">
-              ব্যবহারকারীরা হোস্টিং প্ল্যান পেজে "ভিডিও টিউটোরিয়াল দেখুন" বাটনে চাপলে সরাসরি এই ভিডিওটি দেখতে পারবে।
+            <p className="text-[11px] text-slate-500">
+              হোস্টিং প্ল্যান পেজ ও হোস্টিং গাইড পেজের "ভিডিও টিউটোরিয়াল দেখুন" বাটনে এই ভিডিওটি প্লে হবে।
             </p>
+
+            {/* Live Preview for Hosting Video */}
+            {settings.hostingVideoUrl && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+                    <Play className="w-3 h-3 text-red-500 fill-red-500" />
+                    <span>লাইভ ভিডিও প্রিভিউ:</span>
+                  </span>
+                  <a
+                    href={settings.hostingVideoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <span>নতুন ট্যাবে দেখুন</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-black max-w-md border border-slate-800 shadow-md">
+                  {parseVideoUrl(settings.hostingVideoUrl).embedUrl ? (
+                    <VideoEmbedPlayer
+                      url={settings.hostingVideoUrl}
+                      title="Hosting Video Preview"
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs text-rose-400 p-4 text-center">
+                      অবৈধ ভিডিও ইউআরএল! সঠিক ইউটিউব লিংক (watch?v=, youtu.be, shorts/) অথবা গুগল ড্রাইভ / MP4 লিংক দিন।
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              🌐 কিভাবে ওয়েবসাইট হোস্ট করবেন - ভিডিও লিংক (YouTube URL)
-            </label>
+          {/* 2. Website Tutorial Video */}
+          <div className="p-4 rounded-xl bg-white dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                🌐 ২. কিভাবে ওয়েবসাইট হোস্ট করবেন - ভিডিও লিংক (Website Video URL)
+              </label>
+              {settings.websiteVideoUrl && (
+                parseVideoUrl(settings.websiteVideoUrl).embedUrl ? (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>ভিডিও প্রস্তুত (Valid Link)</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 text-[10px] font-bold flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>অবৈধ লিংক</span>
+                  </span>
+                )
+              )}
+            </div>
+
             <input
               type="text"
               value={settings.websiteVideoUrl || ''}
               onChange={(e) => setSettings({ ...settings, websiteVideoUrl: e.target.value })}
-              placeholder="e.g. https://www.youtube.com/watch?v=YOUR_VIDEO_ID"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500 font-mono"
+              placeholder="e.g. https://www.youtube.com/watch?v=... বা https://youtu.be/..."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#0a101d] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500 font-mono"
             />
-            <p className="text-[11px] text-slate-500 mt-1">
-              ওয়েবসাইট পেজের ইউজাররা এই ভিডিও দেখে কিভাবে HTML/ZIP ফাইল দিয়ে ওয়েবসাইট তৈরি করতে হয় তা শিখতে পারবে।
+            <p className="text-[11px] text-slate-500">
+              ওয়েবসাইট পেজের ইউজাররা এই ভিডিও দেখে কিভাবে ZIP বা HTML ফাইল দিয়ে ওয়েবসাইট হোস্ট করতে হয় তা শিখতে পারবে।
             </p>
-          </div>
 
-          {/* Video Preview if URL is set */}
-          {(settings.hostingVideoUrl || settings.websiteVideoUrl) && (
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-              <span className="text-[11px] font-bold text-slate-400 block mb-2">লাইভ ভিডিও প্রিভিউ:</span>
-              <div className="relative aspect-video rounded-xl overflow-hidden bg-black max-w-sm">
-                {getEmbedVideoUrl(settings.hostingVideoUrl || settings.websiteVideoUrl) ? (
-                  <iframe
-                    src={getEmbedVideoUrl(settings.hostingVideoUrl || settings.websiteVideoUrl)!}
-                    title="Video Preview"
-                    className="w-full h-full border-0"
-                    allowFullScreen
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs text-slate-500">
-                    অবৈধ ভিডিও ইউআরএল (সঠিক ইউটিউব লিংক দিন)
-                  </div>
-                )}
+            {/* Live Preview for Website Video */}
+            {settings.websiteVideoUrl && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+                    <Play className="w-3 h-3 text-red-500 fill-red-500" />
+                    <span>লাইভ ভিডিও প্রিভিউ:</span>
+                  </span>
+                  <a
+                    href={settings.websiteVideoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <span>নতুন ট্যাবে দেখুন</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-black max-w-md border border-slate-800 shadow-md">
+                  {parseVideoUrl(settings.websiteVideoUrl).embedUrl ? (
+                    <VideoEmbedPlayer
+                      url={settings.websiteVideoUrl}
+                      title="Website Video Preview"
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs text-rose-400 p-4 text-center">
+                      অবৈধ ভিডিও ইউআরএল! সঠিক ইউটিউব লিংক অথবা ড্রাইভ / MP4 লিংক দিন।
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Android APK Download & Icon Manager */}

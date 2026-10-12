@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Play,
   Film,
@@ -16,7 +16,181 @@ import {
   CreditCard
 } from 'lucide-react';
 
-interface HostingTutorialSectionProps {
+export interface VideoInfo {
+  embedUrl: string | null;
+  directVideoUrl?: string | null;
+  platform: 'youtube' | 'drive' | 'vimeo' | 'facebook' | 'direct' | 'unknown';
+  rawUrl: string;
+}
+
+/**
+ * Normalizes any video URL (YouTube, Vimeo, Google Drive, direct MP4, iframe tag)
+ * into a functional embeddable URL and platform metadata.
+ */
+export function parseVideoUrl(input?: string): VideoInfo {
+  if (!input || typeof input !== 'string') {
+    return { embedUrl: null, platform: 'unknown', rawUrl: '' };
+  }
+  let clean = input.trim();
+  if (!clean) {
+    return { embedUrl: null, platform: 'unknown', rawUrl: '' };
+  }
+
+  // 1. If user pasted a full HTML <iframe> code
+  if (clean.includes('<iframe') && clean.includes('src=')) {
+    const srcMatch = clean.match(/src=["']([^"']+)["']/i);
+    if (srcMatch && srcMatch[1]) {
+      clean = srcMatch[1].trim();
+    }
+  }
+
+  // 2. Direct video files (.mp4, .webm, .ogg, .mov, .m4v)
+  if (/\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(clean)) {
+    return {
+      embedUrl: clean,
+      directVideoUrl: clean,
+      platform: 'direct',
+      rawUrl: clean
+    };
+  }
+
+  // 3. YouTube extraction
+  let ytId: string | null = null;
+
+  // Check URL query parameters for v=...
+  const vParamMatch = clean.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (vParamMatch && vParamMatch[1]) {
+    ytId = vParamMatch[1];
+  }
+
+  // Check youtu.be/ID
+  if (!ytId) {
+    const youtuBeMatch = clean.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+    if (youtuBeMatch && youtuBeMatch[1]) {
+      ytId = youtuBeMatch[1];
+    }
+  }
+
+  // Check /embed/, /shorts/, /live/, /v/
+  if (!ytId) {
+    const embedOrShortsMatch = clean.match(/(?:youtube(?:-nocookie)?\.com\/(?:embed|shorts|live|v)\/)([a-zA-Z0-9_-]{11})/);
+    if (embedOrShortsMatch && embedOrShortsMatch[1]) {
+      ytId = embedOrShortsMatch[1];
+    }
+  }
+
+  // Check if raw 11-character video ID was given
+  if (!ytId && /^[a-zA-Z0-9_-]{11}$/.test(clean)) {
+    ytId = clean;
+  }
+
+  if (ytId) {
+    return {
+      embedUrl: `https://www.youtube.com/embed/${ytId}?rel=0&enablejsapi=1`,
+      platform: 'youtube',
+      rawUrl: clean
+    };
+  }
+
+  // 4. Google Drive
+  const gDriveMatch = clean.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (gDriveMatch && gDriveMatch[1]) {
+    return {
+      embedUrl: `https://drive.google.com/file/d/${gDriveMatch[1]}/preview`,
+      platform: 'drive',
+      rawUrl: clean
+    };
+  }
+
+  // 5. Vimeo
+  const vimeoMatch = clean.match(/vimeo\.com\/(?:video\/)?([0-9]+)/);
+  if (vimeoMatch && vimeoMatch[1]) {
+    return {
+      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+      platform: 'vimeo',
+      rawUrl: clean
+    };
+  }
+
+  // 6. Facebook Video
+  if (clean.includes('facebook.com') && (clean.includes('/videos/') || clean.includes('/watch') || clean.includes('fb.watch'))) {
+    return {
+      embedUrl: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(clean)}&show_text=0`,
+      platform: 'facebook',
+      rawUrl: clean
+    };
+  }
+
+  // 7. General URL with http/https
+  if (clean.startsWith('http://') || clean.startsWith('https://')) {
+    return {
+      embedUrl: clean,
+      platform: 'unknown',
+      rawUrl: clean
+    };
+  }
+
+  return { embedUrl: null, platform: 'unknown', rawUrl: clean };
+}
+
+export function getEmbedVideoUrl(url?: string): string | null {
+  const info = parseVideoUrl(url);
+  return info.embedUrl;
+}
+
+/**
+ * Universal video player component that renders either a native <video> tag
+ * for direct MP4/WebM files or an <iframe> with proper permissions for YouTube, Drive, etc.
+ */
+export function VideoEmbedPlayer({
+  url,
+  title = 'Video Player',
+  className = 'w-full h-full',
+  autoPlay = false
+}: {
+  url?: string;
+  title?: string;
+  className?: string;
+  autoPlay?: boolean;
+}) {
+  const info = parseVideoUrl(url);
+
+  if (!info.embedUrl) {
+    return null;
+  }
+
+  if (info.platform === 'direct' && info.directVideoUrl) {
+    return (
+      <video
+        src={info.directVideoUrl}
+        controls
+        autoPlay={autoPlay}
+        playsInline
+        className={`${className} bg-black object-contain`}
+      >
+        Your browser does not support the video tag.
+      </video>
+    );
+  }
+
+  const embedSrc =
+    autoPlay && info.platform === 'youtube' && !info.embedUrl.includes('autoplay=1')
+      ? `${info.embedUrl}&autoplay=1`
+      : info.embedUrl;
+
+  return (
+    <iframe
+      src={embedSrc}
+      title={title}
+      className={`${className} border-0`}
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerPolicy="strict-origin-when-cross-origin"
+      allowFullScreen
+    />
+  );
+}
+
+export interface HostingTutorialSectionProps {
   lang?: 'bn' | 'en' | string;
   videoUrl?: string;
   onNavigateToWallet?: () => void;
@@ -26,36 +200,73 @@ interface HostingTutorialSectionProps {
   type?: 'general' | 'website' | 'plans';
 }
 
-/**
- * Normalizes any YouTube URL (watch?v=, youtu.be, shorts/) to an embed URL
- */
-export function getEmbedVideoUrl(url?: string): string | null {
-  if (!url || typeof url !== 'string') return null;
-  const clean = url.trim();
-  if (!clean) return null;
-
-  // YouTube watch?v=ID
-  const watchMatch = clean.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
-  if (watchMatch && watchMatch[1]) {
-    return `https://www.youtube-nocookie.com/embed/${watchMatch[1]}?autoplay=1&rel=0`;
-  }
-
-  // Direct iframe / video link
-  if (clean.startsWith('http://') || clean.startsWith('https://')) {
-    return clean;
-  }
-  return null;
-}
-
 export function HostingTutorialSection({
   lang = 'bn',
-  videoUrl,
+  videoUrl: initialVideoUrl,
   onNavigateToWallet,
   onNavigateToPlans,
   onNavigateToDeploy,
+  defaultOpenVideo = false,
   type = 'general'
 }: HostingTutorialSectionProps) {
-  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(defaultOpenVideo);
+  const [videoUrl, setVideoUrl] = useState<string | undefined>(initialVideoUrl);
+
+  // Sync with prop and auto-fetch from site-settings if not provided
+  useEffect(() => {
+    if (initialVideoUrl) {
+      setVideoUrl(initialVideoUrl);
+      return;
+    }
+
+    // Try reading cached site settings
+    try {
+      const cached = localStorage.getItem('hlf_site_settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const candidate =
+          type === 'website'
+            ? parsed.websiteVideoUrl || parsed.hostingVideoUrl
+            : parsed.hostingVideoUrl || parsed.websiteVideoUrl;
+        if (candidate) {
+          setVideoUrl(candidate);
+        }
+      }
+    } catch {}
+
+    // Fetch live from server
+    fetch('/api/site-settings')
+      .then((res) => res.json())
+      .then((data) => {
+        const s = data?.settings || data;
+        const candidate =
+          type === 'website'
+            ? s?.websiteVideoUrl || s?.hostingVideoUrl
+            : s?.hostingVideoUrl || s?.websiteVideoUrl;
+        if (candidate) {
+          setVideoUrl(candidate);
+        }
+      })
+      .catch(() => {});
+
+    // Listen to live broadcast update
+    const handleUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<any>;
+      const s = customEvent.detail;
+      if (s) {
+        const candidate =
+          type === 'website'
+            ? s?.websiteVideoUrl || s?.hostingVideoUrl
+            : s?.hostingVideoUrl || s?.websiteVideoUrl;
+        if (candidate) {
+          setVideoUrl(candidate);
+        }
+      }
+    };
+    window.addEventListener('site-settings-updated', handleUpdate);
+    return () => window.removeEventListener('site-settings-updated', handleUpdate);
+  }, [initialVideoUrl, type]);
+
   const embedUrl = getEmbedVideoUrl(videoUrl);
 
   const steps = [
@@ -91,21 +302,21 @@ export function HostingTutorialSection({
     },
     {
       step: 4,
-      titleBn: 'বট বা ওয়েবসাইট লাইভ চালান',
-      titleEn: 'Run Bot or Website 24/7',
-      descBn: 'কোড আপলোড করে ২৪/৭ সুপারফাস্ট সার্ভারে সচল রাখুন।',
-      descEn: 'Upload files and keep your projects running 24/7 non-stop.',
-      icon: Globe,
+      titleBn: type === 'website' ? 'ওয়েবসাইট লাইভ চালান' : 'বট ২৪/৭ লাইভ চালান',
+      titleEn: type === 'website' ? 'Host Website Live' : 'Run Bot 24/7 Live',
+      descBn: type === 'website' ? 'ZIP বা ফাইল আপলোড করে নিজস্ব সাইট প্রকাশ করুন।' : 'টেলিগ্রাম বট স্ক্রিপ্ট আপলোড করে লাইভ সার্ভারে চালান।',
+      descEn: type === 'website' ? 'Upload HTML/ZIP and get your live run.app URL.' : 'Upload bot script and run non-stop with watchdog.',
+      icon: type === 'website' ? Globe : Bot,
       color: 'text-purple-400',
       bgColor: 'bg-purple-500/10 border-purple-500/30'
     }
   ];
 
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c1424] via-[#0f1b33] to-[#14233e] border border-cyan-500/30 p-5 sm:p-7 shadow-2xl mb-8">
-      {/* Glow Orbs */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
+    <div className="relative rounded-3xl bg-gradient-to-br from-[#0c1322] via-[#090f1d] to-[#060a14] border border-cyan-500/30 p-5 sm:p-7 shadow-2xl overflow-hidden mb-6 sm:mb-8">
+      {/* Background glow effects */}
+      <div className="absolute top-0 right-0 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+      <div className="absolute bottom-0 left-0 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
 
       <div className="relative z-10">
         {/* Header Badge & Title */}
@@ -117,21 +328,22 @@ export function HostingTutorialSection({
             </div>
 
             <h3 className="text-xl sm:text-2xl font-black text-white leading-tight">
-              {lang === 'bn'
-                ? 'কিভাবে হোস্টিং নিবেন ও সার্ভিস চালু করবেন?'
-                : 'How to Get Hosting & Activate Services?'}
+              {type === 'website'
+                ? (lang === 'bn' ? 'কিভাবে ওয়েবসাইট হোস্ট করবেন ও লাইভ চালাবেন?' : 'How to Host & Publish Websites?')
+                : (lang === 'bn' ? 'কিভাবে হোস্টিং নিবেন ও সার্ভিস চালু করবেন?' : 'How to Get Hosting & Activate Services?')}
             </h3>
 
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
               {lang === 'bn'
-                ? 'নিচের সহজ ৪টি ধাপে আপনি যেকোনো সময় হোস্টিং নিতে পারেন। সম্পূর্ণ প্রক্রিয়াটি বুঝতে ভিডিও টিউটোরিয়াল দেখুন।'
-                : 'Follow the 4 simple steps below to purchase hosting anytime, or watch our complete video tutorial.'}
+                ? 'নিচের সহজ ৪টি ধাপে আপনি যেকোনো সময় সার্ভিস নিতে পারেন। সম্পূর্ণ প্রক্রিয়াটি সরাসরি দেখতে ভিডিও টিউটোরিয়াল চালু করুন।'
+                : 'Follow the 4 simple steps below to purchase hosting anytime, or watch our complete video walkthrough.'}
             </p>
           </div>
 
           {/* Watch Video Button */}
           <div className="shrink-0 flex items-center gap-2">
             <button
+              type="button"
               onClick={() => setShowVideoModal(true)}
               className="px-5 py-3 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-lg shadow-red-600/30 transition-all hover:scale-102 active:scale-98 cursor-pointer"
             >
@@ -187,6 +399,7 @@ export function HostingTutorialSection({
           <div className="flex items-center gap-2">
             {onNavigateToWallet && (
               <button
+                type="button"
                 onClick={onNavigateToWallet}
                 className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold flex items-center gap-1.5 transition cursor-pointer"
               >
@@ -197,11 +410,23 @@ export function HostingTutorialSection({
 
             {onNavigateToPlans && (
               <button
+                type="button"
                 onClick={onNavigateToPlans}
                 className="px-3.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-bold flex items-center gap-1.5 transition cursor-pointer"
               >
                 <span>{lang === 'bn' ? 'প্ল্যান দেখুন' : 'View Plans'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {onNavigateToDeploy && (
+              <button
+                type="button"
+                onClick={onNavigateToDeploy}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-bold flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>{lang === 'bn' ? 'ডিপ্লয় করুন' : 'Deploy'}</span>
               </button>
             )}
           </div>
@@ -210,8 +435,13 @@ export function HostingTutorialSection({
 
       {/* Video Tutorial Modal */}
       {showVideoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-[#0b1222] border border-cyan-500/40 rounded-3xl max-w-3xl w-full text-slate-100 shadow-2xl overflow-hidden flex flex-col relative">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowVideoModal(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+        >
+          <div className="bg-[#0b1222] border border-cyan-500/40 rounded-3xl max-w-3xl w-full text-slate-100 shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95">
             {/* Modal Header */}
             <div className="px-5 py-4 bg-[#070b14] border-b border-slate-800 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -220,7 +450,9 @@ export function HostingTutorialSection({
                 </div>
                 <div>
                   <h4 className="text-sm font-black text-white">
-                    {lang === 'bn' ? 'ভিডিও টিউটোরিয়াল: কিভাবে হোস্টিং নিবেন' : 'Video Tutorial: How to Get Hosting'}
+                    {type === 'website'
+                      ? (lang === 'bn' ? 'ভিডিও টিউটোরিয়াল: কিভাবে ওয়েবসাইট তৈরি করবেন' : 'Video Tutorial: How to Host Websites')
+                      : (lang === 'bn' ? 'ভিডিও টিউটোরিয়াল: কিভাবে হোস্টিং নিবেন' : 'Video Tutorial: How to Get Hosting')}
                   </h4>
                   <p className="text-[11px] text-slate-400">
                     {lang === 'bn' ? 'সহজেই ওয়ালেট ডিপোজিট করে হোস্টিং চালু করার সম্পূর্ণ গাইড' : 'Complete step-by-step video guide'}
@@ -228,23 +460,36 @@ export function HostingTutorialSection({
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowVideoModal(false)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {videoUrl && (
+                  <a
+                    href={videoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 transition text-xs flex items-center gap-1 font-bold"
+                    title={lang === 'bn' ? 'সরাসরি ব্রাউজারে খুলুন' : 'Open in New Tab'}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowVideoModal(false)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Video Player Container */}
             <div className="relative aspect-video bg-black w-full flex items-center justify-center">
               {embedUrl ? (
-                <iframe
-                  src={embedUrl}
+                <VideoEmbedPlayer
+                  url={videoUrl}
                   title="Hosting Video Tutorial"
-                  className="w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
+                  className="w-full h-full"
+                  autoPlay={true}
                 />
               ) : (
                 <div className="text-center p-8 max-w-md space-y-4">
@@ -275,6 +520,7 @@ export function HostingTutorialSection({
                 {lang === 'bn' ? 'কোনো সহায়তার প্রয়োজন হলে আমাদের সাথে যোগাযোগ করুন।' : 'Need assistance? Reach out to support.'}
               </span>
               <button
+                type="button"
                 onClick={() => setShowVideoModal(false)}
                 className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black cursor-pointer transition"
               >
@@ -286,4 +532,4 @@ export function HostingTutorialSection({
       )}
     </div>
   );
-};
+}

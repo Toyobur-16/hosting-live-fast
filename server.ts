@@ -719,7 +719,9 @@ const DEFAULT_SITE_SETTINGS = {
   welcomeMessageBadge: 'অফিসিয়াল স্বাগতম বার্তা',
   welcomeMessageBody: 'আমাদের ২৪/৭ টেলিগ্রাম বট ও ওয়েবসাইট ক্লাউড হোস্টিং প্ল্যাটফর্মে আপনাকে স্বাগতম। আপনি এখন নির্বিঘ্নে বট ও সাইট পরিচালনা করতে পারেন। যেকোনো তথ্যের জন্য আমাদের ২৪/৭ এআই লাইভ সাপোর্ট ব্যবহার করুন!',
   welcomeMessageButtonText: 'শুরু করুন',
-  welcomeMessageImageUrl: ''
+  welcomeMessageImageUrl: '',
+  hostingVideoUrl: '',
+  websiteVideoUrl: ''
 };
 
 if (!fs.existsSync(SITE_SETTINGS_FILE)) {

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Crown, Check, ShieldCheck, Zap, Sparkles, AlertCircle,
   CheckCircle2, ArrowRight, Wallet, RefreshCw, Clock, Bot,
-  CreditCard, ChevronRight, ShoppingCart, X, AlertTriangle
+  CreditCard, ChevronRight, ShoppingCart, X, AlertTriangle, Play, Film
 } from 'lucide-react';
 import { HostingPlan, AuthUser, FreeTrialSettings, SiteSettings } from '../types';
+import { HostingTutorialSection } from './HostingTutorialSection';
 
 interface PlansPageProps {
   user: AuthUser | null;
@@ -43,11 +44,23 @@ export const PlansPage: React.FC<PlansPageProps> = ({
 
   useEffect(() => {
     fetchPlans();
+
+    try {
+      const cached = localStorage.getItem('hlf_site_settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.hostingVideoUrl) {
+          setHostingVideoUrl(parsed.hostingVideoUrl);
+        }
+      }
+    } catch {}
+
     fetch('/api/site-settings')
       .then((res) => res.json())
       .then((data) => {
-        if (data.settings?.hostingVideoUrl) {
-          setHostingVideoUrl(data.settings.hostingVideoUrl);
+        const found = data?.settings?.hostingVideoUrl || data?.hostingVideoUrl;
+        if (found) {
+          setHostingVideoUrl(found);
         }
       })
       .catch(() => {});
@@ -56,12 +69,21 @@ export const PlansPage: React.FC<PlansPageProps> = ({
       fetchPlans();
     };
 
+    const handleSettingsUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<any>;
+      if (customEvent.detail?.hostingVideoUrl) {
+        setHostingVideoUrl(customEvent.detail.hostingVideoUrl);
+      }
+    };
+
     window.addEventListener('plans-updated', handlePlansUpdated);
     window.addEventListener('focus', handlePlansUpdated);
+    window.addEventListener('site-settings-updated', handleSettingsUpdate);
 
     return () => {
       window.removeEventListener('plans-updated', handlePlansUpdated);
       window.removeEventListener('focus', handlePlansUpdated);
+      window.removeEventListener('site-settings-updated', handleSettingsUpdate);
     };
   }, []);
 
@@ -501,6 +523,15 @@ export const PlansPage: React.FC<PlansPageProps> = ({
           );
         })}
       </div>
+
+      {/* Video Tutorial & How to Get Hosting Guide */}
+      <HostingTutorialSection
+        lang={lang}
+        videoUrl={hostingVideoUrl}
+        onNavigateToWallet={onNavigateToWallet}
+        onNavigateToDeploy={onNavigateToDeploy}
+        type="plans"
+      />
 
       {/* Confirmation Modal */}
       {confirmPlan && (
