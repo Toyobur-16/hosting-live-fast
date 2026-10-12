@@ -18,7 +18,7 @@ import {
   ShieldCheck,
   Check
 } from 'lucide-react';
-import { AuthUser } from '../types';
+import { AuthUser, SiteSettings } from '../types';
 import { auth, fallbackAuth, googleProvider, signInWithPopup, firebaseAppletConfig } from '../lib/firebase';
 
 export type AuthMode = 'login' | 'register' | 'forgot' | 'reset' | 'activation_pending';
@@ -32,6 +32,7 @@ interface AuthModalProps {
   initialEmail?: string;
   initialMode?: AuthMode;
   resetToken?: string;
+  siteSettings?: SiteSettings;
 }
 
 async function safeJsonParse(res: Response): Promise<any> {
@@ -78,7 +79,8 @@ export const AuthModal = ({
   lang = 'bn',
   initialEmail = '',
   initialMode = 'login',
-  resetToken = ''
+  resetToken = '',
+  siteSettings
 }: AuthModalProps) => {
   const [mode, setMode] = useState<AuthMode>(() => normalizeMode(initialMode));
   const [name, setName] = useState('');
@@ -443,8 +445,8 @@ export const AuthModal = ({
                 ? '১-ক্লিকে ইনস্ট্যান্ট অ্যাক্টিভেশন • ইমেইল ভেরিফিকেশনের কোনো ঝামেলা নেই'
                 : 'Instant 1-Click Access · Zero Email Verification Required'
               : lang === 'bn'
-              ? 'হোস্টিং লাইভ ফাস্টে আপনার বট ও ওয়ালেটে নিরাপদে প্রবেশ করুন'
-              : 'Access your hosted bots, websites, and balance'}
+              ? `${siteSettings?.siteNameBn || siteSettings?.siteName || 'হোস্টিং লাইভ ফাস্ট'}-এ আপনার বট ও ওয়ালেটে নিরাপদে প্রবেশ করুন`
+              : `Access your hosted bots, websites, and balance on ${siteSettings?.siteName || 'hosting live fast'}`}
           </p>
         </div>
 

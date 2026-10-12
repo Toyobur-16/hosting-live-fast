@@ -706,6 +706,7 @@ if (!fs.existsSync(PAYMENT_SETTINGS_FILE)) {
 
 const DEFAULT_SITE_SETTINGS = {
   siteName: 'hosting-live-fast',
+  siteNameBn: 'হোস্টিং লাইভ ফাস্ট',
   logoUrl: '/site-logo.png',
   taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
   taglineEn: '24/7 Fast Bot & Top Up Service',
@@ -6083,6 +6084,7 @@ app.post('/api/admin/site-settings', (req, res) => {
 
   const {
     siteName,
+    siteNameBn,
     logoUrl,
     apkIconUrl,
     taglineBn,
@@ -6111,6 +6113,7 @@ app.post('/api/admin/site-settings', (req, res) => {
   const updated = {
     ...current,
     ...(typeof siteName === 'string' ? { siteName: siteName.trim() } : {}),
+    ...(typeof siteNameBn === 'string' ? { siteNameBn: siteNameBn.trim() } : {}),
     ...(finalLogoUrl !== undefined ? { logoUrl: finalLogoUrl } : {}),
     ...(finalApkIconUrl !== undefined ? { apkIconUrl: finalApkIconUrl } : {}),
     ...(typeof taglineBn === 'string' ? { taglineBn: taglineBn.trim() } : {}),
@@ -9307,15 +9310,6 @@ async function initSiteConfigSync() {
 
       if (hasMeaningfulChanges) {
         const merged = { ...DEFAULT_SITE_SETTINGS, ...remoteSettings };
-        if (merged.siteName === 'hosting live fast' || merged.siteName === 'Hosting Live Fast') {
-          merged.siteName = 'hosting-live-fast';
-        }
-        if (merged.taglineBn && merged.taglineBn.includes('ক্লাউড')) {
-          merged.taglineBn = merged.taglineBn.replace(/ক্লাউড\s*/g, '');
-        }
-        if (merged.taglineEn && /cloud/i.test(merged.taglineEn)) {
-          merged.taglineEn = merged.taglineEn.replace(/cloud\s*/gi, '');
-        }
         delete merged.updatedAt;
         saveSiteSettings(merged);
         console.log('✅ Restored site_settings from Firebase Firestore:', merged.siteName);

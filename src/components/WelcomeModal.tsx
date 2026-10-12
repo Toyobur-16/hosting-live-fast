@@ -32,8 +32,8 @@ export const WelcomeModal = ({
   const title =
     siteSettings.welcomeMessageTitle ||
     (lang === 'bn'
-      ? `🎉 স্বাগতম ${user?.name ? user.name + '!' : 'হোস্টিং লাইভ ফাস্ট-এ!'}`
-      : `🎉 Welcome ${user?.name ? user.name + '!' : 'to Hosting Live Fast!'}`);
+      ? `🎉 স্বাগতম ${user?.name ? user.name + '!' : `${siteSettings.siteNameBn || siteSettings.siteName || 'হোস্টিং লাইভ ফাস্ট'}-এ!`}`
+      : `🎉 Welcome ${user?.name ? user.name + '!' : `to ${siteSettings.siteName || 'Hosting Live Fast'}!`}`);
 
   const badge =
     siteSettings.welcomeMessageBadge ||

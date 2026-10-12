@@ -4,7 +4,7 @@ import {
   CheckCircle2, ArrowRight, Wallet, RefreshCw, Clock, Bot,
   CreditCard, ChevronRight, ShoppingCart, X, AlertTriangle
 } from 'lucide-react';
-import { HostingPlan, AuthUser, FreeTrialSettings } from '../types';
+import { HostingPlan, AuthUser, FreeTrialSettings, SiteSettings } from '../types';
 
 interface PlansPageProps {
   user: AuthUser | null;
@@ -14,6 +14,7 @@ interface PlansPageProps {
   lang: 'bn' | 'en';
   onNavigateToDeploy?: () => void;
   onNavigateToSupport?: () => void;
+  siteSettings?: SiteSettings;
 }
 
 export const PlansPage: React.FC<PlansPageProps> = ({
@@ -23,7 +24,8 @@ export const PlansPage: React.FC<PlansPageProps> = ({
   onPlanActivated,
   lang,
   onNavigateToDeploy,
-  onNavigateToSupport
+  onNavigateToSupport,
+  siteSettings
 }) => {
   const [plans, setPlans] = useState<HostingPlan[]>([]);
   const [freeTrial, setFreeTrial] = useState<FreeTrialSettings | null>(null);
@@ -218,7 +220,9 @@ export const PlansPage: React.FC<PlansPageProps> = ({
               </button>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              {lang === 'bn' ? '১ মাস থেকে ১ বছর মেয়াদি hosting live fast' : 'hosting live fast (1 Month to 1 Year)'}
+              {lang === 'bn'
+                ? `১ মাস থেকে ১ বছর মেয়াদি ${siteSettings?.siteNameBn || siteSettings?.siteName || 'হোস্টিং লাইভ ফাস্ট'}`
+                : `${siteSettings?.siteName || 'hosting live fast'} (1 Month to 1 Year)`}
             </h1>
             <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
               {lang === 'bn'

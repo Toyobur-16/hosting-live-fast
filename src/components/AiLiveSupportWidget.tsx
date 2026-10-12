@@ -37,6 +37,7 @@ interface Message {
 interface AiLiveSupportWidgetProps {
   currentUser: AuthUser | null;
   siteName?: string;
+  siteNameBn?: string;
   lang?: 'bn' | 'en';
   onToggleLang?: () => void;
   onSelectLang?: (lang: 'bn' | 'en') => void;
@@ -56,6 +57,7 @@ export const AiLiveSupportWidget: React.FC<AiLiveSupportWidgetProps> = (props) =
   const {
     currentUser,
     siteName = 'hosting live fast',
+    siteNameBn,
     lang = 'bn',
     onToggleLang,
     onSelectLang,
@@ -109,8 +111,8 @@ export const AiLiveSupportWidget: React.FC<AiLiveSupportWidgetProps> = (props) =
         id: 'welcome_1',
         sender: 'bot',
         text: currentLang === 'en'
-          ? `👋 **Hello${currentUser?.name ? ' ' + currentUser.name : ''}!**\nI am the official **24/7 AI Live Support Intelligence & Lead Engineer** for HostingLiveFast.\n\n🎯 **What I can do for you:**\n• 💡 **Ask Any Question:** Ask me anything you want—programming, general knowledge, science, mathematics, or questions about this platform!\n• 🎨 **Picture-to-Website:** Send any screenshot or photo to generate responsive HTML/Tailwind website code.\n• 🛠️ **Code Fixer:** Automatic debugging for Python & Node.js Telegram bots.\n• 🛡️ **24/7 Bot Guardian:** Keeping all your Telegram bots alive non-stop around the clock.\n• 💳 **Deposit & Wallet:** bKash, Nagad, Binance USDT instructions & balance help.\n\nType any question, paste your code, or attach an image to get started!`
-          : `👋 **আসসালামু আলাইকুম${currentUser?.name ? ' ' + currentUser.name : ''}!**\nআমি হোস্টিংলাইভফাস্ট-এর **২৪/৭ এআই লাইভ সাপোর্ট, সিনিয়র ইঞ্জিনিয়ার ও কোড ফিক্সার**।\n\n🎯 **আমি কী করতে পারি:**\n• 💡 **যেকোনো প্রশ্ন করুন:** আপনার ইচ্ছামতো যেকোনো প্রশ্ন—সাধারণ জ্ঞান, পড়াশোনা, প্রোগ্রামিং বা সাইটের যেকোনো বিষয় জানতে পারেন!\n• 🎨 **ছবি দিয়ে ওয়েবসাইট ও কোড তৈরি:** যেকোনো স্ক্রিনশট বা ছবি দিলে সম্পূর্ণ রেসপনসিভ ওয়েবসাইট HTML/Tailwind কোড তৈরি করে দেওয়া।\n• 🛠️ **টেলিগ্রাম বট কোড ফিক্সার:** পাইথন বা নোডজেএস কোডের ভুল ও এরর ১০০% ঠিক করে দেওয়া।\n• 🛡️ **২৪ ঘণ্টা বট গার্ডিয়ান:** আপনার টেলিগ্রাম বট ২৪ ঘণ্টা অবিরাম লাইভ রাখা যাতে কখনো বন্ধ না হয়।\n• 💳 **ওয়ালেট ডিপোজিট:** বিকাশ, নগদ ও বাইন্যান্স পে সংক্রান্ত যেকোনো সাহায্য।\n\nনিচে যেকোনো প্রশ্ন বা বার্তা লিখুন অথবা ছবি আপলোড করে মুহূর্তেই কোড তৈরি করে নিন!`,
+          ? `👋 **Hello${currentUser?.name ? ' ' + currentUser.name : ''}!**\nI am the official **24/7 AI Live Support Intelligence & Lead Engineer** for ${siteName || 'HostingLiveFast'}.\n\n🎯 **What I can do for you:**\n• 💡 **Ask Any Question:** Ask me anything you want—programming, general knowledge, science, mathematics, or questions about this platform!\n• 🎨 **Picture-to-Website:** Send any screenshot or photo to generate responsive HTML/Tailwind website code.\n• 🛠️ **Code Fixer:** Automatic debugging for Python & Node.js Telegram bots.\n• 🛡️ **24/7 Bot Guardian:** Keeping all your Telegram bots alive non-stop around the clock.\n• 💳 **Deposit & Wallet:** bKash, Nagad, Binance USDT instructions & balance help.\n\nType any question, paste your code, or attach an image to get started!`
+          : `👋 **আসসালামু আলাইকুম${currentUser?.name ? ' ' + currentUser.name : ''}!**\nআমি ${siteNameBn || siteName || 'হোস্টিংলাইভফাস্ট'}-এর **২৪/৭ এআই লাইভ সাপোর্ট, সিনিয়র ইঞ্জিনিয়ার ও কোড ফিক্সার**।\n\n🎯 **আমি কী করতে পারি:**\n• 💡 **যেকোনো প্রশ্ন করুন:** আপনার ইচ্ছামতো যেকোনো প্রশ্ন—সাধারণ জ্ঞান, পড়াশোনা, প্রোগ্রামিং বা সাইটের যেকোনো বিষয় জানতে পারেন!\n• 🎨 **ছবি দিয়ে ওয়েবসাইট ও কোড তৈরি:** যেকোনো স্ক্রিনশট বা ছবি দিলে সম্পূর্ণ রেসপনসিভ ওয়েবসাইট HTML/Tailwind কোড তৈরি করে দেওয়া।\n• 🛠️ **টেলিগ্রাম বট কোড ফিক্সার:** পাইথন বা নোডজেএস কোডের ভুল ও এরর ১০০% ঠিক করে দেওয়া।\n• 🛡️ **২৪ ঘণ্টা বট গার্ডিয়ান:** আপনার টেলিগ্রাম বট ২৪ ঘণ্টা অবিরাম লাইভ রাখা যাতে কখনো বন্ধ না হয়।\n• 💳 **ওয়ালেট ডিপোজিট:** বিকাশ, নগদ ও বাইন্যান্স পে সংক্রান্ত যেকোনো সাহায্য।\n\nনিচে যেকোনো প্রশ্ন বা বার্তা লিখুন অথবা ছবি আপলোড করে মুহূর্তেই কোড তৈরি করে নিন!`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ];
@@ -322,17 +324,17 @@ ${errorLog.trim() ? `কনসোল এরর বা সমস্যা:\n\`\`\
   const quickPrompts = currentLang === 'en'
     ? [
         { label: '💡 Ask Any Question', query: 'What capabilities do you have, and how can you help me today?' },
-        { label: '🤖 Platform Features', query: 'Explain all the features and advantages of hosting bots on hosting-live-fast.' },
+        { label: '🤖 Platform Features', query: `Explain all the features and advantages of hosting bots on ${siteName || 'hosting-live-fast'}.` },
         { label: '🎨 Photo to Website', query: 'Can you generate a modern responsive website with HTML & Tailwind CSS based on an image?' },
         { label: '🛠️ Fix Bot Code', query: 'My Telegram bot is throwing an error. How do I fix the code and keep it running 24/7?' },
         { label: '🛡️ 24/7 Guardian', query: 'How does the 24/7 AI Bot Guardian prevent my Telegram bots from stopping?' },
         { label: '💳 How to Deposit?', query: 'How can I deposit money via bKash, Nagad, or Binance Pay?' },
-        { label: '🌐 Website Hosting', query: 'How do I upload and host HTML/CSS/JS websites on HostingLiveFast?' },
+        { label: '🌐 Website Hosting', query: `How do I upload and host HTML/CSS/JS websites on ${siteName || 'HostingLiveFast'}?` },
         { label: '📞 Contact Admin', query: 'I want to talk directly to the human administrator.' }
       ]
     : [
         { label: '💡 যেকোনো প্রশ্ন করুন', query: 'আপনি কী কী বিষয়ে আমাকে সাহায্য করতে পারেন এবং কীভাবে কাজ করেন?' },
-        { label: '🤖 সাইটের সকল সুবিধা', query: 'হোস্টিংলাইভফাস্ট (hosting-live-fast) প্ল্যাটফর্মের সকল সুবিধা ও ফিচার বিস্তারিত বলুন।' },
+        { label: '🤖 সাইটের সকল সুবিধা', query: `${siteNameBn || siteName || 'হোস্টিংলাইভফাস্ট'} প্ল্যাটফর্মের সকল সুবিধা ও ফিচার বিস্তারিত বলুন।` },
         { label: '🎨 ছবি দিয়ে ওয়েবসাইট বানান', query: 'একটি ছবি বা ডিজাইনের মতো সুন্দর রেসপনসিভ ওয়েবসাইট এবং কোড তৈরি করে দিন।' },
         { label: '🛠️ বটের কোড ঠিক করুন', query: 'আমার টেলিগ্রাম বটের কোডে ভুল হচ্ছে বা এরর দিচ্ছে। কীভাবে কোড ঠিক করব?' },
         { label: '🛡️ ২৪ ঘণ্টা এআই গার্ডিয়ান', query: '২৪ ঘণ্টা এআই বট গার্ডিয়ান কীভাবে আমার বটকে বন্ধ হতে দেয় না?' },
@@ -648,7 +650,9 @@ ${errorLog.trim() ? `কনসোল এরর বা সমস্যা:\n\`\`\
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <h3 className="font-bold text-white text-xs sm:text-sm truncate">
-                      {siteName || 'hosting live fast'}
+                      {currentLang === 'bn'
+                        ? (siteNameBn || siteName || 'হোস্টিং লাইভ ফাস্ট')
+                        : (siteName || 'hosting live fast')}
                     </h3>
                   </div>
                   <p className="text-[10px] sm:text-xs text-emerald-400 flex items-center gap-1 truncate font-medium">

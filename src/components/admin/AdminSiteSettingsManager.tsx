@@ -14,6 +14,7 @@ export function AdminSiteSettingsManager() {
         const parsed = JSON.parse(cached);
         return {
           siteName: parsed.siteName || 'hosting-live-fast',
+          siteNameBn: parsed.siteNameBn || 'হোস্টিং লাইভ ফাস্ট',
           logoUrl: normalizeLogoUrl(parsed.logoUrl || '/site-logo.png'),
           apkIconUrl: parsed.apkIconUrl ? normalizeLogoUrl(parsed.apkIconUrl) : undefined,
           taglineBn: parsed.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
@@ -31,6 +32,7 @@ export function AdminSiteSettingsManager() {
     } catch {}
     return {
       siteName: 'hosting-live-fast',
+      siteNameBn: 'হোস্টিং লাইভ ফাস্ট',
       logoUrl: '/site-logo.png',
       apkIconUrl: '/pwa-192x192.png',
       taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
@@ -771,17 +773,38 @@ export function AdminSiteSettingsManager() {
           </p>
         </div>
 
-        <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-            সাইটের নাম (Site Name)
-          </label>
-          <input
-            type="text"
-            value={settings.siteName || ''}
-            onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
-            placeholder="hosting live fast"
-            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              সাইটের নাম - ইংরেজি (Site Name English)
+            </label>
+            <input
+              type="text"
+              value={settings.siteName || ''}
+              onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
+              placeholder="hosting-live-fast"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500 font-mono"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              ডোমেইন, ব্রাউজার হেডার ও ইংরেজি ইন্টারফেসে ব্যবহৃত হবে।
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              সাইটের নাম - বাংলা (Site Name Bengali)
+            </label>
+            <input
+              type="text"
+              value={settings.siteNameBn || ''}
+              onChange={(e) => setSettings({ ...settings, siteNameBn: e.target.value })}
+              placeholder="হোস্টিং লাইভ ফাস্ট"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#070b14] border border-slate-200 dark:border-[#162035] text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:border-amber-500"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              যেখানে যেখানে 'হোস্টিং লাইভ ফাস্ট' লেখা আছে তা এই নামে পরিবর্তিত হবে।
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

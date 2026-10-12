@@ -80,7 +80,9 @@ export const Header: React.FC<HeaderProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-[#1e293b] dark:text-white flex items-center gap-1.5">
-                {siteSettings?.siteName || 'hosting-live-fast'}
+                {lang === 'bn'
+                  ? (siteSettings?.siteNameBn || siteSettings?.siteName || 'হোস্টিং লাইভ ফাস্ট')
+                  : (siteSettings?.siteName || 'hosting-live-fast')}
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold">
                   TOP UP
                 </span>

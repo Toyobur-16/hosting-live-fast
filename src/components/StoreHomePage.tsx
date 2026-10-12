@@ -597,7 +597,11 @@ export function StoreHomePage({
       <div className="rounded-3xl border border-slate-200 dark:border-[#1e2d48] bg-white dark:bg-[#0d1527] p-6 shadow-xl transition-colors space-y-4">
         <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Zap className="w-5 h-5 text-[#00d293]" />
-          <span>{lang === 'bn' ? 'কেন hosting live fast বেছে নেবেন?' : 'Why Choose hosting live fast?'}</span>
+          <span>
+            {lang === 'bn'
+              ? `কেন ${siteSettings?.siteNameBn || siteSettings?.siteName || 'হোস্টিং লাইভ ফাস্ট'} বেছে নেবেন?`
+              : `Why Choose ${siteSettings?.siteName || 'hosting live fast'}?`}
+          </span>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">

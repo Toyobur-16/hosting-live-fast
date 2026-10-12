@@ -50,6 +50,7 @@ export default function App() {
         const parsed = JSON.parse(cached);
         return {
           siteName: parsed.siteName || 'hosting-live-fast',
+          siteNameBn: parsed.siteNameBn || 'হোস্টিং লাইভ ফাস্ট',
           logoUrl: normalizeLogoUrl(parsed.logoUrl || '/site-logo.png'),
           taglineBn: parsed.taglineBn || '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
           taglineEn: parsed.taglineEn || '24/7 Fast Bot & Top Up Service',
@@ -60,6 +61,7 @@ export default function App() {
     } catch {}
     return {
       siteName: 'hosting-live-fast',
+      siteNameBn: 'হোস্টিং লাইভ ফাস্ট',
       logoUrl: '/site-logo.png',
       taglineBn: '২৪/৭ বট হোস্টিং ও টপ আপ সার্ভিস',
       taglineEn: '24/7 Fast Bot & Top Up Service'
@@ -979,6 +981,7 @@ export default function App() {
             lang={lang}
             onNavigateToDeploy={handleDeployNewBot}
             onNavigateToSupport={() => setActiveTab('support')}
+            siteSettings={siteSettings}
           />
         )}
 
@@ -1125,6 +1128,7 @@ export default function App() {
           }
         }}
         lang={lang}
+        siteSettings={siteSettings}
       />
 
       {showNewBotModal && (
@@ -1251,6 +1255,7 @@ export default function App() {
       <AiLiveSupportWidget
         currentUser={currentUser}
         siteName={siteSettings.siteName}
+        siteNameBn={siteSettings.siteNameBn}
         lang={lang}
         onToggleLang={() => setLang((prev) => (prev === 'bn' ? 'en' : 'bn'))}
         onSelectLang={(target) => setLang(target)}

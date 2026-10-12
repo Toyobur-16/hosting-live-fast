@@ -462,6 +462,7 @@ export interface BinancePayOrder {
 
 export interface SiteSettings {
   siteName: string;
+  siteNameBn?: string;
   logoUrl?: string;
   apkIconUrl?: string;
   taglineBn?: string;
