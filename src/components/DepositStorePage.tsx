@@ -30,6 +30,7 @@ import {
 import { AuthUser, DepositMethodItem } from '../types';
 import { playDepositSuccessSound } from '../utils/audioAlert';
 import { checkIsAdmin } from '../utils/adminCheck';
+import { AutoPayDepositModal } from './AutoPayDepositModal';
 import { db, doc, setDoc, onSnapshot } from '../lib/firebase';
 
 export interface DepositStorePageProps {
@@ -44,6 +45,13 @@ export interface DepositStorePageProps {
 export const BkashLogo = ({ className = "w-11 h-11" }: { className?: string }) => (
   <div className={`${className} rounded-2xl bg-[#E2136E] flex items-center justify-center p-2 shadow-lg shadow-[#E2136E]/25 shrink-0 text-white font-black text-xs`}>
     বিকাশ
+  </div>
+);
+
+
+export const RocketLogo = ({ className = "w-11 h-11" }: { className?: string }) => (
+  <div className={`${className} rounded-2xl bg-[#8c3494] flex items-center justify-center p-2 shadow-lg shadow-[#8c3494]/25 shrink-0 text-white font-black text-xs`}>
+    রকেট
   </div>
 );
 
@@ -110,8 +118,10 @@ const BDT_RATE = 120; // 1 USDT = 120 BDT
 export function DepositStorePage({
   user,
   onOpenAuthModal,
+  onNavigateToPlans,
   onNavigateToWallet,
-  onUserUpdated
+  onUserUpdated,
+  lang = 'bn'
 }: DepositStorePageProps) {
   const [methods, setMethods] = useState<DepositMethodItem[]>([]);
   const [selectedMethodId, setSelectedMethodId] = useState<string>('binance_pay');
@@ -169,6 +179,7 @@ export function DepositStorePage({
   // Deposit History
   const [myDeposits, setMyDeposits] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'deposit' | 'history'>('deposit');
+  const [showAutoPayModal, setShowAutoPayModal] = useState(false);
 
   // Check if current user is admin
   const isAdmin = useMemo(() => checkIsAdmin(user), [user]);
@@ -300,7 +311,7 @@ export function DepositStorePage({
   const isBdtMethod = selectedMethod?.currency === 'BDT' || 
     selectedMethod?.category === 'mfs' || 
     selectedMethod?.id === 'bkash' || 
-    selectedMethod?.id === 'nagad' || 
+    selectedMethod?.id === 'nagad' || selectedMethod?.id === 'rocket' || selectedMethod?.logoType === 'rocket' || 
     selectedMethod?.logoType === 'bkash' || 
     selectedMethod?.logoType === 'nagad';
 
@@ -490,6 +501,12 @@ export function DepositStorePage({
             বিকাশ
           </div>
         );
+      case 'rocket':
+        return (
+          <div className="w-10 h-10 rounded-xl bg-[#8c3494] flex items-center justify-center p-1 text-white font-black text-xs shrink-0 shadow-md">
+            রকেট
+          </div>
+        );
       case 'nagad':
         return (
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#D9381E] to-[#F7931E] flex items-center justify-center p-1 text-white font-black text-xs shrink-0 shadow-md">
@@ -528,6 +545,7 @@ export function DepositStorePage({
   const getSubtitleColor = (m: DepositMethodItem) => {
     if (m.logoType === 'bkash') return 'text-pink-400';
     if (m.logoType === 'nagad') return 'text-orange-400';
+    if (m.logoType === 'rocket') return 'text-purple-400';
     if (m.category === 'crypto') return 'text-amber-400';
     return 'text-[#00d293]';
   };
@@ -612,6 +630,38 @@ export function DepositStorePage({
                 <span className="sm:hidden">এডমিন মোড</span>
               </div>
             )}
+          </div>
+
+
+          {/* 🚀 AUTO PAY 3-STEP QUICK CHECKOUT BANNER (Matching Attached New File6.html) */}
+          <div className="p-4 rounded-3xl bg-gradient-to-r from-[#003399]/30 via-[#5b21b6]/25 to-[#e2136e]/20 border border-[#5b21b6]/40 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 backdrop-blur-md">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#5b21b6] text-white flex items-center justify-center shadow-lg shadow-[#5b21b6]/30 shrink-0">
+                <Wallet className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-black text-white">
+                    Auto Pay মোবাইল ব্যাংকিং গেটওয়ে
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold border border-pink-500/30">
+                    ৩-স্টেপ পেমেন্ট
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  bKash, Nagad, Rocket দিয়ে সরাসরি টাকার পরিমাণ দিয়ে মুহূর্তেই ডিপোজিট করুন
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAutoPayModal(true)}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#e2136e] via-[#5b21b6] to-[#003399] hover:opacity-95 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-[#e2136e]/25 cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <span>Auto Pay ওপেন করুন</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Gateways Grid: bKash, Nagad, Binance Pay / UID, USDT (BEP-20), USDT (TRC-20), Custom */}
@@ -1081,6 +1131,24 @@ export function DepositStorePage({
           )}
         </div>
       )}
+
+      
+      {/* AutoPay 3-Step Checkout Modal */}
+      <AutoPayDepositModal
+        isOpen={showAutoPayModal}
+        onClose={() => setShowAutoPayModal(false)}
+        user={user}
+        onOpenAuthModal={onOpenAuthModal}
+        methods={methods}
+        onDepositSuccess={(receipt) => {
+          setSubmittedReceipt(receipt);
+          setShowSuccessModal(true);
+          setShowAutoPayModal(false);
+          handleAutoSync(true);
+          fetchMyDeposits();
+        }}
+        lang={lang}
+      />
 
       {/* SUCCESS RECEIPT MODAL */}
       {showSuccessModal && submittedReceipt && (

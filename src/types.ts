@@ -333,7 +333,7 @@ export interface DepositMethodItem {
   accountLabel: string;
   memoOrTag?: string;
   instructions: string;
-  logoType: 'bkash' | 'nagad' | 'binance' | 'bep20' | 'trc20' | 'polygon' | 'ton' | 'custom';
+  logoType: 'bkash' | 'nagad' | 'rocket' | 'binance' | 'bep20' | 'trc20' | 'polygon' | 'ton' | 'custom';
   logoUrl?: string;
   qrImageUrl?: string;
   enabled: boolean;
@@ -371,6 +371,21 @@ export const DEFAULT_DEPOSIT_METHODS: DepositMethodItem[] = [
     enabled: true,
     rateToBdt: 120,
     color: '#F15A24'
+  },
+  {
+    id: 'rocket',
+    name: 'Rocket',
+    subtitle: 'Send Money',
+    category: 'mfs',
+    currency: 'BDT',
+    accountValue: '01700000000',
+    accountLabel: 'রকেট পার্সোনাল নম্বর (Send Money):',
+    instructions: 'রকেট পার্সোনাল নাম্বারে Send Money করুন। টাকা পাঠানো শেষে TrxID ও যে নাম্বার থেকে পাঠিয়েছেন তা নিচে লিখে কনফার্ম করুন।',
+    logoType: 'rocket',
+    logoUrl: 'https://i.ibb.co.com/mr7Hs740/images-1.png',
+    enabled: true,
+    rateToBdt: 120,
+    color: '#8c3494'
   },
   {
     id: 'binance_pay',
