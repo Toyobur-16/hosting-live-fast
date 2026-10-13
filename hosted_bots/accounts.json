@@ -536,5 +536,23 @@
     "createdAt": "2026-10-01T19:50:46.629Z",
     "updatedAt": 1791883233466,
     "password": ""
+  },
+  {
+    "id": "user_1791932917583_3rs4e",
+    "name": "Toyobur",
+    "email": "badsharahman@gmail.com",
+    "password": "mypassword123",
+    "isVerified": true,
+    "emailVerified": true,
+    "role": "user",
+    "plan": "free",
+    "planExpiresAt": null,
+    "maxBots": 1,
+    "maxWebsites": 2,
+    "maxStorageMb": 50,
+    "balanceBdt": 0,
+    "balanceUsd": 0,
+    "createdAt": "2026-10-13T23:08:37.583Z",
+    "hasReceivedWelcomeNotification": true
   }
 ]

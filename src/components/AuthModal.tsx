@@ -361,6 +361,13 @@ export const AuthModal = ({
     setError(null);
     setGoogleLoading(true);
 
+    // If user already typed their email in the form, authenticate directly with 1-click!
+    const cleanTypedEmail = (email || '').trim().toLowerCase();
+    if (cleanTypedEmail && cleanTypedEmail.includes('@') && cleanTypedEmail.includes('.')) {
+      await handleAuthenticateWithGoogleEmail(cleanTypedEmail);
+      return;
+    }
+
     // 1. Try Google Identity Services (runs securely on accounts.google.com, never hits NXDOMAIN)
     try {
       const g = (typeof window !== 'undefined' ? (window as any).google : null);

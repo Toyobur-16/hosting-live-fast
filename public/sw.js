@@ -1,30 +1,18 @@
 // Service Worker for hosting-live-fast PWA
-const CACHE_NAME = 'hlf-pwa-cache-v4';
+const CACHE_NAME = 'hlf-pwa-cache-v99-reset';
 const PRECACHE_URLS = [
-  '/',
-  '/index.html'
+  '/'
 ];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_URLS).catch((err) => {
-        console.warn('PWA Precache warning:', err);
-      });
-    })
-  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((name) => {
-          if (name !== CACHE_NAME) {
-            return caches.delete(name);
-          }
-        })
+        cacheNames.map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
   );

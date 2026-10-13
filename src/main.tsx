@@ -42,6 +42,16 @@ if (typeof window !== 'undefined') {
       navigator.serviceWorker
         .register('/sw.js')
         .then((reg) => {
+          reg.update();
+          if ('caches' in window) {
+            caches.keys().then((keys) => {
+              keys.forEach((k) => {
+                if (k !== 'hlf-pwa-cache-v99-reset') {
+                  caches.delete(k);
+                }
+              });
+            });
+          }
           console.log('✅ PWA Service Worker registered with scope:', reg.scope);
         })
         .catch((err) => {
