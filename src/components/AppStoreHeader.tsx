@@ -216,7 +216,7 @@ export function AppStoreHeader({
             }`}
           >
             <Coins className="w-3.5 h-3.5" />
-            {lang === 'bn' ? 'ডিপোজিট' : 'Deposit'}
+            Add Money
           </button>
 
           <button

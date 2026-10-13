@@ -121,9 +121,9 @@ export function SidebarDrawer({
     },
     {
       id: 'deposit-store',
-      label: lang === 'bn' ? 'ডিপোজিট (লাইভ টপ-আপ)' : 'Deposit (Live Top-Up)',
+      label: 'Add Money',
       icon: Coins,
-      badge: 'LIVE',
+      badge: 'AUTO',
       color: 'amber'
     },
     {

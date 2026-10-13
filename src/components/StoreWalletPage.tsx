@@ -671,7 +671,7 @@ export function StoreWalletPage({
 
           <button
             onClick={() => {
-              if (!user) onOpenAuthModal();
+              if (onNavigateToDepositStore) onNavigateToDepositStore();
               else setView('deposit');
             }}
             className={`px-2.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center ${
@@ -681,7 +681,7 @@ export function StoreWalletPage({
             }`}
           >
             <Plus className="w-3.5 h-3.5 stroke-[3] shrink-0" />
-            <span className="truncate">ডিপোজিট</span>
+            <span className="truncate">Add Money</span>
           </button>
 
           <button
@@ -793,17 +793,17 @@ export function StoreWalletPage({
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+              <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
                 <button
                   id="wallet-open-deposit-btn"
                   onClick={() => {
-                    if (!user) onOpenAuthModal();
+                    if (onNavigateToDepositStore) onNavigateToDepositStore();
                     else setView('deposit');
                   }}
                   className="px-4 py-2.5 sm:py-3 rounded-xl bg-[#00d293] hover:bg-[#00be84] text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-[#00d293]/30 cursor-pointer transition-all hover:scale-[1.02] active:scale-95"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>Deposit USDT</span>
+                  <span>Add Money</span>
                 </button>
 
                 <button
@@ -863,14 +863,7 @@ export function StoreWalletPage({
             ) : userRequests.length === 0 ? (
               <div className="p-8 rounded-2xl bg-[#0d1424] border border-[#1e2e42] text-center space-y-2">
                 <Clock className="w-8 h-8 text-slate-600 mx-auto" />
-                <p className="text-xs text-slate-400">কোনো ডিপোজিট রেকর্ড নেই। এখনই ডিপোজিট করুন।</p>
-                <button
-                  onClick={() => setView('deposit')}
-                  className="mt-2 px-4 py-2 rounded-xl bg-[#00d293] text-slate-950 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>টাকা জমা করুন</span>
-                </button>
+                <p className="text-xs text-slate-400">কোনো হিস্ট্রি রেকর্ড নেই।</p>
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -939,13 +932,23 @@ export function StoreWalletPage({
 
       {/* VIEW 2: DEPOSIT FUNDS */}
       {view === "deposit" && (
-        <DepositStorePage
-          user={user}
-          onOpenAuthModal={onOpenAuthModal}
-          onNavigateToPlans={onNavigateToPlans}
-          onNavigateToWallet={() => setView("overview")}
-          onUserUpdated={onUserUpdated}
-        />
+        <div className="w-full max-w-md mx-auto bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100 min-h-[750px] relative">
+          <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between">
+            <button
+              onClick={() => setView('overview')}
+              className="text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 cursor-pointer py-1"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>ওয়ালেটে ফিরে যান</span>
+            </button>
+            <span className="text-xs font-bold text-amber-400">⚡ AutoPay / Deposit</span>
+          </div>
+          <iframe
+            src="/deposit.html"
+            title="Deposit / Add Money"
+            className="w-full h-[780px] border-0 bg-white"
+          />
+        </div>
       )}
 
       {/* VIEW 3: FULL DEPOSIT HISTORY (Add Deposit History) */}
@@ -966,14 +969,6 @@ export function StoreWalletPage({
                 </p>
               </div>
             </div>
-
-            <button
-              onClick={() => setView('deposit')}
-              className="px-4 py-2.5 rounded-xl bg-[#00d293] hover:bg-[#00be84] text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer self-start sm:self-auto"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>নতুন ডিপোজিট করুন</span>
-            </button>
           </div>
 
           {/* Stats Summary Cards */}

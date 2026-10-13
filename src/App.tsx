@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle2, X, Bell } from 'lucide-react';
+import { CheckCircle2, X, Bell, ArrowLeft } from 'lucide-react';
 import { AppStoreHeader } from './components/AppStoreHeader';
 import { SidebarDrawer } from './components/SidebarDrawer';
 import { BottomNavBar } from './components/BottomNavBar';
@@ -973,17 +973,23 @@ export default function App() {
 
         {/* 3.5. Dedicated Deposit Store Page */}
         {activeTab === 'deposit-store' && (
-          <DepositStorePage
-            user={currentUser}
-            onOpenAuthModal={openAuthModal}
-            onNavigateToPlans={() => setActiveTab('plans')}
-            onNavigateToWallet={() => setActiveTab('wallet')}
-            onUserUpdated={(u) => {
-              setCurrentUser(u);
-              checkAuth();
-            }}
-            lang={lang}
-          />
+          <div className="w-full max-w-md mx-auto min-h-screen bg-white rounded-2xl overflow-hidden shadow-2xl relative my-0 sm:my-4">
+            <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between">
+              <button
+                onClick={() => setActiveTab('wallet')}
+                className="text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 cursor-pointer py-1"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>ওয়ালেটে ফিরে যান</span>
+              </button>
+              <span className="text-xs font-bold text-amber-400">⚡ AutoPay / Deposit</span>
+            </div>
+            <iframe
+              src="/deposit.html"
+              title="Deposit / Add Money"
+              className="w-full h-[85vh] min-h-[750px] border-0 bg-white"
+            />
+          </div>
         )}
 
         {/* 5. Support Center Page with Accordion FAQ */}

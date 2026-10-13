@@ -382,6 +382,17 @@ app.get('/sw.js', (req, res) => {
   res.status(404).end();
 });
 
+// Deposit / Add Money standalone page
+app.get(['/deposit', '/deposit.html'], (req, res) => {
+  const depositPath = path.join(process.cwd(), 'public', 'deposit.html');
+  if (fs.existsSync(depositPath)) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.sendFile(depositPath);
+  }
+  res.status(404).send('Deposit page not found');
+});
+
 // App Download & APK Info endpoint
 app.get('/api/app-download/info', (req, res) => {
   try {
@@ -4260,8 +4271,11 @@ function getMethodRateToBdt(methodNameOrId?: string): number {
   return 120; // Default fallback rate: 1 USD = 120 BDT
 }
 
-// Wallet Deposit Submission Endpoint
+// Wallet Deposit Submission Endpoint - Disabled as deposit requests are handled by external admin panel
 app.post('/api/wallet/deposit', async (req, res) => {
+  return res.status(403).json({
+    error: 'ডিপোজিট সিস্টেম বন্ধ রয়েছে। নতুন ডিপোজিট গেটওয়ে সংযুক্ত হওয়ার পর এটি চালু হবে।'
+  });
   let user = getAuthUser(req);
   if (!user && (req.body.userId || req.body.userEmail)) {
     const accounts = getAccounts();

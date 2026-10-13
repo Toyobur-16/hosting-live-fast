@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deposit / Add Money</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif}
+  .step-transition{animation:slideInRight .3s ease-out forwards}
+  @keyframes slideInRight{from{transform:translateX(10%);opacity:0}to{transform:translateX(0);opacity:1}}
+  input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+
+  .copy-btn{
+    background:rgba(255,255,255,0.95);
+    border-radius:8px;width:38px;height:38px;
+    display:flex;align-items:center;justify-content:center;
+    color:#1f2937;font-size:15px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.1);
+    transition:all .15s;border:none;cursor:pointer;
+    flex-shrink:0;
+  }
+  .copy-btn:active{transform:scale(0.92);background:#e5e7eb}
+
+  .instruction-row{
+    display:flex;gap:10px;padding:12px 0;
+    border-bottom:1px dashed rgba(255,255,255,0.25);
+    align-items:center;color:#fff;font-size:13px;line-height:1.5;
+  }
+  .instruction-row:last-child{border-bottom:none}
+  .instruction-row .dot{width:6px;height:6px;background:#fff;border-radius:50%;flex-shrink:0;margin-top:7px}
+
+  .verify-spinner{
+    width:60px;height:60px;
+    border:4px solid #e5e7eb;
+    border-top-color:#5b21b6;
+    border-radius:50%;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .pulse-dot{
+    display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:#10b981;margin-right:6px;
+    animation:pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+</style>
+</head>
+<body>
+
+<div class="max-w-md mx-auto min-h-screen bg-white relative pb-24 shadow-sm">
+
+  <!-- STEP 1 -->
+  <div id="am-step-1" class="step-transition min-h-screen bg-white">
+    <div class="bg-white p-4 border-b border-gray-100 flex items-center justify-between">
+      <div>
+        <h2 class="font-bold text-base text-gray-800">Add Money</h2>
+        <p class="text-xs text-gray-400 mt-0.5">Enter amount to continue</p>
+      </div>
+      <!-- USDT Rate Corner Badge -->
+      <div class="bg-purple-50 border border-purple-200 text-purple-700 px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-xs">
+        <i class="fas fa-exchange-alt text-[10px]"></i>
+        <span>১ USDT = ১২০ ৳</span>
+      </div>
+    </div>
+
+    <div class="px-4 pt-6">
+      <div class="text-center mb-6">
+        <div class="w-24 h-24 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3 overflow-hidden border-2 border-purple-100">
+          <img id="deposit-logo-img" src="" class="w-full h-full object-contain p-3 hidden" alt="Logo">
+          <i id="deposit-logo-icon" class="fas fa-wallet text-4xl text-purple-700"></i>
+        </div>
+        <p class="text-sm text-gray-500 mb-2">কত টাকা এড করতে চান?</p>
+
+        <div class="relative max-w-[200px] mx-auto">
+          <span class="absolute left-0 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-400">৳</span>
+          <input type="number" id="new-amount-input" min="10" placeholder="0"
+            class="w-full border-b-2 border-gray-300 py-3 pl-7 pr-2 text-center text-3xl font-bold text-gray-800 focus:outline-none focus:border-purple-600 bg-transparent">
+        </div>
+
+        <!-- USDT Equivalent in Corner / Below Input -->
+        <div class="mt-3 flex items-center justify-center">
+          <div id="usdt-calc-badge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold shadow-xs">
+            <i class="fas fa-coins text-amber-500"></i>
+            <span>বিকাশ/নগদ: <span id="usdt-equivalent-text">≈ 0.00 USDT</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-4 gap-2 mb-6">
+        <button onclick="setAmount(100)"  class="bg-gray-50 hover:bg-purple-50 border border-gray-200 text-gray-700 font-bold py-2.5 rounded-lg text-xs transition">৳100</button>
+        <button onclick="setAmount(200)"  class="bg-gray-50 hover:bg-purple-50 border border-gray-200 text-gray-700 font-bold py-2.5 rounded-lg text-xs transition">৳200</button>
+        <button onclick="setAmount(500)"  class="bg-gray-50 hover:bg-purple-50 border border-gray-200 text-gray-700 font-bold py-2.5 rounded-lg text-xs transition">৳500</button>
+        <button onclick="setAmount(1000)" class="bg-gray-50 hover:bg-purple-50 border border-gray-200 text-gray-700 font-bold py-2.5 rounded-lg text-xs transition">৳1000</button>
+      </div>
+
+      <button onclick="goToMethodStep()"
+        class="w-full bg-purple-700 text-white font-bold py-3 rounded-xl shadow-md active:scale-95 transition text-sm tracking-wide">
+        PROCEED TO PAYMENT
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div id="am-step-2" class="hidden step-transition min-h-screen bg-white">
+    <div class="bg-white p-3 flex items-center justify-between border-b border-gray-100 sticky top-0 z-10">
+      <button onclick="backToAmountStep()" class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <span class="font-bold text-sm text-gray-800">Select Payment Method</span>
+      <button onclick="resetDeposit()" class="text-gray-400 w-9 h-9 flex items-center justify-center">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="px-4 pt-8">
+      <div class="text-center mb-6">
+        <div class="w-24 h-24 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-purple-100 overflow-hidden">
+          <img id="autopay-logo-img" src="" class="w-full h-full object-contain p-3 hidden" alt="Logo">
+          <i id="autopay-logo-icon" class="fas fa-bolt text-4xl text-purple-700"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800 mb-1">Auto Pay</h2>
+        <p class="text-xs text-gray-400">Choose your payment method</p>
+
+        <!-- USDT Corner info on step 2 -->
+        <div class="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-xs font-bold">
+          <span>মোট: ৳<span id="step2-amount-bdt">0</span> = ≈ <span id="step2-amount-usdt">0.00</span> USDT</span>
+        </div>
+      </div>
+
+      <div id="method-list" class="grid grid-cols-2 gap-3">
+        <p class="col-span-2 text-center text-xs text-gray-400 py-8">Loading methods...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div id="am-step-3" class="hidden step-transition min-h-screen bg-white relative pb-24">
+    <div class="bg-white p-3 flex items-center justify-between border-b border-gray-100 sticky top-0 z-20">
+      <button onclick="backToMethodStep()" class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <!-- Corner USDT badge on step 3 header -->
+      <div class="bg-gray-100 text-gray-700 text-[11px] font-bold px-2.5 py-1 rounded-lg">
+        <span id="step3-corner-usdt">৳0 = 0.00 USDT</span>
+      </div>
+      <button onclick="resetDeposit()" class="text-gray-400 text-xl px-2">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="text-center py-5">
+      <img id="pay-method-logo" src="" class="h-10 mx-auto object-contain" alt="">
+    </div>
+
+    <div class="px-4">
+      <div id="payment-theme-card" class="rounded-2xl p-4 shadow-sm" style="background:#e2136e">
+        <div id="instruction-container">
+          <!-- Instruction populate হবে dynamically -->
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label id="trx-label" class="block text-xs font-bold text-gray-600 mb-2">ট্রানজেকশন আইডি</label>
+        <input type="text" id="pay-trx-input" maxlength="40"
+          placeholder="ট্রানজেকশন আইডি লিখুন"
+          class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-purple-500 transition uppercase">
+      </div>
+    </div>
+
+    <div class="fixed bottom-0 left-0 right-0 p-3 bg-white border-t border-gray-100 max-w-md mx-auto z-50">
+      <button onclick="handleNewVerify()" id="verify-btn"
+        class="w-full text-white font-bold py-3.5 rounded-xl shadow-md active:scale-95 transition text-sm tracking-wide"
+        style="background:#e2136e">
+        যাচাই করুন
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- VERIFYING OVERLAY -->
+<div id="verifyingOverlay" class="hidden fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-5">
+  <div class="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+    <div class="verify-spinner mx-auto mb-4"></div>
+    <h3 class="font-bold text-base text-gray-800 mb-1">Verifying Payment...</h3>
+    <p class="text-xs text-gray-500 mb-4">আপনার ট্রানজেকশন যাচাই করা হচ্ছে</p>
+    <div class="bg-gray-50 rounded-lg p-3 text-left">
+      <p class="text-[11px] text-gray-500 mb-1">
+        <span class="pulse-dot"></span>SMS এর অপেক্ষা করা হচ্ছে...
+      </p>
+      <p class="text-[11px] text-gray-400" id="verifyCountdown">⏳ ২০ সেকেন্ড বাকি...</p>
+    </div>
+    <div class="mt-4 flex items-center justify-center gap-2 text-[10px] text-gray-400">
+      <i class="fas fa-shield-alt"></i>
+      <span>Secure Verification</span>
+    </div>
+  </div>
+</div>
+
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyA08M7c1iHvXhQHeUf8kXS5cUvtJ8s_kqY",
+  authDomain: "hosting-live-fast-11b13.firebaseapp.com",
+  databaseURL: "https://hosting-live-fast-11b13-default-rtdb.firebaseio.com",
+  projectId: "hosting-live-fast-11b13",
+  storageBucket: "hosting-live-fast-11b13.firebasestorage.app",
+  messagingSenderId: "880032238370",
+  appId: "1:880032238370:web:c0510582bebc2ce71c737b"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+let currentUser = null;
+let currentDepositAmount = 0;
+let currentPaymentMethod = "";
+let currentPaymentType = "mobile_banking";
+let currentMethodData = null;
+let methodsCache = [];
+let verifyListener = null;
+let verifyTimeout = null;
+let countdownInterval = null;
+
+const VERIFY_TIMEOUT_SECONDS = 20;
+const USDT_RATE = 120; // ১ USDT = ১২০ ৳ (কত টাকায় কত USDT কনভার্সন রেট)
+
+auth.onAuthStateChanged(u => currentUser = u || null);
+
+/* ═══ REALTIME USDT CALCULATION ═══ */
+function calcUsdt(bdt) {
+  const num = parseFloat(bdt) || 0;
+  return (num / USDT_RATE).toFixed(2);
+}
+
+function updateUsdtBadge() {
+  const val = parseFloat(document.getElementById('new-amount-input').value) || 0;
+  const usdt = calcUsdt(val);
+  const textEl = document.getElementById('usdt-equivalent-text');
+  if (textEl) {
+    textEl.innerText = `≈ ${usdt} USDT (রেট: ১২০৳)`;
+  }
+}
+
+const amountInputEl = document.getElementById('new-amount-input');
+if (amountInputEl) {
+  amountInputEl.addEventListener('input', updateUsdtBadge);
+}
+
+/* UNIVERSAL COPY */
+function universalCopy(text) {
+  return new Promise(function(resolve) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text)
+        .then(function() { resolve(true); })
+        .catch(function() { resolve(fallbackCopy(text)); });
+    } else {
+      resolve(fallbackCopy(text));
+    }
+  });
+}
+
+function fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.width = '1px';
+    ta.style.height = '1px';
+    ta.style.padding = '0';
+    ta.style.border = 'none';
+    ta.style.outline = 'none';
+    ta.style.boxShadow = 'none';
+    ta.style.background = 'transparent';
+    ta.style.opacity = '0';
+    ta.setAttribute('readonly', '');
+    ta.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(ta);
+
+    const isIOS = /ipad|iphone|ipod/i.test(navigator.userAgent);
+    if (isIOS) {
+      const range = document.createRange();
+      range.selectNodeContents(ta);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      ta.setSelectionRange(0, 999999);
+    } else {
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, 999999);
+    }
+
+    const success = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return success;
+  } catch (e) {
+    return false;
+  }
+}
+
+function copyPayNumber() {
+  const n = (document.getElementById('pay-admin-number') ? document.getElementById('pay-admin-number').innerText : '').trim();
+  if (!n || n === 'Loading...' || n === '—') {
+    return Swal.fire({ toast: true, icon: 'warning', title: 'ID লোড হয়নি', position: 'top', timer: 1500, showConfirmButton: false });
+  }
+  universalCopy(n).then(function(ok) {
+    if (ok) {
+      Swal.fire({ toast: true, icon: 'success', title: '✅ Copied!', position: 'top', timer: 1400, showConfirmButton: false });
+    } else {
+      Swal.fire({
+        title: 'কপি করুন',
+        html: '<input id="manualCopyInput" value="' + n + '" style="width:100%;padding:14px;border:2px solid #5b21b6;border-radius:10px;text-align:center;font-size:20px;font-weight:bold;letter-spacing:1px;background:#f9fafb" readonly onclick="this.select()">',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#5b21b6',
+        didOpen: function() {
+          setTimeout(function() {
+            const inp = document.getElementById('manualCopyInput');
+            if (inp) { inp.focus(); inp.select(); }
+          }, 200);
+        }
+      });
+    }
+  });
+}
+
+function copyAmount() {
+  const amount = currentDepositAmount.toString();
+  universalCopy(amount).then(function(ok) {
+    if (ok) {
+      Swal.fire({ toast: true, icon: 'success', title: '✅ Amount Copied!', position: 'top', timer: 1400, showConfirmButton: false });
+    } else {
+      Swal.fire({
+        title: 'পরিমাণ কপি করুন',
+        html: '<input id="manualCopyInput" value="' + amount + '" style="width:100%;padding:14px;border:2px solid #5b21b6;border-radius:10px;text-align:center;font-size:22px;font-weight:bold;background:#f9fafb" readonly onclick="this.select()">',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#5b21b6'
+      });
+    }
+  });
+}
+
+function loadMethods() {
+  db.collection('payment_methods').onSnapshot(function(snap) {
+    methodsCache = [];
+    snap.forEach(d => {
+      const m = { id: d.id, ...d.data() };
+      if (m.enabled !== false) methodsCache.push(m);
+    });
+    methodsCache.sort((a,b) => (a.order||0) - (b.order||0));
+    renderMethods();
+  }, err => {
+    document.getElementById('method-list').innerHTML = '<p class="col-span-2 text-center text-xs text-red-500 py-6">Firestore rules চেক করুন</p>';
+  });
+}
+
+function renderMethods() {
+  const box = document.getElementById('method-list');
+  if (!methodsCache.length) {
+    box.innerHTML = '<p class="col-span-2 text-center text-xs text-gray-400 py-8">কোন মেথড নেই</p>';
+    return;
+  }
+  box.innerHTML = methodsCache.map((m, i) => `
+    <button onclick="goToPaymentPage(${i})"
+      class="bg-white border-2 border-gray-100 rounded-xl p-3 flex flex-col items-center justify-center gap-2 hover:border-purple-300 hover:shadow-md transition active:scale-95 h-24">
+      <img src="${m.logo}" class="h-7 object-contain" alt="${m.name}">
+      <span class="text-[11px] font-bold text-gray-600">${m.name}</span>
+    </button>
+  `).join('');
+}
+
+function loadDepositLogo() {
+  db.collection('settings').doc('ui').onSnapshot(function(doc) {
+    const img  = document.getElementById('deposit-logo-img');
+    const icon = document.getElementById('deposit-logo-icon');
+    const img2  = document.getElementById('autopay-logo-img');
+    const icon2 = document.getElementById('autopay-logo-icon');
+
+    if (doc.exists && doc.data().depositLogo) {
+      const logoUrl = doc.data().depositLogo;
+      img.src = logoUrl; img.classList.remove('hidden'); icon.classList.add('hidden');
+      img2.src = logoUrl; img2.classList.remove('hidden'); icon2.classList.add('hidden');
+    } else {
+      img.classList.add('hidden'); icon.classList.remove('hidden');
+      img2.classList.add('hidden'); icon2.classList.remove('hidden');
+    }
+  }, err => console.error('Logo error:', err));
+}
+
+function setAmount(v) {
+  document.getElementById('new-amount-input').value = v;
+  updateUsdtBadge();
+}
+
+function goToMethodStep() {
+  const v = document.getElementById('new-amount-input').value;
+  if (!v || Number(v) < 10) return Swal.fire('Error','সর্বনিম্ন ১০ টাকা দিন','error');
+  currentDepositAmount = parseInt(v, 10);
+  
+  // Update step 2 USDT info badge
+  const s2Bdt = document.getElementById('step2-amount-bdt');
+  const s2Usdt = document.getElementById('step2-amount-usdt');
+  if (s2Bdt) s2Bdt.innerText = currentDepositAmount;
+  if (s2Usdt) s2Usdt.innerText = calcUsdt(currentDepositAmount);
+
+  document.getElementById('am-step-1').classList.add('hidden');
+  document.getElementById('am-step-2').classList.remove('hidden');
+}
+
+function backToAmountStep() {
+  document.getElementById('am-step-2').classList.add('hidden');
+  document.getElementById('am-step-1').classList.remove('hidden');
+}
+
+/* ══════════════════════════════════════════
+   GO TO PAYMENT PAGE — Binance vs Mobile
+══════════════════════════════════════════ */
+function goToPaymentPage(idx) {
+  const m = methodsCache[idx];
+  if (!m) return;
+
+  currentPaymentMethod = m.name;
+  currentPaymentType = m.type || 'mobile_banking';
+  currentMethodData = m;
+
+  document.getElementById('pay-method-logo').src = m.logo || '';
+
+  const color = m.color || '#e2136e';
+  const card = document.getElementById('payment-theme-card');
+  card.style.background = color;
+  document.getElementById('verify-btn').style.background = color;
+
+  const container = document.getElementById('instruction-container');
+  const trxLabel = document.getElementById('trx-label');
+  const trxInput = document.getElementById('pay-trx-input');
+  const verifyBtn = document.getElementById('verify-btn');
+
+  // Update step 3 header corner badge
+  const s3Corner = document.getElementById('step3-corner-usdt');
+  if (s3Corner) {
+    if (currentPaymentType === 'binance') {
+      s3Corner.innerText = `${currentDepositAmount} USDT`;
+    } else {
+      s3Corner.innerText = `৳${currentDepositAmount} = ≈ ${calcUsdt(currentDepositAmount)} USDT`;
+    }
+  }
+
+  if (currentPaymentType === 'binance') {
+    /* ═══ BINANCE INSTRUCTIONS ═══ */
+    trxLabel.innerHTML = '<i class="fas fa-receipt mr-1"></i> Binance Order ID';
+    trxInput.placeholder = 'Order ID লিখুন';
+    verifyBtn.innerHTML = '<i class="fas fa-paper-plane mr-1"></i> SUBMIT ORDER';
+    verifyBtn.style.background = color;
+
+    container.innerHTML = `
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <p>আপনার <span class="font-bold">Binance App</span> খুলুন অথবা ওয়েবসাইটে যান।</p>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <p><b>Pay</b> → <b>Send</b> অপশনে যান।</p>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <div class="flex-1 flex items-center justify-between gap-2">
+          <div>
+            <p class="text-[11px] opacity-80">Binance UID / Pay ID</p>
+            <p class="font-bold tracking-wider text-base"><span id="pay-admin-number">${m.number || '—'}</span></p>
+          </div>
+          <button onclick="copyPayNumber()" class="copy-btn" type="button">
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <div class="flex-1 flex items-center justify-between gap-2">
+          <div>
+            <p class="text-[11px] opacity-80">পরিমাণ (USDT)</p>
+            <p class="font-bold text-base"><span>${currentDepositAmount}</span> USDT</p>
+          </div>
+          <button onclick="copyAmount()" class="copy-btn" type="button">
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <p>টাকা পাঠানোর পর আপনি একটি <b>Order ID</b> পাবেন।</p>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <p class="font-bold text-yellow-200">
+          নিচের বক্সে Order ID লিখুন এবং SUBMIT ORDER চাপুন।
+        </p>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <p style="font-size:11px;opacity:0.85">
+          ⏳ Admin ম্যানুয়ালি যাচাই করে Approve করলে ব্যালেন্স যোগ হবে।
+        </p>
+      </div>
+    `;
+  } else {
+    /* ═══ MOBILE BANKING INSTRUCTIONS (With USDT Corner Conversion) ═══ */
+    trxLabel.innerHTML = '<i class="fas fa-receipt mr-1"></i> ট্রানজেকশন আইডি';
+    trxInput.placeholder = 'ট্রানজেকশন আইডি লিখুন';
+    verifyBtn.innerHTML = '<i class="fas fa-shield-alt mr-1"></i> যাচাই করুন';
+    verifyBtn.style.background = color;
+
+    let methodBn = m.name;
+    if (m.name.toLowerCase() === 'bkash') methodBn = 'বিকাশ';
+    else if (m.name.toLowerCase() === 'nagad') methodBn = 'নগদ';
+    else if (m.name.toLowerCase() === 'rocket') methodBn = 'রকেট';
+
+    const usdtEquivalent = calcUsdt(currentDepositAmount);
+
+    container.innerHTML = `
+      <!-- Corner USDT conversion indicator -->
+      <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/20 text-white">
+        <span class="text-xs font-bold"><i class="fas fa-coins mr-1 text-yellow-300"></i> USDT কনভার্সন:</span>
+        <span class="text-xs font-black bg-white/25 px-2.5 py-0.5 rounded-full tracking-wide">৳${currentDepositAmount} = ≈ ${usdtEquivalent} USDT</span>
+      </div>
+
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <p>আপনার <span class="font-bold">${methodBn}</span> মোবাইল অ্যাপে যান।</p>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <p>"Send Money" নির্বাচন করুন।</p>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <div class="flex-1 flex items-center justify-between gap-2">
+          <p>নম্বর লিখুন: <b class="tracking-wider"><span id="pay-admin-number">${m.number || '—'}</span></b></p>
+          <button onclick="copyPayNumber()" class="copy-btn" type="button">
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <div class="flex-1 flex items-center justify-between gap-2">
+          <div>
+            <p>পরিমাণ লিখুন: <b><span>${currentDepositAmount}</span>.00 BDT</b></p>
+            <p class="text-[11px] opacity-85 font-medium">ডলার হিসেবে: <b>≈ ${usdtEquivalent} USDT</b> (রেট: ১২০৳)</p>
+          </div>
+          <button onclick="copyAmount()" class="copy-btn" type="button">
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <p>এখন নিশ্চিত করতে আপনার <span class="font-bold">${methodBn}</span> পিন লিখুন।</p>
+      </div>
+      <div class="instruction-row">
+        <span class="dot"></span>
+        <p>ট্রানজেকশন আইডি নিচের বক্সে লিখুন এবং যাচাই করুন চাপুন।</p>
+      </div>
+    `;
+  }
+
+  document.getElementById('am-step-2').classList.add('hidden');
+  document.getElementById('am-step-3').classList.remove('hidden');
+}
+
+function backToMethodStep() {
+  document.getElementById('am-step-3').classList.add('hidden');
+  document.getElementById('am-step-2').classList.remove('hidden');
+}
+
+/* ══════════════════════════════════════════
+   HANDLE VERIFY — Binance vs Mobile
+══════════════════════════════════════════ */
+function handleNewVerify() {
+  const trx = document.getElementById('pay-trx-input').value.trim().toUpperCase();
+  if (!trx) return Swal.fire('Required', currentPaymentType === 'binance' ? 'Order ID দিন' : 'ট্রানজেকশন আইডি দিন', 'warning');
+  if (trx.length < 4) return Swal.fire('Invalid', 'সঠিকভাবে লিখুন', 'warning');
+
+  /* ═══ BINANCE — Manual Submit ═══ */
+  if (currentPaymentType === 'binance') {
+    return submitBinanceDeposit(trx);
+  }
+
+  /* ═══ MOBILE BANKING — Auto Verify ═══ */
+  if (trx.length < 6) return Swal.fire('Invalid', 'ট্রানজেকশন আইডি সঠিক নয়', 'warning');
+
+  Swal.showLoading();
+  db.collection('deposits')
+    .where('trxId', '==', trx)
+    .where('status', 'in', ['pending', 'approved'])
+    .limit(1).get()
+    .then(function(snap) {
+      Swal.close();
+      if (!snap.empty) {
+        return Swal.fire({
+          icon: 'error',
+          title: '❌ এই TrxID আগেই ব্যবহার হয়েছে',
+          text: 'অন্য ট্রানজেকশন আইডি দিন।'
+        });
+      }
+      startVerification(trx);
+    })
+    .catch(function(err) {
+      Swal.close();
+      Swal.fire('Error', err.message, 'error');
+    });
+}
+
+/* ══════════════════════════════════════════
+   BINANCE MANUAL SUBMIT
+══════════════════════════════════════════ */
+function submitBinanceDeposit(orderId) {
+  const uid = currentUser ? currentUser.uid : 'test_user_' + Date.now();
+  const email = currentUser ? currentUser.email : 'test@demo.com';
+
+  Swal.showLoading();
+
+  // Duplicate check
+  db.collection('deposits')
+    .where('trxId', '==', orderId)
+    .limit(1).get()
+    .then(function(snap) {
+      if (!snap.empty) {
+        Swal.close();
+        return Swal.fire({
+          icon: 'error',
+          title: '❌ এই Order ID আগেই ব্যবহার হয়েছে',
+          text: 'অন্য Order ID দিন।'
+        });
+      }
+
+      // Save deposit
+      return db.collection('deposits').add({
+        userId: uid,
+        amount: currentDepositAmount,
+        trxId: orderId,
+        status: 'pending',
+        date: new Date(),
+        userEmail: email,
+        method: currentPaymentMethod,
+        methodType: 'binance',
+        receiveUid: currentMethodData ? currentMethodData.number : ''
+      })
+      .then(function() {
+        Swal.fire({
+          icon: 'success',
+          title: '✅ Order Submitted',
+          html: `
+            <div style="text-align:left;font-size:13px;line-height:1.8;color:#374151">
+              <b>Order ID:</b> ${orderId}<br>
+              <b>Amount:</b> ${currentDepositAmount} USDT<br>
+              <b>Method:</b> ${currentPaymentMethod}<br>
+              <b>To UID:</b> ${currentMethodData ? currentMethodData.number : '—'}<br><br>
+              <span style="color:#6b7280;font-size:11px">
+                আপনার Order টি Admin এর কাছে পাঠানো হয়েছে।<br>
+                Admin ম্যানুয়ালি যাচাই করে Approve করলে<br>
+                আপনার ব্যালেন্সে যোগ হবে।
+              </span>
+            </div>
+          `,
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#f59e0b',
+          allowOutsideClick: false
+        }).then(function() {
+          resetDeposit();
+        });
+      });
+    })
+    .catch(function(err) {
+      Swal.close();
+      Swal.fire('Error', err.message, 'error');
+    });
+}
+
+/* ══════════════════════════════════════════
+   MOBILE BANKING — AUTO VERIFY
+══════════════════════════════════════════ */
+function startVerification(trx) {
+  const uid = currentUser ? currentUser.uid : 'test_user_' + Date.now();
+  const email = currentUser ? currentUser.email : 'test@demo.com';
+
+  document.getElementById('verifyingOverlay').classList.remove('hidden');
+  let secondsLeft = VERIFY_TIMEOUT_SECONDS;
+  document.getElementById('verifyCountdown').innerText = '⏳ ' + secondsLeft + ' সেকেন্ড বাকি...';
+
+  countdownInterval = setInterval(() => {
+    secondsLeft--;
+    if (secondsLeft <= 0) {
+      clearInterval(countdownInterval);
+    } else {
+      document.getElementById('verifyCountdown').innerText = '⏳ ' + secondsLeft + ' সেকেন্ড বাকি...';
+    }
+  }, 1000);
+
+  const usdtVal = parseFloat(calcUsdt(currentDepositAmount));
+
+  db.collection('deposits').add({
+    userId: uid,
+    amount: currentDepositAmount,
+    amountBdt: currentDepositAmount,
+    amountUsdt: usdtVal,
+    usdtRate: USDT_RATE,
+    trxId: trx,
+    status: 'pending',
+    date: new Date(),
+    userEmail: email,
+    method: currentPaymentMethod,
+    methodType: 'mobile_banking'
+  })
+  .then(function(ref) {
+    verifyListener = ref.onSnapshot(function(doc) {
+      const data = doc.data();
+      if (!data) return;
+
+      if (data.status === 'approved') {
+        clearTimers();
+        document.getElementById('verifyingOverlay').classList.add('hidden');
+        showSuccess();
+      } else if (data.status === 'rejected') {
+        clearTimers();
+        document.getElementById('verifyingOverlay').classList.add('hidden');
+        showInvalid('আপনার পেমেন্ট বাতিল করা হয়েছে।');
+      }
+    });
+
+    verifyTimeout = setTimeout(function() {
+      ref.get().then(function(doc) {
+        const data = doc.data();
+        if (data && data.status === 'approved') return;
+
+        clearTimers();
+        document.getElementById('verifyingOverlay').classList.add('hidden');
+        ref.delete().catch(()=>{});
+        showInvalid();
+      });
+    }, VERIFY_TIMEOUT_SECONDS * 1000);
+  })
+  .catch(function(err) {
+    clearTimers();
+    document.getElementById('verifyingOverlay').classList.add('hidden');
+    Swal.fire('Error', err.message, 'error');
+  });
+}
+
+function clearTimers() {
+  if (verifyTimeout) { clearTimeout(verifyTimeout); verifyTimeout = null; }
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+  if (verifyListener) { verifyListener(); verifyListener = null; }
+}
+
+function showSuccess() {
+  const usdtAmount = calcUsdt(currentDepositAmount);
+  Swal.fire({
+    icon: 'success',
+    title: '✅ Payment Successful',
+    html: `
+      <div style="text-align:center;font-size:14px;line-height:1.8;color:#374151">
+        <p style="font-size:18px;font-weight:bold;color:#059669">৳${currentDepositAmount} Added</p>
+        <p style="font-size:13px;font-weight:bold;color:#4b5563">≈ ${usdtAmount} USDT</p>
+        <p style="font-size:12px;color:#6b7280;margin-top:6px">
+          আপনার ব্যালেন্সে সফলভাবে যোগ হয়েছে।
+        </p>
+      </div>
+    `,
+    confirmButtonText: 'OK',
+    confirmButtonColor: '#059669',
+    allowOutsideClick: false
+  }).then(function() {
+    resetDeposit();
+  });
+}
+
+function showInvalid(reason) {
+  Swal.fire({
+    icon: 'error',
+    title: '❌ Transaction খুঁজে পাওয়া যায়নি',
+    html: `
+      <div style="text-align:center;font-size:13px;line-height:1.7;color:#374151">
+        <p style="font-size:14px;font-weight:bold;color:#dc2626;margin-bottom:12px">
+          ${reason || 'আপনার Transaction টি খুঁজে পাওয়া যায়নি।'}
+        </p>
+        <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:12px;border-radius:8px;text-align:left;font-size:12px">
+          <p style="margin:0 0 6px 0;font-weight:bold">✅ যা যা চেক করুন:</p>
+          <p style="margin:4px 0">• টাকা <b>সঠিক নম্বরে</b> পাঠিয়েছেন কিনা</p>
+          <p style="margin:4px 0">• TrxID <b>সঠিকভাবে</b> লিখেছেন কিনা</p>
+          <p style="margin:4px 0">• Amount <b>সঠিক</b> দিয়েছেন কিনা</p>
+        </div>
+        <p style="font-size:11px;color:#6b7280;margin-top:12px">
+          সব ঠিক থাকলে আবার চেষ্টা করুন।
+        </p>
+      </div>
+    `,
+    confirmButtonText: 'আবার চেষ্টা করুন',
+    confirmButtonColor: '#dc2626',
+    allowOutsideClick: false
+  }).then(function() {
+    document.getElementById('pay-trx-input').value = '';
+  });
+}
+
+function resetDeposit() {
+  clearTimers();
+  currentDepositAmount = 0;
+  currentPaymentMethod = "";
+  currentPaymentType = "mobile_banking";
+  currentMethodData = null;
+  document.getElementById('new-amount-input').value = "";
+  document.getElementById('pay-trx-input').value = "";
+  updateUsdtBadge();
+  document.getElementById('am-step-2').classList.add('hidden');
+  document.getElementById('am-step-3').classList.add('hidden');
+  document.getElementById('am-step-1').classList.remove('hidden');
+}
+
+loadMethods();
+loadDepositLogo();
+updateUsdtBadge();
+console.log('%c Deposit Page Ready — Binance Support Added & USDT Conversion Enabled ', 'background:#f59e0b;color:#fff;padding:4px 8px;border-radius:4px');
+</script>
+</body>
+</html>

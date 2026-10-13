@@ -355,25 +355,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         });
       }
     }, () => {});
-
-    const unsubDep = onSnapshot(collection(db, 'deposits'), (snapshot) => {
-      if (!snapshot.empty) {
-        setRequests((prev) => {
-          const map = new Map<string, PlanRequest>();
-          prev.forEach((r) => { if (r && r.id) map.set(r.id, r); });
-          snapshot.forEach((d) => {
-            const data = d.data() as PlanRequest;
-            if (data && data.id) {
-              map.set(data.id, { ...map.get(data.id), ...data });
-            }
-          });
-          const list = Array.from(map.values());
-          list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-          return list;
-        });
-      }
-    }, () => {});
-
     // Real-Time live listener: user task submissions appear immediately in real-time
     const unsubTasks = onSnapshot(collection(db, 'task_completions'), (snapshot) => {
       if (!snapshot.empty) {
@@ -395,7 +376,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
     return () => {
       unsubPlan();
-      unsubDep();
       unsubTasks();
     };
   }, [isOpen]);
@@ -428,22 +408,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           if (r && r.id) reqMap.set(r.id, r);
         }
 
-        const [planSnap, depSnap] = await Promise.all([
-          getDocs(collection(db, 'plan_requests')).catch(() => null),
-          getDocs(collection(db, 'deposits')).catch(() => null)
-        ]);
+        const planSnap = await getDocs(collection(db, 'plan_requests')).catch(() => null);
 
         if (planSnap && !planSnap.empty) {
           planSnap.forEach((d) => {
-            const data = d.data() as PlanRequest;
-            if (data && data.id && !reqMap.has(data.id)) {
-              reqMap.set(data.id, data);
-            }
-          });
-        }
-
-        if (depSnap && !depSnap.empty) {
-          depSnap.forEach((d) => {
             const data = d.data() as PlanRequest;
             if (data && data.id && !reqMap.has(data.id)) {
               reqMap.set(data.id, data);
@@ -987,7 +955,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
-  const filteredRequests = requests.filter((r) => {
+  // Filter out all deposit requests - deposit requests are managed in external admin panel
+  const planOnlyRequests = requests.filter((r) => r.type !== 'deposit');
+
+  const filteredRequests = planOnlyRequests.filter((r) => {
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -1014,7 +985,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     );
   });
 
-  const pendingPlanRequestsCount = requests.filter((r) => r.status === 'pending').length;
+  const pendingPlanRequestsCount = planOnlyRequests.filter((r) => r.status === 'pending').length;
   const pendingTasksCount = taskSubmissions.filter((t) => t.status === 'pending').length;
   const totalPendingCount = pendingPlanRequestsCount + pendingTasksCount;
 
@@ -1178,8 +1149,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               className="flex items-center gap-1.5 overflow-x-auto py-0.5 scroll-smooth no-scrollbar flex-1"
             >
               {[
-                { id: 'requests' as AdminTabType, labelBn: 'অনুরোধ ও ডিপোজিট', labelEn: 'Requests & Deposits', icon: Clock, iconColor: 'text-sky-400', badge: Math.max(overview?.pendingRequestsCount || 0, totalPendingCount) },
-                { id: 'deposit-methods' as AdminTabType, labelBn: 'ডিপোজিট মেথড ও নাম্বার', labelEn: 'Deposit Methods', icon: CreditCard, iconColor: 'text-amber-400' },
+                { id: 'requests' as AdminTabType, labelBn: 'প্ল্যান সাবস্ক্রিপশন অনুরোধ', labelEn: 'Plan Requests', icon: Clock, iconColor: 'text-sky-400', badge: totalPendingCount },
                 { id: 'users' as AdminTabType, labelBn: 'ইউজার ও ওয়ালেট', labelEn: 'Users & Wallets', icon: Users, iconColor: 'text-indigo-400' },
                 { id: 'pricing' as AdminTabType, labelBn: 'প্যাকেজ ও প্রাইসিং', labelEn: 'Packages & Pricing', icon: DollarSign, iconColor: 'text-amber-400' },
                 { id: 'banners' as AdminTabType, labelBn: 'ব্যানার স্লাইডার', labelEn: 'Banners', icon: Sparkles, iconColor: 'text-pink-400' },
@@ -1269,7 +1239,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       : 'bg-[#09101d] border-[#1a2942] text-slate-400 hover:text-white hover:bg-[#121c2e]'
                   }`}
                 >
-                  <span>{lang === 'bn' ? '📦 প্ল্যান ও ডিপোজিট' : '📦 Plans & Deposits'}</span>
+                  <span>{lang === 'bn' ? '📦 প্ল্যান সাবস্ক্রিপশন' : '📦 Plan Subscriptions'}</span>
                   {pendingPlanRequestsCount > 0 && (
                     <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black">
                       {pendingPlanRequestsCount}
