@@ -147,8 +147,10 @@ export const isDepositRequest = (r: any): boolean => {
   return (
     r.type === 'deposit' ||
     r.planId === 'wallet_deposit' ||
-    (typeof r.planName === 'string' && r.planName.includes('ডিপোজিট')) ||
-    (typeof r.planName === 'string' && r.planName.toLowerCase().includes('deposit'))
+    Boolean(r.isDeposit) ||
+    (typeof r.id === 'string' && r.id.startsWith('dep_')) ||
+    (typeof r.planName === 'string' && (r.planName.includes('ডিপোজিট') || r.planName.toLowerCase().includes('deposit'))) ||
+    Boolean(r.amountBdt && !r.durationDays && !r.maxBots)
   );
 };
 
@@ -174,7 +176,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   const [requests, setRequests] = useState<PlanRequest[]>([]);
   const [taskSubmissions, setTaskSubmissions] = useState<TaskCompletionLog[]>([]);
-  const [requestCategory, setRequestCategory] = useState<'all' | 'plans' | 'tasks'>('all');
+  const [requestCategory, setRequestCategory] = useState<'all' | 'plans' | 'plans_deposits' | 'tasks'>('all');
   const [viewScreenshotUrl, setViewScreenshotUrl] = useState<string | null>(null);
   const [rejectingTaskSub, setRejectingTaskSub] = useState<TaskCompletionLog | null>(null);
   const [rejectTaskReason, setRejectTaskReason] = useState('');
@@ -313,7 +315,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   // Callback to trigger real-time deposit toast & sound
   const triggerDepositToast = React.useCallback((dep: PlanRequest) => {
-    if (!dep || !dep.id) return;
+    if (!dep || !dep.id || isDepositRequest(dep)) return;
     if (knownDepositIdsRef.current.has(dep.id)) return;
     knownDepositIdsRef.current.add(dep.id);
 
@@ -1101,6 +1103,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   const filteredRequests = requests.filter((r) => {
+    if (isDepositRequest(r)) return false;
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -1111,8 +1114,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       r.senderIdentifier?.includes(q) ||
       r.transactionId?.toLowerCase().includes(q) ||
       (r.planName && r.planName.toLowerCase().includes(q)) ||
-      (r.method && r.method.toLowerCase().includes(q)) ||
-      (r.type && r.type.includes(q))
+      (r.method && r.method.toLowerCase().includes(q))
     );
   });
 
@@ -1129,7 +1131,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     );
   });
 
-  const pendingPlanRequestsCount = requests.filter((r) => r.status === 'pending').length;
+  const pendingPlanRequestsCount = requests.filter((r) => !isDepositRequest(r) && r.status === 'pending').length;
   const pendingTasksCount = taskSubmissions.filter((t) => t.status === 'pending').length;
   const totalPendingCount = pendingPlanRequestsCount + pendingTasksCount;
 
@@ -1355,6 +1357,16 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           {/* Tab 1: Requests & Deposits Queue */}
           {activeTab === 'requests' && (
             <div className="space-y-3.5 pr-1">
+              {/* Separate External Admin Panel Routing Alert */}
+              <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-sky-950/40 border border-sky-500/30 text-sky-200 text-xs">
+                <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                <span>
+                  {lang === 'bn'
+                    ? '💡 নোটিশ: ওয়ালেট ডিপোজিট রিকোয়েস্টগুলো আপনার আলাদা এডমিন প্যানেলে রুট করা আছে। এখানে শুধুমাত্র বট হোস্টিং প্ল্যান সাবস্ক্রিপশন ও সোশ্যাল টাস্কের অনুরোধ প্রদর্শিত হবে।'
+                    : '💡 Notice: Wallet deposit requests are managed exclusively in your Separate Admin Panel. Only bot hosting plan subscriptions and tasks appear here.'}
+                </span>
+              </div>
+
               {/* Category Filter Pills */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar flex-wrap">
                 <button
@@ -1591,11 +1603,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </div>
                     ))}
 
-                  {/* 2. Plan and Deposit Requests */}
+                  {/* 2. Plan Subscription Requests (Deposits handled in Separate Admin Panel) */}
                   {(requestCategory === 'all' || requestCategory === 'plans_deposits') &&
-                    filteredRequests.map((req) => {
-                      const isDeposit = req.type === 'deposit';
-
+                    filteredRequests.filter((r) => !isDepositRequest(r)).map((req) => {
                       return (
                         <div
                           key={req.id}
@@ -1608,10 +1618,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         >
                           <div className="space-y-1.5 max-w-xl w-full min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 ${
-                                isDeposit ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                              }`}>
-                                {isDeposit ? '💰 ওয়ালেট ডিপোজিট' : '📦 প্যাকেজ সাবস্ক্রিপশন'}
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                📦 প্যাকেজ সাবস্ক্রিপশন
                               </span>
                               <span className="font-bold text-white text-sm break-words">{req.userName}</span>
                               <span className="text-slate-400 text-[11px] font-mono break-all">({req.userEmail})</span>
@@ -1676,7 +1684,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   className="flex-1 sm:flex-initial min-h-[38px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-600/20 cursor-pointer disabled:opacity-50 transition-all shrink-0"
                                 >
                                   <CheckCircle2 className="w-4 h-4 shrink-0" />
-                                  <span>{isDeposit ? (lang === 'bn' ? 'ডিপোজিট অনুমোদন করুন' : 'Approve Deposit') : (lang === 'bn' ? 'প্লান অনুমোদন করুন' : 'Approve Plan')}</span>
+                                  <span>{lang === 'bn' ? 'প্লান অনুমোদন করুন' : 'Approve Plan'}</span>
                                 </button>
 
                                 <button

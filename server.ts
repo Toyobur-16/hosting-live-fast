@@ -6097,6 +6097,17 @@ app.get('/api/plans/my-request', (req, res) => {
   });
 });
 
+function isDepositRequestServer(r: any): boolean {
+  if (!r) return false;
+  return (
+    r.type === 'deposit' ||
+    r.planId === 'wallet_deposit' ||
+    Boolean(r.isDeposit) ||
+    (typeof r.id === 'string' && r.id.startsWith('dep_')) ||
+    (typeof r.planName === 'string' && (r.planName.includes('ডিপোজিট') || r.planName.toLowerCase().includes('deposit')))
+  );
+}
+
 // Admin Panel Endpoints
 app.get('/api/admin/overview', (req, res) => {
   const user = getAuthUser(req);
@@ -6106,9 +6117,10 @@ app.get('/api/admin/overview', (req, res) => {
 
   const accounts = getAccounts();
   const reg = getRegistry();
-  const requests = getPlanRequests();
-  const pendingRequests = requests.filter((r) => r.status === 'pending');
-  const approvedRequests = requests.filter((r) => r.status === 'approved');
+  const allRequests = getPlanRequests();
+  const planOnlyRequests = allRequests.filter((r) => !isDepositRequestServer(r));
+  const pendingRequests = planOnlyRequests.filter((r) => r.status === 'pending');
+  const approvedRequests = planOnlyRequests.filter((r) => r.status === 'approved');
   const totalRevenue = approvedRequests.reduce((sum, r) => sum + (r.amount || 0), 0);
 
   const taskLogs = getTaskCompletions();
@@ -6166,8 +6178,9 @@ app.get('/api/admin/plan-requests', async (req, res) => {
   } catch {}
 
   const allReqs = getPlanRequests();
-  allReqs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-  res.json({ requests: allReqs });
+  const planOnlyReqs = allReqs.filter((r) => !isDepositRequestServer(r));
+  planOnlyReqs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  res.json({ requests: planOnlyReqs });
 });
 
 app.post('/api/admin/plan-requests/:id/approve', async (req, res) => {

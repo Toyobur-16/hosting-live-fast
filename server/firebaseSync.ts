@@ -44,9 +44,13 @@ export function isFirestoreQuotaExhausted(): boolean {
   return Date.now() < firestoreQuotaExhaustedUntil;
 }
 
+export function setFirestoreQuotaExhausted(durationMs = 60 * 60 * 1000): void {
+  firestoreQuotaExhaustedUntil = Date.now() + durationMs;
+  console.warn(`⚠️ [Server FirebaseSync] Firestore quota paused for ${Math.round(durationMs / 60000)} minutes; local persistence & Auth Vault are active.`);
+}
+
 export function markFirestoreQuotaExhausted(): void {
-  firestoreQuotaExhaustedUntil = Date.now() + 60 * 60 * 1000;
-  console.warn('⚠️ [Server FirebaseSync] Firestore free tier daily write units exhausted. Direct Firestore REST writes paused for 1 hour; local persistence & Auth Vault are active.');
+  setFirestoreQuotaExhausted(60 * 60 * 1000);
 }
 
 function checkResponseQuota(res: Response | null): void {
@@ -798,7 +802,7 @@ export class FirebaseSync {
     saveAccountsFn: (accs: any[]) => void,
     getRequestsFn: () => any[],
     saveRequestsFn: (reqs: any[]) => void,
-    modifyWalletFn: (userId: string, amount: number, type: 'deposit' | 'purchase' | 'refund', desc: string, method?: string, trxId?: string, currency?: string) => any,
+    modifyWalletFn: (userId: string, amount: number, type: any, desc: string, method?: string, trxId?: string, currency?: any) => any,
     isCreditedFn: (trxId: string) => boolean,
     saveNotifFn?: (notif: any) => void,
     sendAlertFn?: (user: any, deposit: any, status: 'approved' | 'rejected') => Promise<void>
