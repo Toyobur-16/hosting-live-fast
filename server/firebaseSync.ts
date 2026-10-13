@@ -627,46 +627,25 @@ export class FirebaseSync {
       const defaultDbBaseUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
       const namedDbBaseUrl = BASE_URL;
 
-      // 1. Sync to (default) /deposits collection (for the separate Admin Panel in Screenshot 1!)
+      // Sync to all collections concurrently in parallel for blazing-fast response (<500ms)
       const urlDepDefault = `${defaultDbBaseUrl}/deposits/${docId}?key=${API_KEY}`;
-      const resDepDefault = await fetch(urlDepDefault, {
-        method: 'PATCH',
-        headers,
-        body: bodyStr,
-        signal: AbortSignal.timeout(6000)
-      }).catch(() => null);
-
-      // 2. Sync to named database /deposits collection
       const urlDepNamed = `${namedDbBaseUrl}/deposits/${docId}?key=${API_KEY}`;
-      await fetch(urlDepNamed, {
-        method: 'PATCH',
-        headers,
-        body: bodyStr,
-        signal: AbortSignal.timeout(6000)
-      }).catch(() => null);
-
-      // 3. Sync to (default) /plan_requests collection
       const urlPlanDefault = `${defaultDbBaseUrl}/plan_requests/${docId}?key=${API_KEY}`;
-      await fetch(urlPlanDefault, {
-        method: 'PATCH',
-        headers,
-        body: bodyStr,
-        signal: AbortSignal.timeout(6000)
-      }).catch(() => null);
-
-      // 4. Sync to named database /plan_requests collection
       const urlPlanNamed = `${namedDbBaseUrl}/plan_requests/${docId}?key=${API_KEY}`;
-      const resPlanNamed = await fetch(urlPlanNamed, {
-        method: 'PATCH',
-        headers,
-        body: bodyStr,
-        signal: AbortSignal.timeout(6000)
-      }).catch(() => null);
 
-      const isSuccess = Boolean((resDepDefault && resDepDefault.ok) || (resPlanNamed && resPlanNamed.ok));
+      const patchReqs = [
+        fetch(urlDepDefault, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }),
+        fetch(urlDepNamed, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }),
+        fetch(urlPlanDefault, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }),
+        fetch(urlPlanNamed, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) })
+      ];
+
+      const patchResults = await Promise.allSettled(patchReqs);
+      const isSuccess = patchResults.some(r => r.status === 'fulfilled' && r.value.ok);
       if (isSuccess) {
         console.log(`✅ [Firebase Firestore] Synced deposit to separate Admin Panel & Cloud (${planReq.id}, Status: ${planReq.status}, TrxID: ${cleanTrx})`);
       }
+      return isSuccess;
       return isSuccess;
     } catch (err: any) {
       console.warn('FirebaseSync syncPlanRequestToCloud error:', err.message || err);

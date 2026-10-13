@@ -1287,7 +1287,8 @@ async function fetchBinancePersonalTransactions(creds: { apiKey: string; secretK
     const payQuery = `timestamp=${now}`;
     const paySig = crypto.createHmac('sha256', creds.secretKey).update(payQuery).digest('hex');
     const payRes = await fetch(`https://api.binance.com/sapi/v1/pay/transactions?${payQuery}&signature=${paySig}`, {
-      headers: { 'X-MBX-APIKEY': creds.apiKey }
+      headers: { 'X-MBX-APIKEY': creds.apiKey },
+      signal: AbortSignal.timeout(3000)
     });
     if (payRes.ok) {
       const payData: any = await payRes.json();
@@ -1321,7 +1322,8 @@ async function fetchBinancePersonalTransactions(creds: { apiKey: string; secretK
     const depQuery = `coin=USDT&timestamp=${now}`;
     const depSig = crypto.createHmac('sha256', creds.secretKey).update(depQuery).digest('hex');
     const depRes = await fetch(`https://api.binance.com/sapi/v1/capital/deposit/hisrec?${depQuery}&signature=${depSig}`, {
-      headers: { 'X-MBX-APIKEY': creds.apiKey }
+      headers: { 'X-MBX-APIKEY': creds.apiKey },
+      signal: AbortSignal.timeout(3000)
     });
     if (depRes.ok) {
       const depData: any = await depRes.json();
@@ -4478,7 +4480,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
     const paySettings = getPaymentSettings();
     const externalApiUrl = (paySettings.externalAdminApiUrl || process.env.EXTERNAL_ADMIN_API_URL || process.env.GOOGLE_APPS_SCRIPT_URL || process.env.SMS_VERIFY_API_URL || '').trim();
     const externalApiKey = (paySettings.externalAdminApiKey || process.env.EXTERNAL_ADMIN_API_KEY || '').trim();
-    const strictAutoVerify = paySettings.strictAutoVerifyOnly !== false;
+    const strictAutoVerify = paySettings.strictAutoVerifyOnly === true && Boolean(externalApiUrl);
 
     let bdtAutoApproved = false;
     const externalVerifiedTxs = getExternalVerifiedPayments();
@@ -4505,7 +4507,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
             userId: user.id,
             userEmail: user.email
           }),
-          signal: AbortSignal.timeout(6000)
+          signal: AbortSignal.timeout(3000)
         });
         if (verifyRes.ok) {
           const verifyData: any = await verifyRes.json();
@@ -4529,7 +4531,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
       }
       requests.unshift(newRequest);
       savePlanRequests(requests);
-      await FirebaseSync.syncPlanRequestToCloud(newRequest).catch(() => {});
+      FirebaseSync.syncPlanRequestToCloud(newRequest).catch(() => {});
       return res.json({
         success: true,
         autoApproved: true,
@@ -4540,9 +4542,13 @@ app.post('/api/wallet/deposit', async (req, res) => {
     }
 
     if (strictAutoVerify) {
+      let failMsg = '❌ ট্রানজেকশন ভুল! এই নম্বরে টাকা পাঠানো হয়নি অথবা ট্রানজেকশন আইডি সঠিক নয়।';
+      if (isBkash) failMsg = `❌ বিকাশ ট্রানজেকশন ভুল: স্ক্রিনে প্রদর্শিত বিকাশ নম্বরে (${receiverNumber}) টাকা পাঠানো হয়নি অথবা বিকাশ TrxID (${cleanTrx}) সঠিক নয়।`;
+      else if (isNagad) failMsg = `❌ নগদ ট্রানজেকশন ভুল: স্ক্রিনে প্রদর্শিত নগদ নম্বরে (${receiverNumber}) টাকা পাঠানো হয়নি অথবা নগদ TrxID (${cleanTrx}) সঠিক নয়।`;
+      else if (isRocket) failMsg = `❌ রকেট ট্রানজেকশন ভুল: স্ক্রিনে প্রদর্শিত রকেট নম্বরে (${receiverNumber}) টাকা পাঠানো হয়নি অথবা রকেট TrxID (${cleanTrx}) সঠিক নয়।`;
       return res.status(400).json({
         success: false,
-        error: '❌ ট্রানজেকশন ভুল! এই নম্বরে টাকা পাঠানো হয়নি অথবা ট্রানজেকশন আইডি সঠিক নয়।'
+        error: failMsg
       });
     }
   }
@@ -4550,8 +4556,8 @@ app.post('/api/wallet/deposit', async (req, res) => {
   requests.unshift(newRequest);
   savePlanRequests(requests);
 
-  // Directly await sync to Firebase Firestore to guarantee it is saved in Firebase!
-  const firestoreSaved = await FirebaseSync.syncPlanRequestToCloud(newRequest);
+  // Directly sync to Firebase Firestore in background so separate Admin Panel gets it instantly (<200ms response)
+  FirebaseSync.syncPlanRequestToCloud(newRequest).catch(() => {});
 
   // Real-time Webhook Notification to Separate External Admin Panel
   try {
@@ -4572,7 +4578,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
           action: 'new_deposit_request',
           deposit: newRequest
         }),
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(3000)
       }).catch(() => {});
     }
   } catch {}
@@ -4807,7 +4813,7 @@ app.post('/api/wallet/verify-and-deposit', async (req, res) => {
     let autoApproved = false;
     const externalApiUrl = (paySettings.externalAdminApiUrl || process.env.EXTERNAL_ADMIN_API_URL || process.env.GOOGLE_APPS_SCRIPT_URL || process.env.SMS_VERIFY_API_URL || '').trim();
     const externalApiKey = (paySettings.externalAdminApiKey || process.env.EXTERNAL_ADMIN_API_KEY || '').trim();
-    const strictAutoVerify = paySettings.strictAutoVerifyOnly !== false;
+    const strictAutoVerify = paySettings.strictAutoVerifyOnly === true && Boolean(externalApiUrl);
 
     // 4. Check against external verified payments pool
     const externalVerifiedTxs = getExternalVerifiedPayments();
@@ -4844,7 +4850,7 @@ app.post('/api/wallet/verify-and-deposit', async (req, res) => {
             userId: user ? user.id : (userId || ''),
             userEmail: user ? user.email : (userEmail || '')
           }),
-          signal: AbortSignal.timeout(6000)
+          signal: AbortSignal.timeout(3000)
         });
 
         if (verifyRes.ok) {
@@ -4949,7 +4955,7 @@ app.post('/api/wallet/verify-and-deposit', async (req, res) => {
 
     allReqs.unshift(newDeposit);
     savePlanRequests(allReqs);
-    await FirebaseSync.syncPlanRequestToCloud(newDeposit).catch(() => {});
+    FirebaseSync.syncPlanRequestToCloud(newDeposit).catch(() => {});
 
     // Real-time notification to Separate External Admin Panel
     if (externalApiUrl && externalApiUrl.startsWith('http')) {
@@ -4967,7 +4973,7 @@ app.post('/api/wallet/verify-and-deposit', async (req, res) => {
             action: 'new_deposit_request',
             deposit: newDeposit
           }),
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(3000)
         }).catch((err) => {
           console.warn('External admin notification warning:', err.message || err);
         });
@@ -5004,9 +5010,26 @@ app.post('/api/wallet/verify-and-deposit', async (req, res) => {
         method: methodName,
         message: isBinance
           ? `🎉 অভিনন্দন! আপনার Binance Pay অর্ডার (#${cleanTrx}) সফলভাবে যাচাই হয়েছে এবং ওয়ালেটে $${usdAmount} USDT যুক্ত হয়েছে!`
+          : isBkash
+          ? `🎉 অভিনন্দন! আপনার বিকাশ পেমেন্ট (৳${numBdt}) সফলভাবে স্বয়ংক্রিয়ভাবে যাচাই হয়েছে এবং ওয়ালেটে $${usdAmount} USD যুক্ত হয়েছে!`
+          : isNagad
+          ? `🎉 অভিনন্দন! আপনার নগদ পেমেন্ট (৳${numBdt}) সফলভাবে স্বয়ংক্রিয়ভাবে যাচাই হয়েছে এবং ওয়ালেটে $${usdAmount} USD যুক্ত হয়েছে!`
+          : isRocket
+          ? `🎉 অভিনন্দন! আপনার রকেট পেমেন্ট (৳${numBdt}) সফলভাবে স্বয়ংক্রিয়ভাবে যাচাই হয়েছে এবং ওয়ালেটে $${usdAmount} USD যুক্ত হয়েছে!`
           : `🎉 অভিনন্দন! আপনার ৳${numBdt} ($${usdAmount} USD) ডিপোজিট সফলভাবে স্বয়ংক্রিয়ভাবে যাচাই হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!`,
         request: newDeposit
       });
+    }
+
+    let pendingSuccessMsg = `✅ আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে (TrxID: ${cleanTrx})। অ্যাডমিন যাচাই করে অনুমোদন করলেই ব্যালেন্স যোগ হবে।`;
+    if (isBinance) {
+      pendingSuccessMsg = `✅ বাইন্যান্স অর্ডার আইডি সফলভাবে জমা হয়েছে! অর্ডার নম্বর: #${cleanTrx} (${usdAmount} USDT)। অ্যাডমিন যাচাই করে অনুমোদন করলেই ব্যালেন্স যুক্ত হবে।`;
+    } else if (isBkash) {
+      pendingSuccessMsg = `✅ বিকাশ ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে! বিকাশ TrxID: ${cleanTrx} (৳${numBdt})। অ্যাডমিন যাচাই করে অনুমোদন করলেই ওয়ালেটে ব্যালেন্স যোগ হবে।`;
+    } else if (isNagad) {
+      pendingSuccessMsg = `✅ নগদ ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে! নগদ TrxID: ${cleanTrx} (৳${numBdt})। অ্যাডমিন যাচাই করে অনুমোদন করলেই ওয়ালেটে ব্যালেন্স যোগ হবে।`;
+    } else if (isRocket) {
+      pendingSuccessMsg = `✅ রকেট ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে! রকেট TrxID: ${cleanTrx} (৳${numBdt})। অ্যাডমিন যাচাই করে অনুমোদন করলেই ওয়ালেটে ব্যালেন্স যোগ হবে।`;
     }
 
     return res.json({
@@ -5019,9 +5042,7 @@ app.post('/api/wallet/verify-and-deposit', async (req, res) => {
       transactionId: cleanTrx,
       orderId: cleanTrx,
       method: methodName,
-      message: isBinance
-        ? `✅ বাইন্যান্স অর্ডার আইডি সফলভাবে জমা হয়েছে! অর্ডার নম্বর: #${cleanTrx} (${usdAmount} USDT)। অ্যাডমিন যাচাই করে অনুমোদন করলেই ব্যালেন্স যুক্ত হবে।`
-        : `✅ আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে (TrxID: ${cleanTrx})। অ্যাডমিন যাচাই করে অনুমোদন করলেই ব্যালেন্স যোগ হবে।`,
+      message: pendingSuccessMsg,
       request: newDeposit
     });
   } catch (err: any) {

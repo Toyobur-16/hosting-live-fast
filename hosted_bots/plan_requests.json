@@ -1,5 +1,28 @@
 [
   {
+    "id": "dep_1791883221685_v63k",
+    "type": "deposit",
+    "userId": "user_1790454329125_a498",
+    "userName": "Toyobur Rahman",
+    "userEmail": "toyoburrahman9090@gmail.com",
+    "planId": "wallet_deposit",
+    "planName": "ওয়ালেট ডিপোজিট ($4.17 USD)",
+    "amount": 4.17,
+    "currency": "USD",
+    "bdtAmount": 500,
+    "rateToBdt": 120,
+    "method": "bKash",
+    "senderNumber": "",
+    "senderIdentifier": "toyoburrahman9090@gmail.com",
+    "receiverNumber": "01614572747",
+    "transactionId": "BKASH99999",
+    "status": "approved",
+    "createdAt": "2026-10-13T09:20:21.685Z",
+    "reviewedAt": "2026-10-13T09:20:21.685Z",
+    "reviewedBy": "Auto-Verification Engine",
+    "updatedAt": 1791884050947
+  },
+  {
     "id": "dep_1791882251268_cvv6",
     "type": "deposit",
     "userId": "user_1790454329125_a498",
@@ -16,9 +39,11 @@
     "senderIdentifier": "toyoburrahman9090@gmail.com",
     "receiverNumber": "01614572747",
     "transactionId": "HSDS9JSOWA",
-    "status": "pending",
+    "status": "approved",
     "createdAt": "2026-10-13T09:04:11.268Z",
-    "updatedAt": 1791882251365
+    "updatedAt": 1791884050943,
+    "reviewedAt": "2026-10-13T09:24:09.772Z",
+    "reviewedBy": "badsharahmanbd@gmail.com"
   },
   {
     "id": "dep_1892646343",
@@ -37,9 +62,11 @@
     "senderIdentifier": "01614572747",
     "transactionId": "01614572747",
     "note": "AutoPay Deposit (bKash - ৳1000 BDT / $8.33 USD)",
-    "status": "pending",
+    "status": "approved",
     "createdAt": "2026-10-13T07:48:00.114Z",
-    "updatedAt": 1791879168359
+    "updatedAt": 1791884050948,
+    "reviewedAt": "2026-10-13T09:24:16.248Z",
+    "reviewedBy": "badsharahmanbd@gmail.com"
   },
   {
     "id": "dep_5142687210",
@@ -58,9 +85,11 @@
     "senderIdentifier": "Hldkkd",
     "transactionId": "JNMD",
     "note": "AutoPay Deposit (bKash - ৳50 BDT / $0.42 USD)",
-    "status": "pending",
+    "status": "approved",
     "createdAt": "2026-10-13T07:01:28.693Z",
-    "updatedAt": 1791879168359
+    "updatedAt": 1791884050948,
+    "reviewedAt": "2026-10-13T09:24:14.749Z",
+    "reviewedBy": "badsharahmanbd@gmail.com"
   },
   {
     "id": "dep_1397087232",
@@ -79,9 +108,11 @@
     "senderIdentifier": "Hjj",
     "transactionId": "GHGHU",
     "note": "AutoPay Deposit (bKash - ৳1000 BDT / $8.33 USD)",
-    "status": "pending",
+    "status": "approved",
     "createdAt": "2026-10-12T20:24:29.004Z",
-    "updatedAt": 1791879168359
+    "updatedAt": 1791884050944,
+    "reviewedAt": "2026-10-13T09:24:12.089Z",
+    "reviewedBy": "badsharahmanbd@gmail.com"
   },
   {
     "id": "dep_9718004625",
@@ -509,5 +540,39 @@
     "updatedAt": 1791879168358,
     "reviewedAt": "2026-09-29T13:41:07.849Z",
     "reviewedBy": "toyoburrahman9090@gmail.com"
+  },
+  {
+    "userId": "test_user_1791847286904",
+    "amount": 50,
+    "trxId": "JJHHJ",
+    "date": null,
+    "userEmail": "test@demo.com",
+    "method": "হজ্ঝ",
+    "approvedAt": null,
+    "status": "approved",
+    "id": "Cq8ny2xLaOiMrsbrMPb8"
+  },
+  {
+    "userId": "test_user_1791847791269",
+    "amount": 50,
+    "trxId": "HJHJJJ",
+    "date": null,
+    "userEmail": "test@demo.com",
+    "method": "Baksh",
+    "rejectedAt": null,
+    "status": "rejected",
+    "id": "aVgmEzPgz0VFsRwlXdro"
+  },
+  {
+    "userId": "test_user_1791847970645",
+    "amount": 100,
+    "trxId": "HHHFJFGG",
+    "date": null,
+    "userEmail": "test@demo.com",
+    "method": "Baksh",
+    "userPhone": "—",
+    "rejectedAt": null,
+    "status": "rejected",
+    "id": "mCdpVyakgZCgfTdqgJ45"
   }
 ]

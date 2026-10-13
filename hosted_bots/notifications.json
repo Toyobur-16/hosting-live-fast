@@ -1,5 +1,32 @@
 [
   {
+    "id": "notif_1791891961063_2kk5",
+    "userId": "test_u1",
+    "type": "deposit_submitted",
+    "title": "📥 ডিপোজিট রিকোয়েস্ট জমা হয়েছে",
+    "message": "আপনার $2.5 USD ডিপোজিট রিকোয়েস্ট (Nagad, TrxID: NAG98765432) সফলভাবে জমা হয়েছে। অ্যাডমিন অনুমোদন করলেই ওয়ালেটে যুক্ত হবে।",
+    "createdAt": "2026-10-13T11:46:01.063Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791891953106_226h",
+    "userId": "test_u1",
+    "type": "deposit_submitted",
+    "title": "📥 ডিপোজিট রিকোয়েস্ট জমা হয়েছে",
+    "message": "আপনার $4.17 USD ডিপোজিট রিকোয়েস্ট (bKash, TrxID: BKA12345678) সফলভাবে জমা হয়েছে। অ্যাডমিন অনুমোদন করলেই ওয়ালেটে যুক্ত হবে।",
+    "createdAt": "2026-10-13T11:45:53.106Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791891945514_8jqc",
+    "userId": "test_u1",
+    "type": "deposit_submitted",
+    "title": "📥 ডিপোজিট রিকোয়েস্ট জমা হয়েছে",
+    "message": "আপনার $10 USD ডিপোজিট রিকোয়েস্ট (Binance Pay / UID, TrxID: BN922593999TEST) সফলভাবে জমা হয়েছে। অ্যাডমিন অনুমোদন করলেই ওয়ালেটে যুক্ত হবে।",
+    "createdAt": "2026-10-13T11:45:45.514Z",
+    "read": false
+  },
+  {
     "id": "welcome_user_1791189862436_1pkdz",
     "userId": "user_1791189862436_1pkdz",
     "userEmail": "test_live_user_1@fast.com",

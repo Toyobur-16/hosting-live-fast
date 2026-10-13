@@ -232,7 +232,7 @@ let verifyListener = null;
 let verifyTimeout = null;
 let countdownInterval = null;
 
-const VERIFY_TIMEOUT_SECONDS = 20;
+const VERIFY_TIMEOUT_SECONDS = 10;
 const USDT_RATE = 120; // ১ USDT = ১২০ ৳ (কত টাকায় কত USDT কনভার্সন রেট)
 
 auth.onAuthStateChanged(u => currentUser = u || null);
@@ -652,7 +652,18 @@ function submitBinanceDeposit(orderId) {
   const email = authData.user?.email || (currentUser ? currentUser.email : 'user@app.com');
   const receiverNum = (document.getElementById('pay-admin-number') ? document.getElementById('pay-admin-number').innerText : '').trim();
 
-  Swal.showLoading();
+  Swal.fire({
+    title: 'অর্ডার যাচাই করা হচ্ছে...',
+    html: '<p style="font-size:13px;color:#4b5563">আপনার Binance Order ID যাচাই করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...</p>',
+    allowOutsideClick: false,
+    showConfirmButton: false,
+    didOpen: () => {
+      Swal.showLoading();
+    }
+  });
+
+  const abortCtrl = new AbortController();
+  const abortTimer = setTimeout(() => abortCtrl.abort(), 10000);
 
   fetch('/api/wallet/verify-and-deposit', {
     method: 'POST',
@@ -660,6 +671,7 @@ function submitBinanceDeposit(orderId) {
       'Content-Type': 'application/json',
       ...(authData.token ? { 'Authorization': 'Bearer ' + authData.token } : {})
     },
+    signal: abortCtrl.signal,
     body: JSON.stringify({
       trxId: orderId,
       transactionId: orderId,
@@ -673,6 +685,7 @@ function submitBinanceDeposit(orderId) {
   })
   .then(res => res.json())
   .then(data => {
+    clearTimeout(abortTimer);
     Swal.close();
     try {
       if (window.parent) window.parent.postMessage({ type: 'deposit_submitted', trxId: orderId, status: data.status }, '*');
@@ -687,8 +700,13 @@ function submitBinanceDeposit(orderId) {
     }
   })
   .catch(err => {
+    clearTimeout(abortTimer);
     Swal.close();
-    showInvalid('সার্ভার সংযোগে ত্রুটি: ' + (err.message || 'আবার চেষ্টা করুন'));
+    if (err.name === 'AbortError') {
+      showInvalid('যাচাই করার নির্ধারিত সময় শেষ হয়েছে। সঠিক Binance Order ID দিয়ে পুনরায় সাবমিট করুন।');
+    } else {
+      showInvalid('সার্ভার সংযোগে ত্রুটি: ' + (err.message || 'আবার চেষ্টা করুন'));
+    }
   });
 }
 
@@ -717,9 +735,12 @@ function startVerification(trx) {
     }
   }, 1000);
 
+  const abortCtrl = new AbortController();
+
   // Fail-safe timeout so overlay NEVER freezes
   verifyTimeout = setTimeout(() => {
     clearTimers();
+    abortCtrl.abort();
     document.getElementById('verifyingOverlay').classList.add('hidden');
     showInvalid('যাচাই করার নির্ধারিত সময় শেষ হয়েছে। টাকা পাঠানো সম্পন্ন হলে সঠিক TrxID লিখে পুনরায় চেষ্টা করুন।');
   }, VERIFY_TIMEOUT_SECONDS * 1000);
@@ -731,6 +752,7 @@ function startVerification(trx) {
       'Content-Type': 'application/json',
       ...(authData.token ? { 'Authorization': 'Bearer ' + authData.token } : {})
     },
+    signal: abortCtrl.signal,
     body: JSON.stringify({
       trxId: trx,
       transactionId: trx,
@@ -766,7 +788,11 @@ function startVerification(trx) {
   .catch(err => {
     clearTimers();
     document.getElementById('verifyingOverlay').classList.add('hidden');
-    showInvalid('সার্ভারে সংযোগে সমস্যা হয়েছে: ' + (err.message || 'আবার চেষ্টা করুন'));
+    if (err.name === 'AbortError') {
+      showInvalid('যাচাই করার নির্ধারিত সময় শেষ হয়েছে। টাকা পাঠানো সম্পন্ন হলে সঠিক TrxID লিখে পুনরায় চেষ্টা করুন।');
+    } else {
+      showInvalid('সার্ভারে সংযোগে সমস্যা হয়েছে: ' + (err.message || 'আবার চেষ্টা করুন'));
+    }
   });
 }
 
