@@ -30,7 +30,7 @@
     "emailVerified": true,
     "isVerified": true,
     "balanceBdt": 0,
-    "balanceUsd": 13234.55,
+    "balanceUsd": 18447.05,
     "maxWebsites": 999,
     "maxStorageMb": 100,
     "hasClaimedFreeTrial": true,
@@ -40,8 +40,8 @@
     "googleId": "cbfl45Dm70TVmiRs3unHWKGzhGC2",
     "avatar": "/api/store/thumbnails/avatar_user_1790454329125_a498_1790860415728_avatar_user_1790454329125_a498_1790860415069.jpg",
     "password": "",
-    "updatedAt": 1791907945661,
-    "balance": 13234.55
+    "updatedAt": 1791917833261,
+    "balance": 18447.05
   },
   {
     "id": "user_1790504693014_zdxr",
@@ -79,7 +79,7 @@
     "maxStorageMb": 500,
     "planExpiresAt": null,
     "balanceBdt": 0,
-    "balanceUsd": 270200,
+    "balanceUsd": 395300,
     "isVerified": true,
     "emailVerified": true,
     "welcomeDismissed": true,
@@ -87,11 +87,11 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-27T10:31:00.123Z",
-    "updatedAt": 1791907945668,
+    "updatedAt": 1791917833265,
     "dismissedNotifications": [
       "test_notif_123"
     ],
-    "balance": 270200,
+    "balance": 395300,
     "clearedAllNotificationsAt": 1791906457458
   },
   {
@@ -432,14 +432,14 @@
     "maxWebsites": 2,
     "maxStorageMb": 50,
     "balanceBdt": 0,
-    "balanceUsd": 516.66,
+    "balanceUsd": 524.99,
     "isVerified": true,
     "emailVerified": true,
     "avatar": "https://lh3.googleusercontent.com/a/ACg8ocLvANgNrkkgW58tAm0_NV7Xbs08JU5kdHozaNce9bu3rKL0sQ=s96-c",
     "googleId": "nqJzJfbcUAeCYBLs37Zt32mhKSG2",
     "createdAt": "2026-10-02T21:43:26.966Z",
-    "updatedAt": 1791907945503,
-    "balance": 516.66
+    "updatedAt": 1791917833268,
+    "balance": 524.99
   },
   {
     "id": "user_1791027113148_u7zp",
@@ -488,7 +488,7 @@
     "maxStorageMb": 50,
     "planExpiresAt": 1794309796705,
     "balanceBdt": 0,
-    "balanceUsd": 102500,
+    "balanceUsd": 203500,
     "isVerified": true,
     "emailVerified": true,
     "avatar": "https://lh3.googleusercontent.com/a/ACg8ocLlU4XdBBZijw1gXPIFwgTNQyda-vOsn51INEw8zf8JaFJUGg=s96-c",
@@ -497,9 +497,9 @@
     "hasClaimedFreeTrial": true,
     "hasClaimedFreePlan": true,
     "freeTrialClaimedAt": "2026-10-11T11:23:16.705Z",
-    "updatedAt": 1791907957111,
+    "updatedAt": 1791917833270,
     "password": "",
-    "balance": 102500
+    "balance": 203500
   },
   {
     "id": "user_1791760605877_3c9wp",

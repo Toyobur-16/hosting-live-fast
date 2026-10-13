@@ -57,6 +57,20 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettingsData = {
 };
 
 export let lastSmtpAuthFailedUntil = 0;
+export let lastSmtpLimitExceededUntil = 0;
+
+export function isLimitExceededError(err: any): boolean {
+  const msg = (err?.message || String(err || '')).toLowerCase();
+  return (
+    msg.includes('550-5.4.5') ||
+    msg.includes('5.4.5') ||
+    msg.includes('daily user sending limit exceeded') ||
+    msg.includes('sending limit exceeded') ||
+    msg.includes('user sending limit') ||
+    msg.includes('quota exceeded') ||
+    (msg.includes('550') && msg.includes('limit'))
+  );
+}
 
 const STATIC_SMTP_BRIDGE_URLS = [
   process.env.SMTP_BRIDGE_URL,
@@ -360,7 +374,7 @@ export function startCloudSmtpRelayWorker(): void {
   let isProcessing = false;
   let quotaBackoffUntil = 0;
 
-  setInterval(async () => {
+  const processRelayQueue = async () => {
     if (isProcessing) return;
     if (Date.now() < quotaBackoffUntil) return;
     isProcessing = true;
@@ -407,7 +421,7 @@ export function startCloudSmtpRelayWorker(): void {
           : [];
 
         if (docs.length > 0) {
-          if (Date.now() < lastSmtpAuthFailedUntil || Date.now() < lastDirectSmtpBlockedUntil) {
+          if (Date.now() < lastSmtpAuthFailedUntil || Date.now() < lastDirectSmtpBlockedUntil || Date.now() < lastSmtpLimitExceededUntil) {
             isProcessing = false;
             return;
           }
@@ -419,13 +433,26 @@ export function startCloudSmtpRelayWorker(): void {
 
             for (const doc of docs) {
               const fields = doc.fields || {};
-              const to = fields.to?.stringValue;
+              const to = (fields.to?.stringValue || '').trim();
               const subject = fields.subject?.stringValue;
               const html = fields.html?.stringValue;
               const text = fields.text?.stringValue;
               const docName = doc.name;
 
-              if (!to || !subject) {
+              const createdAtMs = parseInt(fields.createdAt?.integerValue || '0', 10);
+              const isOldDoc = createdAtMs > 0 && (Date.now() - createdAtMs > 30 * 60 * 1000);
+              const lowerTo = to.toLowerCase();
+              const isDummyAddress =
+                !to ||
+                lowerTo.endsWith('@demo.com') ||
+                lowerTo.endsWith('@example.com') ||
+                lowerTo.endsWith('@app.com') ||
+                lowerTo.endsWith('@test.com') ||
+                lowerTo === 'user@app.com' ||
+                lowerTo === 'test@app.com' ||
+                lowerTo === 'test@demo.com';
+
+              if (!to || !subject || isOldDoc || isDummyAddress) {
                 await fetch(`https://firestore.googleapis.com/v1/${docName}`, {
                   method: 'DELETE',
                   headers: { 'Authorization': `Bearer ${idToken}` }
@@ -446,9 +473,15 @@ export function startCloudSmtpRelayWorker(): void {
                 console.log(`[FIRESTORE WORKER] Sent queued email for ${to} | MsgId: ${info.messageId}`);
                 sentSuccessfully = true;
               } catch (sendErr: any) {
+                const isLimitExceeded = isLimitExceededError(sendErr);
                 const isAuthError = sendErr?.message?.includes('535') || sendErr?.code === 'EAUTH' || sendErr?.message?.includes('BadCredentials') || sendErr?.message?.includes('Username and Password not accepted');
                 const isPortBlock = sendErr?.code === 'ETIMEDOUT' || sendErr?.code === 'ECONNREFUSED' || sendErr?.code === 'ENETUNREACH' || sendErr?.message?.includes('timeout');
-                if (isAuthError) {
+
+                if (isLimitExceeded) {
+                  lastSmtpLimitExceededUntil = Date.now() + 60 * 60 * 1000;
+                  console.warn(`[FIRESTORE WORKER] Gmail daily sending limit exceeded (550-5.4.5). Pausing SMTP worker for 1 hour.`);
+                  break;
+                } else if (isAuthError) {
                   lastSmtpAuthFailedUntil = Date.now() + 60 * 60 * 1000;
                   console.warn(`[FIRESTORE WORKER] Gmail SMTP password rejected (535 Bad Credentials). Worker paused until updated in Admin Panel.`);
                   break;
@@ -477,7 +510,13 @@ export function startCloudSmtpRelayWorker(): void {
     } finally {
       isProcessing = false;
     }
-  }, 60000);
+  };
+
+  setTimeout(() => {
+    processRelayQueue().catch(() => {});
+  }, 2000);
+
+  setInterval(processRelayQueue, 60000);
 }
 
 export function loadSmtpSettingsFile(): SmtpSettingsData {
@@ -533,6 +572,7 @@ export function saveSmtpSettingsFile(data: Partial<SmtpSettingsData>): boolean {
     cachedTransporter = null;
     lastTransporterConfigKey = '';
     lastSmtpAuthFailedUntil = 0;
+    lastSmtpLimitExceededUntil = 0;
     return true;
   } catch (err) {
     console.error('Error saving smtp_settings.json:', err);
@@ -1321,6 +1361,7 @@ export function getTransporter(): Transporter | null {
 
 export type SmtpErrorCategory = 
   | 'Invalid SMTP credentials' 
+  | 'Daily sending limit exceeded'
   | 'Connection timeout' 
   | 'Port blocked' 
   | 'Network unreachable' 
@@ -1423,6 +1464,16 @@ export function diagnoseSmtpError(err: any, port?: number): SmtpDiagnosticResult
       category: 'SSL/TLS Error',
       userMessage: 'SSL/TLS Error (এনক্রিপশন ত্রুটি): সিকিউর হ্যান্ডশেক করতে সমস্যা হয়েছে।',
       solutionHint: 'পোর্ট 465 হলে SSL টিক দিয়ে রাখুন, অথবা পোর্ট 587 নির্বাচন করে SSL টিক তুলে TLS ব্যবহার করুন।',
+      technicalMessage: msg
+    };
+  }
+
+  // 7. Daily user sending limit exceeded (e.g. 550-5.4.5 Daily user sending limit exceeded)
+  if (isLimitExceededError(err)) {
+    return {
+      category: 'Daily sending limit exceeded',
+      userMessage: 'Daily user sending limit exceeded (দৈনিক ইমেইল পাঠানোর সীমা পূর্ণ): এই Gmail অ্যাকাউন্টের দৈনিক পাঠানোর সর্বোচ্চ কোটা পূর্ণ হয়ে গেছে (550-5.4.5)।',
+      solutionHint: 'গুগল ফ্রি জিমেইল অ্যাকাউন্টে দৈনিক পাঠানোর সীমা নির্ধারণ করে থাকে (সাধারণত ৫০০ টি)। আপনি এডমিন প্যানেল থেকে অন্য কোনো Gmail একাউন্টের ১৬ অক্ষরের Google App Password বসিয়ে সেভ করতে পারেন, অথবা বিকল্প ইমেইল গেটওয়ে ব্যবহার করতে পারেন।',
       technicalMessage: msg
     };
   }
@@ -1592,6 +1643,22 @@ export async function testSmtpWithParams(options: {
         lastDiagnostic = diag;
         console.warn(`[SMTP TEST FAILED on ${target}:${portConfig.port}]:`, err?.message);
 
+        // If it's daily sending limit exceeded (550-5.4.5), the TCP/TLS network and credentials succeeded,
+        // but Google is temporarily blocking outgoing mail due to daily account quota
+        if (diag.category === 'Daily sending limit exceeded') {
+          lastSmtpLimitExceededUntil = Date.now() + 60 * 60 * 1000;
+          return {
+            success: false,
+            errorCategory: diag.category,
+            message: `গুগল সার্ভারে সফল সংযোগ হয়েছে, কিন্তু এই Gmail অ্যাকাউন্টের দৈনিক ইমেইল পাঠানোর সীমা (Daily Sending Limit) পূর্ণ হয়ে গেছে (550-5.4.5)।`,
+            solutionHint: diag.solutionHint,
+            details: diag.technicalMessage,
+            workingPort: portConfig.port,
+            workingSecure: portConfig.secure,
+            workingIp: target
+          };
+        }
+
         // If it's an authentication error (535 / Invalid credentials), the TCP/TLS network connection
         // to Google ALREADY succeeded! There's no point testing other ports; the issue is just the App Password.
         if (diag.category === 'Invalid SMTP credentials') {
@@ -1728,7 +1795,7 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
     }
   }
 
-  const canTryDirectSmtp = Date.now() >= lastSmtpAuthFailedUntil;
+  const canTryDirectSmtp = Date.now() >= lastSmtpAuthFailedUntil && Date.now() >= lastSmtpLimitExceededUntil;
   const transporter = canTryDirectSmtp ? ((await getTransporterAsync()) || getTransporter()) : null;
 
   if (transporter) {
@@ -1755,6 +1822,11 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
     } catch (err: any) {
       const errorDetail = explainSmtpError(err);
       console.warn(`[EMAIL ALERT DIRECT SMTP NOTE] Could not send directly to ${to}: ${errorDetail}. Trying HTTPS bridge...`);
+
+      const isLimitExceeded = isLimitExceededError(err);
+      if (isLimitExceeded) {
+        lastSmtpLimitExceededUntil = Date.now() + 60 * 60 * 1000; // Pause direct sending for 1 hour to prevent Gmail quota hammer
+      }
 
       // Mark direct SMTP blocked if connection was timed out or unreachable
       const isPortBlock = err?.code === 'ETIMEDOUT' || err?.code === 'ECONNREFUSED' || err?.code === 'ENETUNREACH' || err?.message?.includes('timeout');
@@ -1785,10 +1857,15 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
         return { success: true, messageId: bridgeRes.messageId };
       }
 
+      if (!isAuthVerification) {
+        console.log(`[EMAIL ALERT IN-APP FALLBACK] Stored in in-app notifications for ${to}.`);
+        return { success: true, simulated: true, messageId: `in_app_${Date.now()}` };
+      }
+
       return { success: false, error: bridgeRes.error || errorDetail };
     }
   } else {
-    // Transporter not configured, try bridge directly
+    // Transporter not configured or temporarily paused by sending limit cooldown, try bridge directly
     const bridgeRes = await relayViaHttpsBridge({
       action: 'send',
       smtp: fileConfig,
@@ -1805,8 +1882,12 @@ export async function sendEmailAlert(options: EmailAlertOptions): Promise<{ succ
       return { success: true, messageId: bridgeRes.messageId };
     }
 
-    console.log(`[EMAIL ALERT SIMULATION] Stored in in-app notifications for ${to}.`);
-    return { success: true, simulated: true };
+    if (!isAuthVerification) {
+      console.log(`[EMAIL ALERT SIMULATION] Stored in in-app notifications for ${to}.`);
+      return { success: true, simulated: true, messageId: `in_app_${Date.now()}` };
+    }
+
+    return { success: false, error: bridgeRes.error || 'SMTP rate limited or paused. Please try again later.' };
   }
 }
 
@@ -1882,7 +1963,7 @@ export async function sendTestEmail(toEmail: string): Promise<{
       const diagnostic = diagnoseSmtpError(err, config.port);
       console.warn(`[TEST EMAIL DIRECT NOTE] Could not send directly to ${toEmail}: ${err?.message}. Trying HTTPS Cloud Bridge...`);
 
-      if (diagnostic.category === 'Invalid SMTP credentials') {
+      if (diagnostic.category === 'Invalid SMTP credentials' || diagnostic.category === 'Daily sending limit exceeded') {
         return {
           success: false,
           errorCategory: diagnostic.category,
