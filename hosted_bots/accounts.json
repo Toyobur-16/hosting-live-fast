@@ -30,7 +30,7 @@
     "emailVerified": true,
     "isVerified": true,
     "balanceBdt": 0,
-    "balanceUsd": 18447.05,
+    "balanceUsd": 30482.89,
     "maxWebsites": 999,
     "maxStorageMb": 100,
     "hasClaimedFreeTrial": true,
@@ -40,8 +40,8 @@
     "googleId": "cbfl45Dm70TVmiRs3unHWKGzhGC2",
     "avatar": "/api/store/thumbnails/avatar_user_1790454329125_a498_1790860415728_avatar_user_1790454329125_a498_1790860415069.jpg",
     "password": "",
-    "updatedAt": 1791917833261,
-    "balance": 18447.05
+    "updatedAt": 1791931480513,
+    "balance": 30482.89
   },
   {
     "id": "user_1790504693014_zdxr",
@@ -55,7 +55,7 @@
     "maxStorageMb": 100,
     "planExpiresAt": 1850735511522,
     "balanceBdt": 0,
-    "balanceUsd": 577,
+    "balanceUsd": 977,
     "isVerified": true,
     "emailVerified": true,
     "avatar": "",
@@ -64,8 +64,8 @@
     "hasClaimedFreeTrial": true,
     "hasClaimedFreePlan": true,
     "freeTrialClaimedAt": "2026-09-29T13:11:51.522Z",
-    "updatedAt": 1791907945582,
-    "balance": 577
+    "updatedAt": 1791931480295,
+    "balance": 977
   },
   {
     "id": "user_1790505060123_bmdw",
@@ -79,7 +79,7 @@
     "maxStorageMb": 500,
     "planExpiresAt": null,
     "balanceBdt": 0,
-    "balanceUsd": 395300,
+    "balanceUsd": 675500,
     "isVerified": true,
     "emailVerified": true,
     "welcomeDismissed": true,
@@ -87,11 +87,11 @@
     "avatar": "",
     "googleId": "",
     "createdAt": "2026-09-27T10:31:00.123Z",
-    "updatedAt": 1791917833265,
+    "updatedAt": 1791931480561,
     "dismissedNotifications": [
       "test_notif_123"
     ],
-    "balance": 395300,
+    "balance": 675500,
     "clearedAllNotificationsAt": 1791906457458
   },
   {
@@ -125,15 +125,15 @@
     "maxStorageMb": 100,
     "planExpiresAt": 1845583916946,
     "balanceBdt": 0,
-    "balanceUsd": 274.5,
+    "balanceUsd": 474.5,
     "isVerified": true,
     "emailVerified": true,
     "avatar": "https://lh3.googleusercontent.com/a/ACg8ocK69vVNjNnDUnTcXHo7ShEigU5dRCByy6G_z9XaH_gfXnOdlw=s96-c",
     "googleId": "DMSrybHBWkPnEsxqhNaxBrn6Mdp1",
     "createdAt": "2026-09-29T22:07:38.531Z",
-    "updatedAt": 1791907945646,
+    "updatedAt": 1791931480494,
     "password": "",
-    "balance": 274.5
+    "balance": 474.5
   },
   {
     "id": "user_1790759848940_v9cr",
@@ -432,14 +432,14 @@
     "maxWebsites": 2,
     "maxStorageMb": 50,
     "balanceBdt": 0,
-    "balanceUsd": 524.99,
+    "balanceUsd": 541.65,
     "isVerified": true,
     "emailVerified": true,
     "avatar": "https://lh3.googleusercontent.com/a/ACg8ocLvANgNrkkgW58tAm0_NV7Xbs08JU5kdHozaNce9bu3rKL0sQ=s96-c",
     "googleId": "nqJzJfbcUAeCYBLs37Zt32mhKSG2",
     "createdAt": "2026-10-02T21:43:26.966Z",
-    "updatedAt": 1791917833268,
-    "balance": 524.99
+    "updatedAt": 1791931479782,
+    "balance": 541.65
   },
   {
     "id": "user_1791027113148_u7zp",
@@ -488,7 +488,7 @@
     "maxStorageMb": 50,
     "planExpiresAt": 1794309796705,
     "balanceBdt": 0,
-    "balanceUsd": 203500,
+    "balanceUsd": 405500,
     "isVerified": true,
     "emailVerified": true,
     "avatar": "https://lh3.googleusercontent.com/a/ACg8ocLlU4XdBBZijw1gXPIFwgTNQyda-vOsn51INEw8zf8JaFJUGg=s96-c",
@@ -497,9 +497,9 @@
     "hasClaimedFreeTrial": true,
     "hasClaimedFreePlan": true,
     "freeTrialClaimedAt": "2026-10-11T11:23:16.705Z",
-    "updatedAt": 1791917833270,
+    "updatedAt": 1791931479675,
     "password": "",
-    "balance": 203500
+    "balance": 405500
   },
   {
     "id": "user_1791760605877_3c9wp",

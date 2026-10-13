@@ -203,7 +203,7 @@ export async function checkFirebaseEmailVerificationStatus(
  * Verify user password against Firebase Auth (useful when user resets password via Firebase email link)
  */
 export async function verifyPasswordWithFirebaseAuth(email: string, password: string): Promise<boolean> {
-  if (!email || !password) return false;
+  if (!email || !password || !FIREBASE_AUTH_API_KEY) return false;
   try {
     const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_AUTH_API_KEY}`, {
       method: 'POST',
@@ -212,9 +212,10 @@ export async function verifyPasswordWithFirebaseAuth(email: string, password: st
         email: email.trim().toLowerCase(),
         password,
         returnSecureToken: true
-      })
+      }),
+      signal: AbortSignal.timeout(1500)
     });
-    const data: any = await res.json();
+    const data: any = await res.json().catch(() => null);
     return Boolean(res.ok && data && data.idToken);
   } catch {
     return false;
@@ -235,7 +236,7 @@ export async function recoverUserFromFirebaseAuth(
   localId?: string;
 }> {
   const cleanEmail = (email || '').trim().toLowerCase();
-  if (!cleanEmail || !cleanEmail.includes('@')) {
+  if (!cleanEmail || !cleanEmail.includes('@') || !FIREBASE_AUTH_API_KEY) {
     return { found: false, passwordMatched: false, emailVerified: false };
   }
 
@@ -259,9 +260,10 @@ export async function recoverUserFromFirebaseAuth(
           email: cleanEmail,
           password: pass,
           returnSecureToken: true
-        })
+        }),
+        signal: AbortSignal.timeout(1500)
       });
-      const data: any = await res.json();
+      const data: any = await res.json().catch(() => null);
       if (res.ok && data && data.idToken) {
         let emailVerified = true;
         let displayName = data.displayName || cleanEmail.split('@')[0];
@@ -269,9 +271,10 @@ export async function recoverUserFromFirebaseAuth(
           const lookRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_AUTH_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken: data.idToken })
+            body: JSON.stringify({ idToken: data.idToken }),
+            signal: AbortSignal.timeout(1500)
           });
-          const lookData: any = await lookRes.json();
+          const lookData: any = await lookRes.json().catch(() => null);
           const u = lookData?.users?.[0];
           if (u) {
             if (typeof u.emailVerified === 'boolean') emailVerified = u.emailVerified;

@@ -809,11 +809,10 @@ export class FirebaseSync {
         console.log(`✅ Restored & synced ${finalAccounts.length} user accounts from Firebase Cloud Vault!`);
       }
 
-      // Ensure all accounts are backed up to personal vaults and master shards
-      for (const acc of finalAccounts) {
-        this.syncAccountToCloud(acc).catch(() => {});
-      }
-      await this.syncAllAccountsToMasterShards(finalAccounts);
+      // Master shard sync in gentle background timer so boot stays snappy
+      setTimeout(() => {
+        this.syncAllAccountsToMasterShards(finalAccounts).catch(() => {});
+      }, 5000);
     } catch (err: any) {
       console.warn('FirebaseSync initial sync warning:', err.message || err);
     }

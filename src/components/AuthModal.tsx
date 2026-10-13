@@ -169,7 +169,16 @@ export const AuthModal = ({
           if (onClose) onClose();
         }
       } catch (err: any) {
-        setError(err?.message || (lang === 'bn' ? 'লগইন ব্যর্থ হয়েছে' : 'Login failed'));
+        const rawErr = String(err?.message || err || '');
+        if (rawErr.toLowerCase().includes('failed to fetch')) {
+          setError(
+            lang === 'bn'
+              ? 'সার্ভারের সাথে সংযোগ স্থাপন করা সম্ভব হয়নি। ইন্টারনেট কানেকশন চেক করুন বা পৃষ্ঠাটি রিফ্রেশ করুন।'
+              : 'Unable to connect to server. Please check your network connection.'
+          );
+        } else {
+          setError(rawErr || (lang === 'bn' ? 'লগইন ব্যর্থ হয়েছে' : 'Login failed'));
+        }
       } finally {
         setLoading(false);
       }
@@ -182,7 +191,7 @@ export const AuthModal = ({
         return;
       }
       if (password.length < 6) {
-        setError(lang === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে باشد' : 'Password must be at least 6 characters');
+        setError(lang === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' : 'Password must be at least 6 characters');
         return;
       }
       if (password !== confirmPassword) {
@@ -222,7 +231,16 @@ export const AuthModal = ({
           if (onClose) onClose();
         }
       } catch (err: any) {
-        setError(err?.message || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
+        const rawErr = String(err?.message || err || '');
+        if (rawErr.toLowerCase().includes('failed to fetch')) {
+          setError(
+            lang === 'bn'
+              ? 'সার্ভারের সাথে সংযোগ স্থাপন করা সম্ভব হয়নি। ইন্টারনেট কানেকশন চেক করুন বা পৃষ্ঠাটি রিফ্রেশ করুন।'
+              : 'Unable to connect to server. Please check your network connection.'
+          );
+        } else {
+          setError(rawErr || (lang === 'bn' ? 'রেজিস্ট্রেশন ব্যর্থ হয়েছে' : 'Registration failed'));
+        }
       } finally {
         setLoading(false);
       }
@@ -308,52 +326,73 @@ export const AuthModal = ({
     }
   };
 
-  // Google Sign-In with Firebase popup and direct email fallback
-  const handleGoogleSignIn = async () => {
+  // Google Sign-In with Google Identity Services (accounts.google.com) and instant 1-click fallback
+  const handleAuthenticateWithGoogleCredential = async (credential: string) => {
     setGoogleLoading(true);
     setError(null);
     try {
-      let activeAuth = auth;
-      try {
-        if (!activeAuth) activeAuth = fallbackAuth;
-      } catch {}
-
-      if (activeAuth && googleProvider) {
-        try {
-          const result = await signInWithPopup(activeAuth, googleProvider);
-          const user = result.user;
-          if (user && user.email) {
-            const res = await fetch('/api/auth/google', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                email: user.email,
-                name: user.displayName || user.email.split('@')[0],
-                picture: user.photoURL || '',
-                googleId: user.uid
-              })
-            });
-            const data = await safeJsonParse(res);
-            if (res.ok && data?.success && data?.token && data?.user) {
-              localStorage.setItem('bot_auth_token', data.token);
-              localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
-              onSuccess(data.user, data.token);
-              if (onClose) onClose();
-              return;
-            }
-          }
-        } catch (popupErr: any) {
-          console.warn('Google popup auth blocked or closed, falling back to manual entry:', popupErr);
-          setShowGoogleInput(true);
-          return;
-        }
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential })
+      });
+      const data = await safeJsonParse(res);
+      if (res.ok && data?.success && data?.token && data?.user) {
+        localStorage.setItem('bot_auth_token', data.token);
+        localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+        onSuccess(data.user, data.token);
+        if (onClose) onClose();
+      } else {
+        throw new Error(data?.error || (lang === 'bn' ? 'গুগল লগইন সম্পন্ন হয়নি' : 'Google sign in failed'));
       }
-      setShowGoogleInput(true);
     } catch (err: any) {
-      setShowGoogleInput(true);
+      const raw = String(err?.message || err || '');
+      setError(
+        raw.toLowerCase().includes('failed to fetch')
+          ? (lang === 'bn' ? 'সার্ভারের সাথে সংযোগ স্থাপন করা সম্ভব হয়নি।' : 'Network connection failed.')
+          : (raw || 'Google sign in failed')
+      );
     } finally {
       setGoogleLoading(false);
     }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setGoogleLoading(true);
+
+    // 1. Try Google Identity Services (runs securely on accounts.google.com, never hits NXDOMAIN)
+    try {
+      const g = (typeof window !== 'undefined' ? (window as any).google : null);
+      const clientId = firebaseAppletConfig.oAuthClientId || '880032238370-l6ncvlqchfoqk5jkpk4kbgin69gbcte4.apps.googleusercontent.com';
+      if (g?.accounts?.id && clientId) {
+        g.accounts.id.initialize({
+          client_id: clientId,
+          callback: async (response: any) => {
+            if (response?.credential) {
+              await handleAuthenticateWithGoogleCredential(response.credential);
+            }
+          }
+        });
+        g.accounts.id.prompt((notification: any) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            setShowGoogleInput(true);
+            setGoogleLoading(false);
+          }
+        });
+        setTimeout(() => {
+          setShowGoogleInput(true);
+          setGoogleLoading(false);
+        }, 800);
+        return;
+      }
+    } catch (e) {
+      console.warn('GSI prompt notice:', e);
+    }
+
+    // 2. Direct instant Google sign-in fallback (no broken firebaseapp.com domain redirect)
+    setShowGoogleInput(true);
+    setGoogleLoading(false);
   };
 
   const handleAuthenticateWithGoogleEmail = async (userProvidedEmail: string) => {
@@ -371,7 +410,7 @@ export const AuthModal = ({
         body: JSON.stringify({
           email: cleanEmail,
           name: cleanEmail.split('@')[0],
-          googleId: `google_direct_${Date.now()}`
+          googleId: `google_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`
         })
       });
       const data = await safeJsonParse(res);
@@ -381,10 +420,15 @@ export const AuthModal = ({
         onSuccess(data.user, data.token);
         if (onClose) onClose();
       } else {
-        throw new Error(data?.error || 'Google direct authentication failed');
+        throw new Error(data?.error || (lang === 'bn' ? 'গুগল লগইন সম্পন্ন হয়নি' : 'Google direct authentication failed'));
       }
     } catch (err: any) {
-      setError(err?.message || 'Google sign in failed');
+      const raw = String(err?.message || err || '');
+      setError(
+        raw.toLowerCase().includes('failed to fetch')
+          ? (lang === 'bn' ? 'সার্ভারের সাথে সংযোগ স্থাপন করা সম্ভব হয়নি।' : 'Network connection failed.')
+          : (raw || 'Google sign in failed')
+      );
     } finally {
       setGoogleLoading(false);
     }
