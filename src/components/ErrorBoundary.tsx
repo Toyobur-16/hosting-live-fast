@@ -17,10 +17,31 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   public static getDerivedStateFromError(error: Error): State {
+    const msg = String(error?.message || error?.name || error || '').toLowerCase();
+    if (
+      msg.includes('quota') ||
+      msg.includes('resource-exhausted') ||
+      msg.includes('resource_exhausted') ||
+      msg.includes('firestore') ||
+      msg.includes('grpcconnection') ||
+      msg.includes('call cancelled')
+    ) {
+      return { hasError: false, error: null };
+    }
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    const msg = String(error?.message || error?.name || error || '').toLowerCase();
+    if (
+      msg.includes('quota') ||
+      msg.includes('resource-exhausted') ||
+      msg.includes('resource_exhausted') ||
+      msg.includes('firestore') ||
+      msg.includes('grpcconnection')
+    ) {
+      return;
+    }
     console.error('App ErrorBoundary caught an unhandled error:', error, errorInfo);
   }
 

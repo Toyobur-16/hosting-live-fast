@@ -77,17 +77,31 @@ export const namedFirestore: Firestore | null =
 
 let firestoreQuotaExhaustedUntil = 0;
 
+try {
+  const qFile = path.join(process.cwd(), 'hosted_bots', '.firestore_quota.json');
+  if (fs.existsSync(qFile)) {
+    const qData = JSON.parse(fs.readFileSync(qFile, 'utf-8'));
+    if (qData.until && qData.until > Date.now()) {
+      firestoreQuotaExhaustedUntil = qData.until;
+    }
+  }
+} catch {}
+
 export function isFirestoreQuotaExhausted(): boolean {
   return Date.now() < firestoreQuotaExhaustedUntil;
 }
 
-export function setFirestoreQuotaExhausted(durationMs = 60 * 60 * 1000): void {
+export function setFirestoreQuotaExhausted(durationMs = 2 * 60 * 60 * 1000): void {
   firestoreQuotaExhaustedUntil = Date.now() + durationMs;
+  try {
+    const qFile = path.join(process.cwd(), 'hosted_bots', '.firestore_quota.json');
+    fs.writeFileSync(qFile, JSON.stringify({ until: firestoreQuotaExhaustedUntil }));
+  } catch {}
   console.warn(`⚠️ [Server FirebaseSync] Firestore quota paused for ${Math.round(durationMs / 60000)} minutes; local persistence & Auth Vault are active.`);
 }
 
 export function markFirestoreQuotaExhausted(): void {
-  setFirestoreQuotaExhausted(60 * 60 * 1000);
+  setFirestoreQuotaExhausted(2 * 60 * 60 * 1000);
 }
 
 function checkResponseQuota(res: Response | null): void {
@@ -100,11 +114,20 @@ function checkResponseQuota(res: Response | null): void {
 export async function safeSetDoc(ref: any, data: any, options?: any): Promise<boolean> {
   if (isFirestoreQuotaExhausted()) return false;
   try {
-    if (options) {
-      await setDoc(ref, data, options);
-    } else {
-      await setDoc(ref, data);
-    }
+    const p = options ? setDoc(ref, data, options) : setDoc(ref, data);
+    p.catch((err: any) => {
+      const msg = String(err?.message || err?.code || err || '').toLowerCase();
+      if (
+        err?.code === 'resource-exhausted' ||
+        msg.includes('resource_exhausted') ||
+        msg.includes('resource-exhausted') ||
+        msg.includes('quota') ||
+        msg.includes('limit')
+      ) {
+        markFirestoreQuotaExhausted();
+      }
+    });
+    await p;
     return true;
   } catch (err: any) {
     const msg = String(err?.message || err?.code || err || '').toLowerCase();

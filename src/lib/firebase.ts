@@ -72,7 +72,9 @@ export const db = firebaseAppletConfig.firestoreDatabaseId && firebaseAppletConf
 // Quota exhaustion tracker across client app to prevent freezing and resource-exhausted spam
 let firestoreQuotaExhaustedUntil = 0;
 try {
-  const stored = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hlf_fs_quota_exhausted') : null;
+  const stored = typeof localStorage !== 'undefined'
+    ? (localStorage.getItem('hlf_fs_quota_exhausted') || sessionStorage.getItem('hlf_fs_quota_exhausted'))
+    : null;
   if (stored) {
     const val = parseInt(stored, 10);
     if (!isNaN(val) && val > Date.now()) {
@@ -82,8 +84,9 @@ try {
 } catch {}
 
 function markQuotaExhausted() {
-  firestoreQuotaExhaustedUntil = Date.now() + 30 * 60 * 1000;
+  firestoreQuotaExhaustedUntil = Date.now() + 2 * 60 * 60 * 1000;
   try {
+    localStorage.setItem('hlf_fs_quota_exhausted', String(firestoreQuotaExhaustedUntil));
     sessionStorage.setItem('hlf_fs_quota_exhausted', String(firestoreQuotaExhaustedUntil));
   } catch {}
   console.warn('⚠️ [Firestore] Free daily write quota reached on Google Cloud project. Client writes safely falling back to server-side persistence.');
@@ -95,17 +98,31 @@ function isQuotaExhausted(): boolean {
 
 function withTimeout<T>(promise: Promise<T>, ms = 2500): Promise<T> {
   return new Promise<T>((resolve, reject) => {
+    let settled = false;
     const timer = setTimeout(() => {
-      resolve(undefined as any);
+      if (!settled) {
+        settled = true;
+        resolve(undefined as any);
+      }
     }, ms);
+
     promise
       .then((val) => {
-        clearTimeout(timer);
-        resolve(val);
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(val);
+        }
       })
       .catch((err) => {
-        clearTimeout(timer);
-        reject(err);
+        // Always catch to prevent unhandled rejection, even if timer already fired
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          reject(err);
+        } else {
+          handleWriteError(err);
+        }
       });
   });
 }
@@ -115,6 +132,7 @@ function handleWriteError(err: any): void {
   if (
     err?.code === 'resource-exhausted' ||
     msg.includes('resource-exhausted') ||
+    msg.includes('resource_exhausted') ||
     msg.includes('quota limit exceeded') ||
     msg.includes('quota exceeded') ||
     msg.includes('free daily write units')
@@ -129,7 +147,9 @@ function handleWriteError(err: any): void {
 export const setDoc = async (reference: any, data: any, options?: any): Promise<void> => {
   if (isQuotaExhausted()) return;
   try {
-    await withTimeout(options ? rawSetDoc(reference, data, options) : rawSetDoc(reference, data), 2500);
+    const rawPromise = options ? rawSetDoc(reference, data, options) : rawSetDoc(reference, data);
+    rawPromise.catch((err) => handleWriteError(err));
+    await withTimeout(rawPromise, 2500);
   } catch (err: any) {
     handleWriteError(err);
   }
@@ -138,7 +158,9 @@ export const setDoc = async (reference: any, data: any, options?: any): Promise<
 export const updateDoc = async (reference: any, ...args: any[]): Promise<void> => {
   if (isQuotaExhausted()) return;
   try {
-    await withTimeout((rawUpdateDoc as any)(reference, ...args), 2500);
+    const rawPromise = (rawUpdateDoc as any)(reference, ...args);
+    rawPromise.catch((err: any) => handleWriteError(err));
+    await withTimeout(rawPromise, 2500);
   } catch (err: any) {
     handleWriteError(err);
   }
@@ -147,7 +169,9 @@ export const updateDoc = async (reference: any, ...args: any[]): Promise<void> =
 export const deleteDoc = async (reference: any): Promise<void> => {
   if (isQuotaExhausted()) return;
   try {
-    await withTimeout(rawDeleteDoc(reference), 2500);
+    const rawPromise = rawDeleteDoc(reference);
+    rawPromise.catch((err) => handleWriteError(err));
+    await withTimeout(rawPromise, 2500);
   } catch (err: any) {
     handleWriteError(err);
   }
@@ -156,7 +180,9 @@ export const deleteDoc = async (reference: any): Promise<void> => {
 export const addDoc = async (reference: any, data: any): Promise<any> => {
   if (isQuotaExhausted()) return { id: 'local_' + Date.now() };
   try {
-    return await withTimeout(rawAddDoc(reference, data), 2500);
+    const rawPromise = rawAddDoc(reference, data);
+    rawPromise.catch((err) => handleWriteError(err));
+    return await withTimeout(rawPromise, 2500);
   } catch (err: any) {
     handleWriteError(err);
     return { id: 'local_' + Date.now() };

@@ -33,9 +33,13 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Never cache API requests, websockets, APK downloads, or dynamic branding icons (logo, PWA icons, manifest)
+  // Never cache API requests, websockets, Vite dev modules, APK downloads, or dynamic branding icons
   if (
     url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.includes('vite') ||
     url.pathname.startsWith('/APK_DOWNLOAD/') ||
     url.pathname.startsWith('/socket.io/') ||
     url.pathname === '/site-logo.png' ||
