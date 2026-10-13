@@ -32,6 +32,7 @@ import {
 let configProjectId = '';
 let configDbId = '';
 let configApiKey = '';
+let configRtdbUrl = '';
 
 try {
   const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -40,12 +41,14 @@ try {
     if (raw.projectId) configProjectId = raw.projectId;
     if (raw.firestoreDatabaseId) configDbId = raw.firestoreDatabaseId;
     if (raw.apiKey) configApiKey = raw.apiKey;
+    if (raw.databaseURL) configRtdbUrl = raw.databaseURL;
   }
 } catch (e) {}
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || configProjectId;
 const FIRESTORE_DATABASE_ID = process.env.FIREBASE_FIRESTORE_DATABASE_ID || configDbId;
 const API_KEY = process.env.FIREBASE_API_KEY || configApiKey;
+const RTDB_URL = process.env.FIREBASE_DATABASE_URL || configRtdbUrl || (PROJECT_ID ? `https://${PROJECT_ID}-default-rtdb.firebaseio.com` : '');
 const VAULT_SECRET = process.env.VERIFICATION_SECRET || 'hlf_email_verify_secret_key_2026';
 
 const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${FIRESTORE_DATABASE_ID}/documents`;
@@ -368,6 +371,27 @@ export class FirebaseSync {
       const cleanUser = stripHeavyFields(user);
       const cleanEmail = cleanUser.email.trim().toLowerCase();
 
+      // 0. Instant Backup to Firebase Realtime Database (RTDB) - Always active even if Firestore quota is exhausted
+      if (RTDB_URL) {
+        try {
+          const userDocId = encodeURIComponent(String(cleanUser.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+          const emailDocId = `email_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+          fetch(`${RTDB_URL}/accounts/${userDocId}.json?key=${API_KEY}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cleanUser),
+            signal: AbortSignal.timeout(3000)
+          }).catch(() => {});
+
+          fetch(`${RTDB_URL}/accounts_by_email/${emailDocId}.json?key=${API_KEY}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cleanUser),
+            signal: AbortSignal.timeout(3000)
+          }).catch(() => {});
+        } catch {}
+      }
+
       // If Firestore daily write quota is currently exhausted, write to personal Firebase Auth Vault
       if (isFirestoreQuotaExhausted()) {
         const { vaultEmail, vaultPassword } = getUserVaultIdentity(cleanEmail);
@@ -553,42 +577,63 @@ export class FirebaseSync {
   static async loadSingleAccountByEmail(email: string): Promise<any | null> {
     if (!email || !email.includes('@')) return null;
     const cleanEmail = email.trim().toLowerCase();
+    const emailDocId = `email_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+
+    // 0. Fast Instant lookup from Firebase Realtime Database (RTDB)
+    if (RTDB_URL) {
+      try {
+        const rtdbRes = await fetch(`${RTDB_URL}/accounts_by_email/${emailDocId}.json?key=${API_KEY}`, {
+          signal: AbortSignal.timeout(1500)
+        }).catch(() => null);
+        if (rtdbRes && rtdbRes.ok) {
+          const rtdbUser: any = await rtdbRes.json().catch(() => null);
+          if (rtdbUser && rtdbUser.email) {
+            console.log(`✅ [Firebase RTDB] Found user account ${cleanEmail} in Realtime Database!`);
+            return rtdbUser;
+          }
+        }
+      } catch {}
+    }
+
     try {
       const idToken = await getAdminIdToken();
       const headers: Record<string, string> = {
         ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
       };
 
-      // 0. Direct lookup in (default) database /users (used by Separate Admin Panel)
-      try {
-        const defUsersRes = await fetch(`${DEFAULT_DB_URL}/users?key=${API_KEY}&pageSize=100`, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
-        if (defUsersRes && defUsersRes.ok) {
-          const defData: any = await defUsersRes.json();
-          if (defData && Array.isArray(defData.documents)) {
-            for (const d of defData.documents) {
-              if (d.fields) {
-                const parsed = fromFirestoreFields(d.fields);
-                const dEmail = String(parsed.email || '').trim().toLowerCase();
-                const dId = d.name.split('/').pop();
-                if (dEmail === cleanEmail || dId === cleanEmail) {
-                  const bal = Number(parsed.balance !== undefined ? parsed.balance : (parsed.balanceUsd || 0));
-                  console.log(`✅ [Firebase Firestore] Found user account ${cleanEmail} in (default)/users! Balance: $${bal}`);
-                  return {
-                    id: dId || `user_${Date.now()}`,
-                    email: dEmail || cleanEmail,
-                    name: parsed.name || cleanEmail.split('@')[0],
-                    balanceUsd: isNaN(bal) ? 0 : bal,
-                    balanceBdt: Number(parsed.balanceBdt || 0),
-                    role: parsed.role || 'user',
-                    plan: parsed.plan || 'free',
-                    ...parsed
-                  };
+      // 1. Direct lookup in (default) database /users (used by Separate Admin Panel)
+      if (!isFirestoreQuotaExhausted()) {
+        try {
+          const defUsersRes = await fetch(`${DEFAULT_DB_URL}/users?key=${API_KEY}&pageSize=100`, { headers, signal: AbortSignal.timeout(3000) }).catch(() => null);
+          checkResponseQuota(defUsersRes);
+          if (defUsersRes && defUsersRes.ok) {
+            const defData: any = await defUsersRes.json();
+            if (defData && Array.isArray(defData.documents)) {
+              for (const d of defData.documents) {
+                if (d.fields) {
+                  const parsed = fromFirestoreFields(d.fields);
+                  const dEmail = String(parsed.email || '').trim().toLowerCase();
+                  const dId = d.name.split('/').pop();
+                  if (dEmail === cleanEmail || dId === cleanEmail) {
+                    const bal = Number(parsed.balance !== undefined ? parsed.balance : (parsed.balanceUsd || 0));
+                    console.log(`✅ [Firebase Firestore] Found user account ${cleanEmail} in (default)/users! Balance: $${bal}`);
+                    return {
+                      id: dId || `user_${Date.now()}`,
+                      email: dEmail || cleanEmail,
+                      name: parsed.name || cleanEmail.split('@')[0],
+                      balanceUsd: isNaN(bal) ? 0 : bal,
+                      balanceBdt: Number(parsed.balanceBdt || 0),
+                      role: parsed.role || 'user',
+                      plan: parsed.plan || 'free',
+                      ...parsed
+                    };
+                  }
                 }
               }
             }
           }
-        }
-      } catch {}
+        } catch {}
+      }
 
       // 1. Direct lookup by email document ID in Firestore
       const emailDocId = `email_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
@@ -662,15 +707,41 @@ export class FirebaseSync {
     const seenEmails = new Set<string>();
 
     try {
+      // 0. Read from Firebase Realtime Database (RTDB)
+      if (RTDB_URL) {
+        try {
+          const rtdbRes = await fetch(`${RTDB_URL}/accounts.json?key=${API_KEY}`, { signal: AbortSignal.timeout(3000) }).catch(() => null);
+          if (rtdbRes && rtdbRes.ok) {
+            const rtdbData: any = await rtdbRes.json().catch(() => null);
+            if (rtdbData && typeof rtdbData === 'object') {
+              for (const acc of Object.values(rtdbData) as any[]) {
+                if (acc && acc.email) {
+                  const email = String(acc.email).trim().toLowerCase();
+                  if (email && email.includes('@') && !seenEmails.has(email) && !isTestEmail(email)) {
+                    seenEmails.add(email);
+                    collected.push(acc);
+                  }
+                }
+              }
+              if (collected.length > 0) {
+                console.log(`✅ [Firebase RTDB] Loaded ${collected.length} user accounts from Realtime Database!`);
+              }
+            }
+          }
+        } catch {}
+      }
+
       const idToken = await getAdminIdToken();
       const headers: Record<string, string> = {
         ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
       };
 
-      // 0. Read from (default) database /users and /accounts (Separate Admin Panel)
+      // 1. Read from (default) database /users and /accounts (Separate Admin Panel)
       for (const col of ['users', 'accounts']) {
+        if (isFirestoreQuotaExhausted()) break;
         try {
-          const res = await fetch(`${DEFAULT_DB_URL}/${col}?key=${API_KEY}&pageSize=100`, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
+          const res = await fetch(`${DEFAULT_DB_URL}/${col}?key=${API_KEY}&pageSize=100`, { headers, signal: AbortSignal.timeout(3000) }).catch(() => null);
+          checkResponseQuota(res);
           if (res && res.ok) {
             const data: any = await res.json();
             if (data && Array.isArray(data.documents)) {
@@ -807,6 +878,25 @@ export class FirebaseSync {
       if (finalAccounts.length !== (getAccountsFn() || []).length || hasChanges) {
         saveAccountsFn(finalAccounts);
         console.log(`✅ Restored & synced ${finalAccounts.length} user accounts from Firebase Cloud Vault!`);
+      }
+
+      // Push all accounts to Firebase Realtime Database
+      if (RTDB_URL) {
+        for (const acc of finalAccounts) {
+          if (!acc || !acc.email) continue;
+          const uId = encodeURIComponent(String(acc.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+          const eKey = `email_${acc.email.trim().toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+          fetch(`${RTDB_URL}/accounts/${uId}.json?key=${API_KEY}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(acc)
+          }).catch(() => {});
+          fetch(`${RTDB_URL}/accounts_by_email/${eKey}.json?key=${API_KEY}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(acc)
+          }).catch(() => {});
+        }
       }
 
       // Master shard sync in gentle background timer so boot stays snappy

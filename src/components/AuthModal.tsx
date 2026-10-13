@@ -97,12 +97,16 @@ export const AuthModal = ({
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showGoogleInput, setShowGoogleInput] = useState(false);
   const [googleEmail, setGoogleEmail] = useState('');
+  const [accountNotFound, setAccountNotFound] = useState(false);
+  const [wrongPassword, setWrongPassword] = useState(false);
 
   const resetAllState = (targetMode: AuthMode) => {
     setMode(normalizeMode(targetMode));
     setError(null);
     setSuccessMessage(null);
     setLoading(false);
+    setAccountNotFound(false);
+    setWrongPassword(false);
   };
 
   useEffect(() => {
@@ -159,7 +163,14 @@ export const AuthModal = ({
         });
         const data = await safeJsonParse(res);
         if (!res.ok || (data && !data.success)) {
-          throw new Error(data?.error || (lang === 'bn' ? 'লগইন ব্যর্থ হয়েছে' : 'Login failed'));
+          const errMsg = data?.error || (lang === 'bn' ? 'লগইন ব্যর্থ হয়েছে' : 'Login failed');
+          if (res.status === 404 || errMsg.includes('কোনো অ্যাকাউন্ট পাওয়া যায়নি') || errMsg.includes('not found')) {
+            setAccountNotFound(true);
+          }
+          if (res.status === 401 && (errMsg.includes('ভুল পাসওয়ার্ড') || errMsg.includes('password'))) {
+            setWrongPassword(true);
+          }
+          throw new Error(errMsg);
         }
 
         if (data?.token && data?.user) {
@@ -368,7 +379,68 @@ export const AuthModal = ({
       return;
     }
 
-    // 1. Try Google Identity Services (runs securely on accounts.google.com, never hits NXDOMAIN)
+    // 1. Try Firebase Popup Authentication
+    try {
+      const activeAuth = auth || fallbackAuth;
+      if (activeAuth && googleProvider) {
+        const result = await signInWithPopup(activeAuth, googleProvider);
+        if (result?.user) {
+          const res = await fetch('/api/auth/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userInfo: {
+                email: result.user.email,
+                name: result.user.displayName || result.user.email?.split('@')[0],
+                picture: result.user.photoURL,
+                googleId: result.user.uid
+              }
+            })
+          });
+          const data = await safeJsonParse(res);
+          if (res.ok && data?.success && data?.token && data?.user) {
+            localStorage.setItem('bot_auth_token', data.token);
+            localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+            onSuccess(data.user, data.token);
+            if (onClose) onClose();
+            return;
+          }
+        }
+      }
+    } catch (popupErr: any) {
+      console.warn('Firebase primary popup notice:', popupErr?.message || popupErr);
+      if (fallbackAuth && googleProvider) {
+        try {
+          const result = await signInWithPopup(fallbackAuth, googleProvider);
+          if (result?.user) {
+            const res = await fetch('/api/auth/google', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userInfo: {
+                  email: result.user.email,
+                  name: result.user.displayName || result.user.email?.split('@')[0],
+                  picture: result.user.photoURL,
+                  googleId: result.user.uid
+                }
+              })
+            });
+            const data = await safeJsonParse(res);
+            if (res.ok && data?.success && data?.token && data?.user) {
+              localStorage.setItem('bot_auth_token', data.token);
+              localStorage.setItem('bot_auth_user', JSON.stringify(data.user));
+              onSuccess(data.user, data.token);
+              if (onClose) onClose();
+              return;
+            }
+          }
+        } catch (fallbackErr) {
+          console.warn('Fallback popup notice:', fallbackErr);
+        }
+      }
+    }
+
+    // 2. Try Google Identity Services (runs securely on accounts.google.com, never hits NXDOMAIN)
     try {
       const g = (typeof window !== 'undefined' ? (window as any).google : null);
       const clientId = firebaseAppletConfig.oAuthClientId || '880032238370-l6ncvlqchfoqk5jkpk4kbgin69gbcte4.apps.googleusercontent.com';
@@ -397,7 +469,7 @@ export const AuthModal = ({
       console.warn('GSI prompt notice:', e);
     }
 
-    // 2. Direct instant Google sign-in fallback (no broken firebaseapp.com domain redirect)
+    // 3. Direct instant Google sign-in fallback (no broken firebaseapp.com domain redirect)
     setShowGoogleInput(true);
     setGoogleLoading(false);
   };
@@ -538,11 +610,56 @@ export const AuthModal = ({
           </div>
         )}
 
-        {/* Error Alert */}
+        {/* Error Alert with 1-click helper buttons */}
         {error && (
-          <div className="mb-4 p-3 bg-rose-950/50 border border-rose-800/60 rounded-xl text-rose-300 text-xs flex items-start gap-2 animate-in fade-in">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
-            <span className="leading-relaxed flex-1">{error}</span>
+          <div className="mb-4 p-3 bg-rose-950/60 border border-rose-800/70 rounded-2xl text-rose-300 text-xs flex flex-col gap-2.5 animate-in fade-in shadow-lg shadow-rose-950/30">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+              <span className="leading-relaxed flex-1 font-medium">{error}</span>
+            </div>
+
+            {/* Quick action: If account is not found, provide instant 1-click registration switch */}
+            {accountNotFound && (
+              <div className="pt-2 border-t border-rose-800/50 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-rose-200">
+                  {lang === 'bn' ? '⚡ নতুন অ্যাকাউন্ট তৈরি করতে চান?' : "Want to create a new account?"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('register');
+                    setConfirmPassword(password);
+                    setError(null);
+                    setAccountNotFound(false);
+                  }}
+                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{lang === 'bn' ? 'রেজিস্ট্রেশন করুন' : 'Register Now'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Quick action: If wrong password, provide instant 1-click reset link */}
+            {wrongPassword && (
+              <div className="pt-2 border-t border-rose-800/50 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-rose-200">
+                  {lang === 'bn' ? '🔑 পাসওয়ার্ড মনে নেই?' : "Forgot password?"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('forgot');
+                    setError(null);
+                    setWrongPassword(false);
+                  }}
+                  className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 shrink-0"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>{lang === 'bn' ? 'পাসওয়ার্ড রিসেট' : 'Reset Password'}</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 

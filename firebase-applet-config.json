@@ -3,6 +3,7 @@
   "appId": "1:880032238370:web:c0510582bebc2ce71c737b",
   "apiKey": "AIzaSyA08M7c1iHvXhQHeUf8kXS5cUvtJ8s_kqY",
   "authDomain": "hosting-live-fast-11b13.firebaseapp.com",
+  "databaseURL": "https://hosting-live-fast-11b13-default-rtdb.firebaseio.com",
   "firestoreDatabaseId": "ai-studio-hostinglivefast-da0b37bd-7efe-4e63-a45c-5755c4657e1e",
   "storageBucket": "hosting-live-fast-11b13.firebasestorage.app",
   "messagingSenderId": "880032238370",

@@ -1,5 +1,605 @@
 [
   {
+    "id": "welcome_user_1791934907994_83k10",
+    "userId": "user_1791934907994_83k10",
+    "userEmail": "toyobur_verified_rtdb@gmail.com",
+    "type": "welcome",
+    "title": "🎉 স্বাগতম Toyobur Final! হোস্টিংলাইভফাস্টে আপনাকে অভিনন্দন",
+    "message": "প্রিয় Toyobur Final,\n\nhosting-live-fast প্ল্যাটফর্মে আপনাকে আন্তরিক স্বাগতম! আমাদের সাথে যুক্ত হওয়ার জন্য অসংখ্য ধন্যবাদ।\n\n⚡ আমাদের প্ল্যাটফর্মের বিশেষ সুবিধা ও সেবাসমূহ:\n• ২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং (Python & Node.js ১০০% কার্যকর)\n• ওয়েবসাইট ও ওয়েব অ্যাপ্লিকেশন হোস্টিং\n• নতুন সকল ইউজারের জন্য ১ মাসের ফ্রি ট্রায়াল সুবিধা\n• বিকাশ, নগদ ও বাইন্যান্স পে দিয়ে তাৎক্ষণিক ওয়ালেট রিচার্জ\n• অটো ক্র্যাশ রিস্টার্ট ও লাইভ কনসোল মনিটরিং ব্যবস্থা\n• ২৪/৭ হেল্পডেস্ক ও হোয়াটসঅ্যাপ অ্যাডমিন সাপোর্ট\n\n🚀 শুরু করতে 'Plans' পেজে গিয়ে আপনার ফ্রি ট্রায়াল সক্রিয় করুন অথবা সরাসরি বট ডিপ্লয় করুন। কোনো সমস্যায় সাপোর্ট সেন্টারে যোগাযোগ করুন। শুভকামনা!",
+    "createdAt": "2026-10-13T23:41:48.056Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934907661_z2ja",
+    "userId": "user_1791895972762",
+    "userEmail": "user@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
+    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:47.661Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934907644_xhsn",
+    "userId": "user_1791895972762",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:47.644Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934907285_wpuw",
+    "userId": "user_1791895972762",
+    "userEmail": "user@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
+    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:47.285Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934907260_yygr",
+    "userId": "user_1791895972762",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:47.260Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934906748_9kl5",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:46.748Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934906696_y8wb",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:46.696Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934906283_yytc",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:46.283Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934906246_hpsy",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:46.246Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934905799_bgey",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:45.799Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934905774_ki7c",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:45.774Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934905370_odg6",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:45.370Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934905314_x146",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:45.314Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934904648_83f5",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:44.648Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934904614_oc7h",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:44.614Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934904301_76hz",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:44.301Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934904282_e273",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:44.282Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934903744_i5k2",
+    "userId": "test_user_1791847286904",
+    "userEmail": "test@demo.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:43.744Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934903692_99f0",
+    "userId": "test_user_1791847286904",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:43.692Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934903350_9wb8",
+    "userId": "test_user_1791847286904",
+    "userEmail": "test@demo.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:41:43.350Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934903331_aghh",
+    "userId": "test_user_1791847286904",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:41:43.331Z",
+    "read": false
+  },
+  {
+    "id": "welcome_user_1791934828513_ign55",
+    "userId": "user_1791934828513_ign55",
+    "userEmail": "toyobur_rtdb_test@gmail.com",
+    "type": "welcome",
+    "title": "🎉 স্বাগতম Toyobur! হোস্টিংলাইভফাস্টে আপনাকে অভিনন্দন",
+    "message": "প্রিয় Toyobur,\n\nhosting-live-fast প্ল্যাটফর্মে আপনাকে আন্তরিক স্বাগতম! আমাদের সাথে যুক্ত হওয়ার জন্য অসংখ্য ধন্যবাদ।\n\n⚡ আমাদের প্ল্যাটফর্মের বিশেষ সুবিধা ও সেবাসমূহ:\n• ২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং (Python & Node.js ১০০% কার্যকর)\n• ওয়েবসাইট ও ওয়েব অ্যাপ্লিকেশন হোস্টিং\n• নতুন সকল ইউজারের জন্য ১ মাসের ফ্রি ট্রায়াল সুবিধা\n• বিকাশ, নগদ ও বাইন্যান্স পে দিয়ে তাৎক্ষণিক ওয়ালেট রিচার্জ\n• অটো ক্র্যাশ রিস্টার্ট ও লাইভ কনসোল মনিটরিং ব্যবস্থা\n• ২৪/৭ হেল্পডেস্ক ও হোয়াটসঅ্যাপ অ্যাডমিন সাপোর্ট\n\n🚀 শুরু করতে 'Plans' পেজে গিয়ে আপনার ফ্রি ট্রায়াল সক্রিয় করুন অথবা সরাসরি বট ডিপ্লয় করুন। কোনো সমস্যায় সাপোর্ট সেন্টারে যোগাযোগ করুন। শুভকামনা!",
+    "createdAt": "2026-10-13T23:40:28.524Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934808096_n4ft",
+    "userId": "user_1791895972762",
+    "userEmail": "user@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
+    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:08.096Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934808073_1vbn",
+    "userId": "user_1791895972762",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:08.073Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934807850_3ss0",
+    "userId": "user_1791895972762",
+    "userEmail": "user@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
+    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:07.850Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934807756_oto9",
+    "userId": "user_1791895972762",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:07.756Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934807350_x2ly",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:07.350Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934807294_iuop",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:07.294Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934807012_z89h",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:07.012Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934806994_i3qv",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:06.994Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934806757_y42u",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:06.757Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934806705_3ewb",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:06.705Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934806415_jkyf",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:06.415Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934806398_p6m5",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:06.398Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934806112_357o",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:06.112Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934806096_9198",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:06.096Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934805863_cah9",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:05.863Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934805802_2e47",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:05.802Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934805594_96fn",
+    "userId": "test_user_1791847286904",
+    "userEmail": "test@demo.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:05.594Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934805577_pboc",
+    "userId": "test_user_1791847286904",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:05.577Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934805291_vbdo",
+    "userId": "test_user_1791847286904",
+    "userEmail": "test@demo.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:40:05.291Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791934805268_azty",
+    "userId": "test_user_1791847286904",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:40:05.268Z",
+    "read": false
+  },
+  {
+    "id": "welcome_user_1791934350593_3xzzo",
+    "userId": "user_1791934350593_3xzzo",
+    "userEmail": "toyoburtest99@gmail.com",
+    "type": "welcome",
+    "title": "🎉 স্বাগতম Toyobur Rahman! হোস্টিংলাইভফাস্টে আপনাকে অভিনন্দন",
+    "message": "প্রিয় Toyobur Rahman,\n\nhosting-live-fast প্ল্যাটফর্মে আপনাকে আন্তরিক স্বাগতম! আমাদের সাথে যুক্ত হওয়ার জন্য অসংখ্য ধন্যবাদ।\n\n⚡ আমাদের প্ল্যাটফর্মের বিশেষ সুবিধা ও সেবাসমূহ:\n• ২৪/৭ ক্লাউড টেলিগ্রাম বট হোস্টিং (Python & Node.js ১০০% কার্যকর)\n• ওয়েবসাইট ও ওয়েব অ্যাপ্লিকেশন হোস্টিং\n• নতুন সকল ইউজারের জন্য ১ মাসের ফ্রি ট্রায়াল সুবিধা\n• বিকাশ, নগদ ও বাইন্যান্স পে দিয়ে তাৎক্ষণিক ওয়ালেট রিচার্জ\n• অটো ক্র্যাশ রিস্টার্ট ও লাইভ কনসোল মনিটরিং ব্যবস্থা\n• ২৪/৭ হেল্পডেস্ক ও হোয়াটসঅ্যাপ অ্যাডমিন সাপোর্ট\n\n🚀 শুরু করতে 'Plans' পেজে গিয়ে আপনার ফ্রি ট্রায়াল সক্রিয় করুন অথবা সরাসরি বট ডিপ্লয় করুন। কোনো সমস্যায় সাপোর্ট সেন্টারে যোগাযোগ করুন। শুভকামনা!",
+    "createdAt": "2026-10-13T23:32:30.607Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932951680_rk72",
+    "userId": "user_1791895972762",
+    "userEmail": "user@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
+    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:11.680Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932951664_6esq",
+    "userId": "user_1791895972762",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:11.664Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932951394_tywh",
+    "userId": "user_1791895972762",
+    "userEmail": "user@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
+    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:11.394Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932951372_jres",
+    "userId": "user_1791895972762",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:11.372Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932951005_og4b",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:11.005Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932950986_s0er",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:10.986Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932950694_uxrb",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:10.694Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932950662_lav6",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:10.662Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932950381_lhzk",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:10.381Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932950360_j3hd",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:10.360Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932950088_ppx8",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:10.088Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932950060_hmdm",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:10.060Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932949775_nui3",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:09.775Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932949757_tdy2",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:09.757Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932949499_3voj",
+    "userId": "test_u1",
+    "userEmail": "test@app.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:09.499Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932949478_hspe",
+    "userId": "test_u1",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:09.478Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932949170_2d95",
+    "userId": "test_user_1791847286904",
+    "userEmail": "test@demo.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:09.170Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932949154_le6s",
+    "userId": "test_user_1791847286904",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:09.154Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932948880_x0na",
+    "userId": "test_user_1791847286904",
+    "userEmail": "test@demo.com",
+    "type": "deposit_approved",
+    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
+    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
+    "createdAt": "2026-10-13T23:09:08.880Z",
+    "read": false
+  },
+  {
+    "id": "notif_1791932948862_sh4f",
+    "userId": "test_user_1791847286904",
+    "type": "deposit_approved",
+    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
+    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
+    "createdAt": "2026-10-13T23:09:08.862Z",
+    "read": false
+  },
+  {
     "id": "welcome_user_1791932917583_3rs4e",
     "userId": "user_1791932917583_3rs4e",
     "userEmail": "badsharahman@gmail.com",
@@ -4159,605 +4759,6 @@
     "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
     "message": "আপনার $100 USD ডিপোজিট (Binance Pay / UID, TrxID: হহহ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
     "createdAt": "2026-10-13T22:33:59.484Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919002293_44x6",
-    "userId": "user_1791895972762",
-    "userEmail": "user@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
-    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:42.293Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919002251_44cn",
-    "userId": "user_1791895972762",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:42.251Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919002015_76hg",
-    "userId": "user_1791895972762",
-    "userEmail": "user@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
-    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:42.015Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919001992_vry1",
-    "userId": "user_1791895972762",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:41.992Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919001594_ww9y",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:41.595Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919001506_lqb5",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:41.506Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919001226_qlsp",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:41.226Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919001202_3rd2",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:41.202Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919000881_gnuw",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:40.881Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919000836_ymas",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:40.836Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919000607_aeod",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:40.607Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919000540_qdxn",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:40.540Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919000247_gkf8",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:40.247Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791919000225_tiq6",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:40.225Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918999923_lgcc",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:39.923Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918999906_fnon",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:39.906Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918999652_jdup",
-    "userId": "test_user_1791847286904",
-    "userEmail": "test@demo.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:39.652Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918999638_3c0a",
-    "userId": "test_user_1791847286904",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:39.638Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918999486_xrk7",
-    "userId": "test_user_1791847286904",
-    "userEmail": "test@demo.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:16:39.486Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918999466_o1bf",
-    "userId": "test_user_1791847286904",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:16:39.466Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918363340_uw94",
-    "userId": "user_1791895972762",
-    "userEmail": "user@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
-    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:03.340Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918363318_8mao",
-    "userId": "user_1791895972762",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:03.318Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918363090_75go",
-    "userId": "user_1791895972762",
-    "userEmail": "user@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
-    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:03.090Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918363040_kspd",
-    "userId": "user_1791895972762",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:03.040Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918362825_s65i",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:02.825Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918362784_b8br",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:02.784Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918362535_gjfj",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:02.535Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918362509_2pw0",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:02.509Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918362249_4cx4",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:02.249Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918362227_6u3u",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:02.227Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918361994_mem5",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:01.994Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918361947_t8su",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:01.947Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918361735_721b",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:01.735Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918361715_l7bs",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:01.715Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918361431_1gwx",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:01.431Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918361413_qmok",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:01.413Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918361068_m7ti",
-    "userId": "test_user_1791847286904",
-    "userEmail": "test@demo.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:01.068Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918361049_r7qi",
-    "userId": "test_user_1791847286904",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:01.049Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918360828_15nm",
-    "userId": "test_user_1791847286904",
-    "userEmail": "test@demo.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:06:00.828Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918360805_f44r",
-    "userId": "test_user_1791847286904",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:06:00.805Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918352922_m34s",
-    "userId": "user_1791895972762",
-    "userEmail": "user@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
-    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:52.922Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918352906_klod",
-    "userId": "user_1791895972762",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:52.906Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918352533_t08f",
-    "userId": "user_1791895972762",
-    "userEmail": "user@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
-    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:52.533Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918352513_pns2",
-    "userId": "user_1791895972762",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:52.513Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918352225_503k",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:52.225Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918352209_qf2o",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:52.209Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918351952_t24h",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:51.952Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918351935_g5ya",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:51.935Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918351729_67js",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:51.729Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918351712_98bi",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:51.712Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918351511_oqhh",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($300 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Nagad\n- পরিমাণ: $300 USD\n- Transaction ID: NAG98765432\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23030.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:51.511Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918351493_dkvo",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $300 USD ডিপোজিট (Nagad, TrxID: NAG98765432) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:51.493Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918351239_st8n",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($500 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: bKash\n- পরিমাণ: $500 USD\n- Transaction ID: BKA12345678\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $23230.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:51.239Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918351216_blzq",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $500 USD ডিপোজিট (bKash, TrxID: BKA12345678) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:51.216Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918350941_vraz",
-    "userId": "test_u1",
-    "userEmail": "test@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($10 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $10 USD\n- Transaction ID: BN922593999TEST\n- প্রেরক আইডি: test@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $22740.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:50.941Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918350919_dgta",
-    "userId": "test_u1",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $10 USD ডিপোজিট (Binance Pay / UID, TrxID: BN922593999TEST) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:50.919Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918350725_nt21",
-    "userId": "test_user_1791847286904",
-    "userEmail": "test@demo.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:50.725Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918350706_ek3k",
-    "userId": "test_user_1791847286904",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:50.706Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918350497_27y5",
-    "userId": "test_user_1791847286904",
-    "userEmail": "test@demo.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($50 USD)",
-    "message": "প্রিয় test,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: test@demo.com\n- পেমেন্ট মেথড: হজ্ঝ\n- পরিমাণ: $50 USD\n- Transaction ID: JJHHJ\n- প্রেরক আইডি: N/A\n- বর্তমান ওয়ালেট ব্যালেন্স: $3850.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T19:05:50.497Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791918350480_l3ig",
-    "userId": "test_user_1791847286904",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $50 USD ডিপোজিট (হজ্ঝ, TrxID: JJHHJ) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T19:05:50.480Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791917918796_43e6",
-    "userId": "user_1791895972762",
-    "userEmail": "user@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
-    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T18:58:38.796Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791917918753_f1cp",
-    "userId": "user_1791895972762",
-    "type": "deposit_approved",
-    "title": "✅ ডিপোজিট অনুমোদিত হয়েছে",
-    "message": "আপনার $1000 USD ডিপোজিট (Binance Pay / UID, TrxID: HJDHOO) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!",
-    "createdAt": "2026-10-13T18:58:38.753Z",
-    "read": false
-  },
-  {
-    "id": "notif_1791917918518_oyrb",
-    "userId": "user_1791895972762",
-    "userEmail": "user@app.com",
-    "type": "deposit_approved",
-    "title": "hosting live fast: ডিপোজিট নিশ্চিতকরণ ($1000 USD)",
-    "message": "প্রিয় user,\n\nআপনার ডিপোজিট সফলভাবে অনুমোদিত হয়েছে!\n\nট্রানজেকশন তথ্য:\n- রেজিস্টার্ড ইমেইল: user@app.com\n- পেমেন্ট মেথড: Binance Pay / UID\n- পরিমাণ: $1000 USD\n- Transaction ID: HJDHOO\n- প্রেরক আইডি: user@app.com\n- বর্তমান ওয়ালেট ব্যালেন্স: $77000.00 USD\n- স্ট্যাটাস: অনুমোদিত (Approved)\n\nআপনার একাউন্টে ব্যালেন্স যুক্ত হয়েছে। এখনই লগইন করে হোস্টিং প্ল্যান কিনতে পারেন অথবা বট ডিপ্লয় করতে পারেন।\n\nধন্যবাদ,\nhosting live fast টিম\n২৪/৭ নিরবচ্ছিন্ন ক্লাউড হোস্টিং সেবা\nhttps://hostinglivefast.cloud",
-    "createdAt": "2026-10-13T18:58:38.518Z",
     "read": false
   }
 ]

@@ -35,6 +35,7 @@ import firebaseAppletConfig from '../../firebase-applet-config.json';
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseAppletConfig.apiKey,
   authDomain: firebaseAppletConfig.authDomain,
+  databaseURL: (firebaseAppletConfig as any).databaseURL || `https://${firebaseAppletConfig.projectId}-default-rtdb.firebaseio.com`,
   projectId: firebaseAppletConfig.projectId,
   storageBucket: firebaseAppletConfig.storageBucket,
   messagingSenderId: firebaseAppletConfig.messagingSenderId,
@@ -42,10 +43,11 @@ export const firebaseConfig = {
   measurementId: firebaseAppletConfig.measurementId
 };
 
-// Secondary preview-authorized Firebase Auth config
+// Secondary preview-authorized Firebase Auth config with web.app domain
 const previewFallbackConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_FALLBACK_API_KEY || firebaseAppletConfig.apiKey,
-  authDomain: firebaseAppletConfig.authDomain,
+  authDomain: `${firebaseAppletConfig.projectId}.web.app`,
+  databaseURL: (firebaseAppletConfig as any).databaseURL || `https://${firebaseAppletConfig.projectId}-default-rtdb.firebaseio.com`,
   projectId: firebaseAppletConfig.projectId,
   storageBucket: firebaseAppletConfig.storageBucket,
   messagingSenderId: firebaseAppletConfig.messagingSenderId,

@@ -3,6 +3,11 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import dns from 'dns';
+try {
+  if (typeof (dns as any).setDefaultResultOrder === 'function') {
+    (dns as any).setDefaultResultOrder('ipv4first');
+  }
+} catch (e) {}
 import crypto from 'crypto';
 import AdmZip from 'adm-zip';
 import { spawn, exec, execSync } from 'child_process';
