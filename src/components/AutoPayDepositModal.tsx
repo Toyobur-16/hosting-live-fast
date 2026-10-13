@@ -158,12 +158,22 @@ export function AutoPayDepositModal({
     }
 
     if (!senderNumber.trim()) {
-      setErrorMessage('যে নাম্বার থেকে টাকা পাঠিয়েছেন তা লিখুন');
+      if (selectedMethod.name.toLowerCase().includes('binance') || selectedMethod.category === 'crypto') {
+        setErrorMessage('আপনার Binance Pay ID / UID বা প্রেরক ইমেইল লিখুন');
+      } else {
+        setErrorMessage(`যে ${selectedMethod.name} নম্বর থেকে টাকা পাঠিয়েছেন তা লিখুন`);
+      }
       return;
     }
 
     if (!trxId.trim()) {
-      setErrorMessage('পেমেন্টের পর প্রাপ্ত Transaction ID (TrxID) লিখুন');
+      if (selectedMethod.name.toLowerCase().includes('binance')) {
+        setErrorMessage('বাইন্যান্স অর্ডার আইডি (Binance Order ID) লিখুন');
+      } else if (selectedMethod.category === 'crypto') {
+        setErrorMessage('ব্লকচেইন ট্রানজেকশন হ্যাশ (TxID) লিখুন');
+      } else {
+        setErrorMessage(`পেমেন্টের পর প্রাপ্ত ${selectedMethod.name} TrxID লিখুন`);
+      }
       return;
     }
 
@@ -576,7 +586,9 @@ export function AutoPayDepositModal({
                     <form onSubmit={handleSubmitDeposit} className="space-y-3">
                       <div>
                         <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                          আপনার {selectedMethod.name} নম্বর (যে নম্বর থেকে পাঠিয়েছেন): *
+                          {selectedMethod.name.toLowerCase().includes('binance') || selectedMethod.category === 'crypto'
+                            ? 'আপনার Binance Pay ID / UID বা ইমেইল (প্রেরক): *'
+                            : `আপনার ${selectedMethod.name} নম্বর (যে নম্বর থেকে পাঠিয়েছেন): *`}
                         </label>
                         <div className="relative">
                           <input
@@ -584,7 +596,11 @@ export function AutoPayDepositModal({
                             required
                             value={senderNumber}
                             onChange={(e) => setSenderNumber(e.target.value)}
-                            placeholder="যেমন: 017XXXXXXXX"
+                            placeholder={
+                              selectedMethod.name.toLowerCase().includes('binance') || selectedMethod.category === 'crypto'
+                                ? 'যেমন: 922593999 বা আপনার Binance UID'
+                                : 'যেমন: 017XXXXXXXX'
+                            }
                             className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#e2dbf0] text-sm text-[#1e1b2e] font-mono focus:border-[#5b21b6] focus:outline-none transition-colors"
                           />
                         </div>
@@ -592,14 +608,22 @@ export function AutoPayDepositModal({
 
                       <div>
                         <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                          Transaction ID (TrxID): *
+                          {selectedMethod.name.toLowerCase().includes('binance')
+                            ? 'Binance Order ID: *'
+                            : selectedMethod.category === 'crypto'
+                            ? 'Transaction Hash (TxID): *'
+                            : 'Transaction ID (TrxID): *'}
                         </label>
                         <input
                           type="text"
                           required
                           value={trxId}
                           onChange={(e) => setTrxId(e.target.value)}
-                          placeholder="যেমন: 9J7A29DFG"
+                          placeholder={
+                            selectedMethod.name.toLowerCase().includes('binance')
+                              ? 'যেমন: 639278222 (Order ID)'
+                              : 'যেমন: 9J7A29DFG'
+                          }
                           className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#e2dbf0] text-sm text-[#1e1b2e] font-mono uppercase focus:border-[#5b21b6] focus:outline-none transition-colors"
                         />
                       </div>

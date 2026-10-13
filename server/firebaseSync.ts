@@ -592,6 +592,31 @@ export class FirebaseSync {
       }
       fields['updatedAt'] = toFirestoreValue(Date.now());
 
+      // Ensure all fields expected by the separate Admin Panel (Screenshot 1 & 2) are populated
+      const cleanTrx = String(planReq.transactionId || planReq.trxId || '').trim().toUpperCase();
+      fields['trxId'] = toFirestoreValue(cleanTrx);
+      fields['transactionId'] = toFirestoreValue(cleanTrx);
+      fields['userEmail'] = toFirestoreValue(planReq.userEmail || '');
+      fields['userId'] = toFirestoreValue(planReq.userId || '');
+      fields['userPhone'] = toFirestoreValue(planReq.senderNumber || planReq.senderIdentifier || planReq.userPhone || '—');
+      fields['sender'] = toFirestoreValue(planReq.senderNumber || planReq.senderIdentifier || '');
+      fields['method'] = toFirestoreValue(planReq.method || 'bKash');
+      fields['status'] = toFirestoreValue(planReq.status || 'pending');
+      fields['type'] = toFirestoreValue('deposit');
+      fields['date'] = toFirestoreValue(planReq.createdAt || new Date().toISOString());
+      fields['createdAt'] = toFirestoreValue(planReq.createdAt || new Date().toISOString());
+      fields['timestamp'] = toFirestoreValue(Date.now());
+
+      const numBdt = Number(planReq.bdtAmount || planReq.amountBdt || 0);
+      const numAmt = Number(planReq.amount || 0);
+      const isBdt = String(planReq.method || '').toLowerCase().includes('bkash') || 
+                    String(planReq.method || '').toLowerCase().includes('nagad') || 
+                    String(planReq.method || '').toLowerCase().includes('rocket') ||
+                    planReq.currency === 'BDT';
+      fields['amount'] = toFirestoreValue(isBdt && numBdt > 0 ? numBdt : (numAmt > 0 ? numAmt : numBdt));
+      if (numBdt > 0) fields['amountBdt'] = toFirestoreValue(numBdt);
+      fields['amountUsd'] = toFirestoreValue(numAmt);
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
@@ -599,34 +624,48 @@ export class FirebaseSync {
 
       const bodyStr = JSON.stringify({ fields });
 
-      // 1. Sync to /plan_requests collection
-      const url1 = `${BASE_URL}/plan_requests/${docId}?key=${API_KEY}`;
-      const res1 = await fetch(url1, {
+      const defaultDbBaseUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+      const namedDbBaseUrl = BASE_URL;
+
+      // 1. Sync to (default) /deposits collection (for the separate Admin Panel in Screenshot 1!)
+      const urlDepDefault = `${defaultDbBaseUrl}/deposits/${docId}?key=${API_KEY}`;
+      const resDepDefault = await fetch(urlDepDefault, {
         method: 'PATCH',
         headers,
         body: bodyStr,
         signal: AbortSignal.timeout(6000)
       }).catch(() => null);
 
-      // 2. If it's a deposit request, also sync to /deposits collection for 100% redundancy
-      let res2Ok = true;
-      if (planReq.type === 'deposit' || planReq.planId === 'wallet_deposit' || !planReq.planId) {
-        const url2 = `${BASE_URL}/deposits/${docId}?key=${API_KEY}`;
-        const res2 = await fetch(url2, {
-          method: 'PATCH',
-          headers,
-          body: bodyStr,
-          signal: AbortSignal.timeout(6000)
-        }).catch(() => null);
-        res2Ok = Boolean(res2 && res2.ok);
-      }
+      // 2. Sync to named database /deposits collection
+      const urlDepNamed = `${namedDbBaseUrl}/deposits/${docId}?key=${API_KEY}`;
+      await fetch(urlDepNamed, {
+        method: 'PATCH',
+        headers,
+        body: bodyStr,
+        signal: AbortSignal.timeout(6000)
+      }).catch(() => null);
 
-      const isSuccess = Boolean(res1 && res1.ok) || res2Ok;
+      // 3. Sync to (default) /plan_requests collection
+      const urlPlanDefault = `${defaultDbBaseUrl}/plan_requests/${docId}?key=${API_KEY}`;
+      await fetch(urlPlanDefault, {
+        method: 'PATCH',
+        headers,
+        body: bodyStr,
+        signal: AbortSignal.timeout(6000)
+      }).catch(() => null);
+
+      // 4. Sync to named database /plan_requests collection
+      const urlPlanNamed = `${namedDbBaseUrl}/plan_requests/${docId}?key=${API_KEY}`;
+      const resPlanNamed = await fetch(urlPlanNamed, {
+        method: 'PATCH',
+        headers,
+        body: bodyStr,
+        signal: AbortSignal.timeout(6000)
+      }).catch(() => null);
+
+      const isSuccess = Boolean((resDepDefault && resDepDefault.ok) || (resPlanNamed && resPlanNamed.ok));
       if (isSuccess) {
-        console.log(`✅ [Firebase Firestore] Saved deposit/plan request ${planReq.id} (Status: ${planReq.status}, Amount: $${planReq.amount})`);
-      } else if (res1 && !res1.ok) {
-        const errText = await res1.text().catch(() => '');
-        console.warn(`⚠️ [Firebase Firestore] syncPlanRequestToCloud failed (${res1.status}):`, errText);
+        console.log(`✅ [Firebase Firestore] Synced deposit to separate Admin Panel & Cloud (${planReq.id}, Status: ${planReq.status}, TrxID: ${cleanTrx})`);
       }
       return isSuccess;
     } catch (err: any) {
@@ -646,65 +685,55 @@ export class FirebaseSync {
         ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
       };
 
-      const runQueryUrl = `${BASE_URL}:runQuery?key=${API_KEY}`;
+      const defaultDbBaseUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+      const namedDbBaseUrl = BASE_URL;
 
-      // 1. Read from /plan_requests via :runQuery
-      const queryBody1 = {
-        structuredQuery: {
-          from: [{ collectionId: 'plan_requests' }],
-          limit: 300
-        }
-      };
-      const res1 = await fetch(runQueryUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(queryBody1)
-      }).catch(() => null);
+      const fetchQuery = async (baseUrl: string, colId: string) => {
+        try {
+          const runQueryUrl = `${baseUrl}:runQuery?key=${API_KEY}`;
+          const qBody = {
+            structuredQuery: {
+              from: [{ collectionId: colId }],
+              limit: 300
+            }
+          };
+          const res = await fetch(runQueryUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(qBody),
+            signal: AbortSignal.timeout(6000)
+          }).catch(() => null);
 
-      if (res1 && res1.ok) {
-        const list1: any = await res1.json();
-        if (Array.isArray(list1)) {
-          for (const item of list1) {
-            if (item.document?.fields) {
-              const parsed = fromFirestoreFields(item.document.fields);
-              if (parsed && parsed.id && !seenIds.has(parsed.id)) {
-                seenIds.add(parsed.id);
-                collected.push(parsed);
+          if (res && res.ok) {
+            const list: any = await res.json();
+            if (Array.isArray(list)) {
+              for (const item of list) {
+                if (item.document?.fields) {
+                  const parsed = fromFirestoreFields(item.document.fields);
+                  if (parsed && (parsed.id || item.document.name)) {
+                    const docId = parsed.id || item.document.name.split('/').pop();
+                    if (docId && !seenIds.has(docId)) {
+                      seenIds.add(docId);
+                      collected.push({ ...parsed, id: docId });
+                    }
+                  }
+                }
               }
             }
           }
-        }
-      }
-
-      // 2. Read from /deposits via :runQuery
-      const queryBody2 = {
-        structuredQuery: {
-          from: [{ collectionId: 'deposits' }],
-          limit: 300
-        }
+        } catch {}
       };
-      const res2 = await fetch(runQueryUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(queryBody2)
-      }).catch(() => null);
 
-      if (res2 && res2.ok) {
-        const list2: any = await res2.json();
-        if (Array.isArray(list2)) {
-          for (const item of list2) {
-            if (item.document?.fields) {
-              const parsed = fromFirestoreFields(item.document.fields);
-              if (parsed && parsed.id && !seenIds.has(parsed.id)) {
-                seenIds.add(parsed.id);
-                collected.push(parsed);
-              }
-            }
-          }
-        }
-      }
+      // Query (default) database /deposits (separate Admin Panel primary collection)
+      await fetchQuery(defaultDbBaseUrl, 'deposits');
+      // Query (default) database /plan_requests
+      await fetchQuery(defaultDbBaseUrl, 'plan_requests');
+      // Query named database /deposits
+      await fetchQuery(namedDbBaseUrl, 'deposits');
+      // Query named database /plan_requests
+      await fetchQuery(namedDbBaseUrl, 'plan_requests');
 
-      console.log(`✅ [Firebase Firestore] Loaded ${collected.length} deposit/plan requests from cloud via runQuery!`);
+      console.log(`✅ [Firebase Firestore] Loaded ${collected.length} deposit/plan requests from cloud across default & named DBs!`);
     } catch (err: any) {
       console.warn('FirebaseSync loadPlanRequestsFromCloud error:', err.message || err);
     }
@@ -723,7 +752,6 @@ export class FirebaseSync {
 
       const mergedMap = new Map<string, any>();
 
-      // Put local requests into map
       for (const loc of localRequests) {
         if (loc && loc.id) {
           mergedMap.set(loc.id, loc);
@@ -731,7 +759,6 @@ export class FirebaseSync {
       }
 
       let hasChanges = false;
-      // Merge remote requests
       for (const rem of remoteRequests) {
         if (!rem || !rem.id) continue;
         const existing = mergedMap.get(rem.id);
@@ -739,7 +766,6 @@ export class FirebaseSync {
           mergedMap.set(rem.id, rem);
           hasChanges = true;
         } else {
-          // If remote request has updated status (e.g. approved or rejected), update it
           if (rem.status !== existing.status || (rem.reviewedAt && !existing.reviewedAt)) {
             mergedMap.set(rem.id, { ...existing, ...rem });
             hasChanges = true;
@@ -755,13 +781,119 @@ export class FirebaseSync {
         console.log(`✅ Restored & synced ${finalRequests.length} deposit/plan requests from Firebase Firestore!`);
       }
 
-      // Ensure any requests that only existed locally get backed up to Firebase Firestore
       for (const req of finalRequests) {
         this.syncPlanRequestToCloud(req).catch(() => {});
       }
     } catch (err: any) {
       console.warn('FirebaseSync initPlanRequestsSync warning:', err.message || err);
     }
+  }
+
+  // Live Auto-Approval Watcher for the separate Admin Panel (Screenshot 1 & 2)
+  static startExternalDepositsWatcher(
+    getAccountsFn: () => any[],
+    saveAccountsFn: (accs: any[]) => void,
+    getRequestsFn: () => any[],
+    saveRequestsFn: (reqs: any[]) => void,
+    modifyWalletFn: (userId: string, amount: number, type: 'deposit' | 'purchase' | 'refund', desc: string, method?: string, trxId?: string, currency?: string) => any,
+    isCreditedFn: (trxId: string) => boolean,
+    saveNotifFn?: (notif: any) => void
+  ): void {
+    setInterval(async () => {
+      try {
+        const defaultDbBaseUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+        const res = await fetch(`${defaultDbBaseUrl}/deposits?key=${API_KEY}`, {
+          signal: AbortSignal.timeout(6000)
+        }).catch(() => null);
+
+        if (!res || !res.ok) return;
+        const data: any = await res.json();
+        if (!data || !Array.isArray(data.documents)) return;
+
+        const currentRequests = getRequestsFn();
+        const accounts = getAccountsFn();
+        let requestsUpdated = false;
+
+        for (const docItem of data.documents) {
+          if (!docItem || !docItem.fields) continue;
+          const parsed = fromFirestoreFields(docItem.fields);
+          const docId = docItem.name.split('/').pop();
+          const cleanTrx = String(parsed.trxId || parsed.transactionId || '').trim().toUpperCase();
+          const status = String(parsed.status || '').toLowerCase();
+
+          if (!cleanTrx) continue;
+
+          // If approved in the separate Admin Panel or auto-approved by Cloud Function:
+          if (status === 'approved') {
+            const alreadyCredited = isCreditedFn(cleanTrx);
+            if (!alreadyCredited) {
+              const email = String(parsed.userEmail || '').trim().toLowerCase();
+              const uid = String(parsed.userId || '').trim();
+              const acc = accounts.find((a) => (uid && a.id === uid) || (email && a.email?.toLowerCase() === email));
+
+              if (acc) {
+                const method = parsed.method || 'bKash';
+                const isCrypto = method.toLowerCase().includes('binance') || method.toLowerCase().includes('usdt');
+                const rawAmt = parseFloat(parsed.amount || parsed.amountBdt || '0');
+                const rate = 120;
+                const usdAmount = isCrypto
+                  ? Math.max(0.01, parseFloat(rawAmt.toFixed(2)))
+                  : (rawAmt > 0 ? Math.max(0.01, parseFloat((rawAmt / rate).toFixed(2))) : 1);
+
+                modifyWalletFn(
+                  acc.id,
+                  usdAmount,
+                  'deposit',
+                  `Approved by Admin Panel (${method}): $${usdAmount} USD`,
+                  method,
+                  cleanTrx,
+                  'USD'
+                );
+                acc.balanceUsd = Math.round(((acc.balanceUsd || 0) + usdAmount) * 100) / 100;
+                saveAccountsFn(accounts);
+                FirebaseSync.syncAccountToCloud(acc).catch(() => {});
+
+                console.log(`🎉 [Separate Admin Panel] Deposit ${cleanTrx} (${usdAmount} USD) approved! Credited to user: ${acc.email}`);
+
+                if (saveNotifFn) {
+                  saveNotifFn({
+                    id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                    userId: acc.id,
+                    type: 'deposit_approved',
+                    title: '✅ ডিপোজিট অনুমোদিত হয়েছে',
+                    message: `আপনার $${usdAmount} USD ডিপোজিট (${method}, TrxID: ${cleanTrx}) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!`,
+                    createdAt: new Date().toISOString(),
+                    read: false
+                  });
+                }
+              }
+            }
+
+            // Sync status to local plan_requests
+            const existingLocal = currentRequests.find((r) => (r.transactionId || '').toUpperCase() === cleanTrx || r.id === docId);
+            if (existingLocal && existingLocal.status !== 'approved') {
+              existingLocal.status = 'approved';
+              existingLocal.reviewedAt = new Date().toISOString();
+              existingLocal.reviewedBy = 'Separate Admin Panel';
+              requestsUpdated = true;
+            }
+          } else if (status === 'rejected') {
+            const existingLocal = currentRequests.find((r) => (r.transactionId || '').toUpperCase() === cleanTrx || r.id === docId);
+            if (existingLocal && existingLocal.status !== 'rejected') {
+              existingLocal.status = 'rejected';
+              existingLocal.reviewedAt = new Date().toISOString();
+              requestsUpdated = true;
+            }
+          }
+        }
+
+        if (requestsUpdated) {
+          saveRequestsFn(currentRequests);
+        }
+      } catch (err: any) {
+        // Silent background catch
+      }
+    }, 10000); // Check every 10 seconds
   }
 
   // ==========================================

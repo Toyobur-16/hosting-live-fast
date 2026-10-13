@@ -353,17 +353,43 @@ function copyAmount() {
 }
 
 function loadMethods() {
-  db.collection('payment_methods').onSnapshot(function(snap) {
-    methodsCache = [];
-    snap.forEach(d => {
-      const m = { id: d.id, ...d.data() };
-      if (m.enabled !== false) methodsCache.push(m);
-    });
+  function processMethods(list) {
+    if (!list || !list.length) return;
+    methodsCache = (list || []).map(m => ({
+      ...m,
+      accountValue: m.accountValue || m.number || m.addressOrId || '',
+      number: m.accountValue || m.number || m.addressOrId || '',
+      logo: m.logo || m.logoUrl || '',
+      type: m.type || ((m.category === 'crypto' || (m.id && m.id.includes('binance')) || (m.name && m.name.toLowerCase().includes('binance'))) ? 'binance' : 'mobile_banking')
+    })).filter(m => m.enabled !== false);
     methodsCache.sort((a,b) => (a.order||0) - (b.order||0));
     renderMethods();
-  }, err => {
-    document.getElementById('method-list').innerHTML = '<p class="col-span-2 text-center text-xs text-red-500 py-6">Firestore rules চেক করুন</p>';
-  });
+  }
+
+  // Baseline load from server endpoint
+  fetch('/api/deposit-methods')
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.methods && data.methods.length) {
+        processMethods(data.methods);
+      }
+    })
+    .catch(() => {});
+
+  // Real-time Firestore sync
+  try {
+    db.collection('payment_methods').onSnapshot(function(snap) {
+      if (!snap.empty) {
+        const list = [];
+        snap.forEach(d => {
+          list.push({ id: d.id, ...d.data() });
+        });
+        processMethods(list);
+      }
+    }, err => {
+      console.warn('Firestore payment_methods notice:', err);
+    });
+  } catch(e) {}
 }
 
 function renderMethods() {
@@ -478,7 +504,7 @@ function goToPaymentPage(idx) {
         <div class="flex-1 flex items-center justify-between gap-2">
           <div>
             <p class="text-[11px] opacity-80">Binance UID / Pay ID</p>
-            <p class="font-bold tracking-wider text-base"><span id="pay-admin-number">${m.number || '—'}</span></p>
+            <p class="font-bold tracking-wider text-base"><span id="pay-admin-number">${m.accountValue || m.number || m.addressOrId || '—'}</span></p>
           </div>
           <button onclick="copyPayNumber()" class="copy-btn" type="button">
             <i class="far fa-copy"></i>
@@ -546,7 +572,7 @@ function goToPaymentPage(idx) {
       <div class="instruction-row">
         <span class="dot"></span>
         <div class="flex-1 flex items-center justify-between gap-2">
-          <p>নম্বর লিখুন: <b class="tracking-wider"><span id="pay-admin-number">${m.number || '—'}</span></b></p>
+          <p>নম্বর লিখুন: <b class="tracking-wider"><span id="pay-admin-number">${m.accountValue || m.number || '—'}</span></b></p>
           <button onclick="copyPayNumber()" class="copy-btn" type="button">
             <i class="far fa-copy"></i>
           </button>
@@ -624,6 +650,7 @@ function submitBinanceDeposit(orderId) {
   const authData = getActiveAuth();
   const uid = authData.user?.id || (currentUser ? currentUser.uid : 'user_' + Date.now());
   const email = authData.user?.email || (currentUser ? currentUser.email : 'user@app.com');
+  const receiverNum = (document.getElementById('pay-admin-number') ? document.getElementById('pay-admin-number').innerText : '').trim();
 
   Swal.showLoading();
 
@@ -635,10 +662,11 @@ function submitBinanceDeposit(orderId) {
     },
     body: JSON.stringify({
       trxId: orderId,
+      transactionId: orderId,
       amount: currentDepositAmount,
       amountBdt: currentDepositAmount,
-      method: 'binance',
-      receiverNumber: currentMethodData ? currentMethodData.number : '',
+      method: currentPaymentMethod || 'binance_pay',
+      receiverNumber: (currentMethodData && (currentMethodData.accountValue || currentMethodData.number)) ? (currentMethodData.accountValue || currentMethodData.number) : (receiverNum || '922593999'),
       userId: uid,
       userEmail: email
     })
@@ -647,11 +675,11 @@ function submitBinanceDeposit(orderId) {
   .then(data => {
     Swal.close();
     try {
-      if (window.parent) window.parent.postMessage({ type: 'deposit_submitted', trxId: orderId }, '*');
+      if (window.parent) window.parent.postMessage({ type: 'deposit_submitted', trxId: orderId, status: data.status }, '*');
     } catch(e) {}
 
     if (data.success && data.autoApproved) {
-      showSuccess(data.creditedAmount);
+      showSuccess(data.creditedAmount || currentDepositAmount);
     } else if (data.success) {
       showPendingSubmitted(data.message, orderId);
     } else {
@@ -728,7 +756,7 @@ function startVerification(trx) {
     } catch(e) {}
 
     if (data.success && data.autoApproved) {
-      showSuccess(data.creditedAmount);
+      showSuccess(data.creditedAmount || currentDepositAmount);
     } else if (data.success) {
       showPendingSubmitted(data.message, trx);
     } else {
@@ -749,16 +777,31 @@ function clearTimers() {
 }
 
 function showSuccess(creditedUsd) {
-  const usdtAmount = creditedUsd ? Number(creditedUsd).toFixed(2) : calcUsdt(currentDepositAmount);
+  const isBinance = currentPaymentType === 'binance' || (currentPaymentMethod && currentPaymentMethod.toLowerCase().includes('binance'));
+  const isCrypto = isBinance || (currentPaymentMethod && (currentPaymentMethod.toLowerCase().includes('usdt') || currentPaymentMethod.toLowerCase().includes('bep20') || currentPaymentMethod.toLowerCase().includes('trc20')));
+  const usdtAmount = creditedUsd ? Number(creditedUsd).toFixed(2) : (isCrypto ? Number(currentDepositAmount).toFixed(2) : calcUsdt(currentDepositAmount));
+
+  let amountHtml = '';
+  if (isCrypto) {
+    amountHtml = `
+      <p style="font-size:22px;font-weight:800;color:#059669;margin-bottom:4px">$${usdtAmount} USDT</p>
+      <p style="font-size:13px;font-weight:700;color:#0f766e">ওয়ালেটে ব্যালেন্স সফলভাবে যোগ হয়েছে</p>
+    `;
+  } else {
+    amountHtml = `
+      <p style="font-size:20px;font-weight:800;color:#059669;margin-bottom:4px">৳${currentDepositAmount} BDT</p>
+      <p style="font-size:13px;font-weight:700;color:#0f766e">≈ $${usdtAmount} USDT ওয়ালেটে যোগ হয়েছে</p>
+    `;
+  }
+
   Swal.fire({
     icon: 'success',
-    title: '✅ Payment Successful',
+    title: '✅ ডিপোজিট সফল হয়েছে!',
     html: `
       <div style="text-align:center;font-size:14px;line-height:1.8;color:#374151">
-        <p style="font-size:18px;font-weight:bold;color:#059669">৳${currentDepositAmount} BDT Added</p>
-        <p style="font-size:14px;font-weight:bold;color:#0f766e">≈ $${usdtAmount} USDT ব্যালেন্স যোগ হয়েছে</p>
-        <p style="font-size:12px;color:#6b7280;margin-top:8px">
-          🎉 আপনার পেমেন্ট সফলভাবে অটোমেটিক ভেরিফাই হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!
+        ${amountHtml}
+        <p style="font-size:12px;color:#4b5563;margin-top:10px;background:#f0fdf4;padding:8px 12px;border-radius:8px;border:1px solid #bbf7d0">
+          🎉 আপনার ${isBinance ? 'Binance Order ID' : (isCrypto ? 'ক্রিপ্টো লেনদেন' : 'পেমেন্ট')} সফলভাবে ভেরিফাই হয়েছে এবং আপনার ওয়ালেটে ব্যালেন্স যুক্ত হয়েছে!
         </p>
       </div>
     `,
@@ -771,27 +814,48 @@ function showSuccess(creditedUsd) {
 }
 
 function showPendingSubmitted(message, trx) {
-  const usdtAmount = calcUsdt(currentDepositAmount);
+  const isBinance = currentPaymentType === 'binance' || (currentPaymentMethod && currentPaymentMethod.toLowerCase().includes('binance'));
+  const isCrypto = isBinance || (currentPaymentMethod && (currentPaymentMethod.toLowerCase().includes('usdt') || currentPaymentMethod.toLowerCase().includes('bep20') || currentPaymentMethod.toLowerCase().includes('trc20')));
+  const usdtAmount = isCrypto ? Number(currentDepositAmount).toFixed(2) : calcUsdt(currentDepositAmount);
+
+  let amountLabel = '';
+  let idLabel = isBinance ? 'Binance Order ID' : (isCrypto ? 'TxID (Hash)' : 'TrxID');
+  let methodTitle = currentPaymentMethod || (isBinance ? 'Binance Pay / UID' : 'Mobile Banking');
+
+  if (isCrypto) {
+    amountLabel = `${currentDepositAmount} USDT ($${currentDepositAmount})`;
+  } else {
+    amountLabel = `৳${currentDepositAmount} BDT (≈ $${usdtAmount} USDT)`;
+  }
+
   Swal.fire({
-    icon: 'info',
-    title: '📥 রিকোয়েস্ট জমা হয়েছে',
+    icon: 'success',
+    title: isBinance ? '✅ বাইন্যান্স অর্ডার সাবমিট সফল!' : (isCrypto ? '✅ ক্রিপ্টো ডিপোজিট সাবমিট সফল!' : '✅ ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে!'),
     html: `
       <div style="text-align:left;font-size:13px;line-height:1.7;color:#374151">
-        <p style="font-weight:bold;color:#0d9488;margin-bottom:8px">
-          ${message || 'আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে।'}
-        </p>
-        <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:10px;border-radius:10px;font-size:12px">
-          <p><b>পরিমাণ:</b> ৳${currentDepositAmount} BDT (≈ $${usdtAmount} USDT)</p>
-          <p><b>TrxID:</b> <code style="color:#0f766e;font-weight:bold">${trx}</code></p>
-          <p><b>মেথড:</b> ${currentPaymentMethod}</p>
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;padding:12px;border-radius:10px;margin-bottom:12px">
+          <p style="font-weight:bold;color:#065f46;margin-bottom:4px;font-size:14px">
+            ${isBinance ? '🎉 বাইন্যান্স অর্ডার আইডি সফলভাবে গৃহীত হয়েছে!' : '🎉 রিকোয়েস্ট সফলভাবে গৃহীত হয়েছে!'}
+          </p>
+          <p style="font-size:12px;color:#047857;margin:0">
+            ${message || (isBinance ? 'আপনার Binance Order ID অ্যাডমিন পর্যালোচনায় রয়েছে।' : 'আপনার ডিপোজিট রিকোয়েস্ট অ্যাডমিন পর্যালোচনায় রয়েছে।')}
+          </p>
         </div>
-        <p style="font-size:11px;color:#6b7280;margin-top:10px">
-          অ্যাডমিন প্যানেল থেকে ভেরিফাই করে ব্যালেন্স যোগ করা হবে। আপনার ওয়ালেটের <b>Deposit History</b> সেকশনে এর লাইভ স্ট্যাটাস দেখতে পারবেন।
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:12px;border-radius:10px;font-size:12px;line-height:1.8">
+          <p style="margin:2px 0"><b>মেথড:</b> <span style="font-weight:600;color:#1e293b">${methodTitle}</span></p>
+          <p style="margin:2px 0"><b>পরিমাণ:</b> <span style="font-weight:700;color:#059669">${amountLabel}</span></p>
+          <p style="margin:2px 0"><b>${idLabel}:</b> <code style="color:#0f766e;font-weight:bold;background:#e6fffa;padding:2px 6px;border-radius:4px">${trx}</code></p>
+          <p style="margin:2px 0"><b>স্ট্যাটাস:</b> <span style="display:inline-block;background:#fef3c7;color:#92400e;font-weight:bold;padding:1px 8px;border-radius:9999px;font-size:11px">⏳ অপেক্ষমান (Pending Approval)</span></p>
+        </div>
+        <p style="font-size:11px;color:#6b7280;margin-top:10px;line-height:1.5">
+          ${isBinance
+            ? 'অ্যাডমিন ম্যানুয়ালি আপনার Binance Order ID যাচাই করে Approve করলেই আপনার ওয়ালেটে ব্যালেন্স যুক্ত হবে।'
+            : 'অ্যাডমিন প্যানেল থেকে ভেরিফাই করে Approve করলেই ব্যালেন্স যোগ হবে। আপনার ওয়ালেটের <b>Deposit History</b> তে এর লাইভ স্ট্যাটাস দেখতে পারবেন।'}
         </p>
       </div>
     `,
     confirmButtonText: 'ঠিক আছে (OK)',
-    confirmButtonColor: '#0d9488',
+    confirmButtonColor: '#059669',
     allowOutsideClick: false
   }).then(function() {
     resetDeposit();
@@ -799,19 +863,85 @@ function showPendingSubmitted(message, trx) {
 }
 
 function showInvalid(reason) {
+  const isBinance = currentPaymentType === 'binance' || (currentPaymentMethod && currentPaymentMethod.toLowerCase().includes('binance'));
+  const isBkash = currentPaymentMethod && currentPaymentMethod.toLowerCase().includes('bkash');
+  const isNagad = currentPaymentMethod && currentPaymentMethod.toLowerCase().includes('nagad');
+  const isRocket = currentPaymentMethod && currentPaymentMethod.toLowerCase().includes('rocket');
+  const isCrypto = isBinance || (currentPaymentMethod && (currentPaymentMethod.toLowerCase().includes('usdt') || currentPaymentMethod.toLowerCase().includes('bep20') || currentPaymentMethod.toLowerCase().includes('trc20')));
+
+  let title = '❌ ট্রানজেকশন ভুল';
+  let checklistHtml = '';
+  let defaultReason = '';
+
+  if (isBinance) {
+    title = '❌ বাইন্যান্স অর্ডার আইডি ভুল';
+    defaultReason = 'আপনার দেওয়া Binance Order ID সঠিক নয় অথবা স্ক্রিনে প্রদর্শিত Binance Pay ID / UID-তে ডলার পাঠানো হয়নি।';
+    checklistHtml = `
+      <p style="margin:0 0 6px 0;font-weight:bold;color:#991b1b">✅ যা যা চেক করবেন:</p>
+      <p style="margin:4px 0">• স্ক্রিনে দেওয়া <b>সঠিক Binance UID / Pay ID</b>-তে ডলার পাঠিয়েছেন কিনা</p>
+      <p style="margin:4px 0">• Binance App-এর প্রেরিত অর্ডারের <b>সঠিক Order ID</b> কোনো ভুল সংখ্যা ছাড়াই লিখেছেন কিনা</p>
+      <p style="margin:4px 0">• অন্য কারো বা পূর্বে ব্যবহৃত কোনো Order ID ব্যবহার করছেন কিনা</p>
+    `;
+  } else if (isBkash) {
+    title = '❌ বিকাশ ট্রানজেকশন ভুল';
+    defaultReason = 'আপনার বিকাশ TrxID সঠিক নয় অথবা স্ক্রিনে প্রদর্শিত বিকাশ নম্বরে টাকা পাঠানো হয়নি।';
+    checklistHtml = `
+      <p style="margin:0 0 6px 0;font-weight:bold;color:#991b1b">✅ যা যা চেক করবেন:</p>
+      <p style="margin:4px 0">• স্ক্রিনে দেওয়া <b>সঠিক বিকাশ নম্বরে</b> টাকা পাঠিয়েছেন কিনা</p>
+      <p style="margin:4px 0">• বিকাশ TrxID কোনো ভুল বর্ণ ছাড়াই <b>সঠিকভাবে</b> লিখেছেন কিনা</p>
+      <p style="margin:4px 0">• অন্য কারো বা পুরাতন কোনো বিকাশ TrxID ব্যবহার করছেন কিনা</p>
+    `;
+  } else if (isNagad) {
+    title = '❌ নগদ ট্রানজেকশন ভুল';
+    defaultReason = 'আপনার নগদ TrxID সঠিক নয় অথবা স্ক্রিনে প্রদর্শিত নগদ নম্বরে টাকা পাঠানো হয়নি।';
+    checklistHtml = `
+      <p style="margin:0 0 6px 0;font-weight:bold;color:#991b1b">✅ যা যা চেক করবেন:</p>
+      <p style="margin:4px 0">• স্ক্রিনে দেওয়া <b>সঠিক নগদ নম্বরে</b> টাকা পাঠিয়েছেন কিনা</p>
+      <p style="margin:4px 0">• নগদ TrxID কোনো ভুল বর্ণ ছাড়াই <b>সঠিকভাবে</b> লিখেছেন কিনা</p>
+      <p style="margin:4px 0">• অন্য কারো বা পুরাতন কোনো নগদ TrxID ব্যবহার করছেন কিনা</p>
+    `;
+  } else if (isRocket) {
+    title = '❌ রকেট ট্রানজেকশন ভুল';
+    defaultReason = 'আপনার রকেট TrxID সঠিক নয় অথবা স্ক্রিনে প্রদর্শিত রকেট নম্বরে টাকা পাঠানো হয়নি।';
+    checklistHtml = `
+      <p style="margin:0 0 6px 0;font-weight:bold;color:#991b1b">✅ যা যা চেক করবেন:</p>
+      <p style="margin:4px 0">• স্ক্রিনে দেওয়া <b>সঠিক রকেট নম্বরে</b> টাকা পাঠিয়েছেন কিনা</p>
+      <p style="margin:4px 0">• রকেট TrxID কোনো ভুল বর্ণ ছাড়াই <b>সঠিকভাবে</b> লিখেছেন কিনা</p>
+    `;
+  } else if (isCrypto) {
+    title = '❌ ক্রিপ্টো ট্রানজেকশন হ্যাশ (TxID) ভুল';
+    defaultReason = 'আপনার ক্রিপ্টো TxID / Hash সঠিক নয় অথবা সঠিক ওয়ালেট এড্রেসে সেন্ড করা হয়নি।';
+    checklistHtml = `
+      <p style="margin:0 0 6px 0;font-weight:bold;color:#991b1b">✅ যা যা চেক করবেন:</p>
+      <p style="margin:4px 0">• স্ক্রিনে দেওয়া <b>সঠিক নেটওয়ার্ক ওয়ালেট এড্রেসে</b> ডলার পাঠিয়েছেন কিনা</p>
+      <p style="margin:4px 0">• ব্লকচেইন <b>TxID / Transaction Hash</b> সঠিকভাবে লিখেছেন কিনা</p>
+    `;
+  } else {
+    defaultReason = 'আপনার Transaction আইডিটি সঠিক নয় বা এই নম্বরে টাকা পাঠানো হয়নি।';
+    checklistHtml = `
+      <p style="margin:0 0 6px 0;font-weight:bold;color:#991b1b">✅ যা যা চেক করবেন:</p>
+      <p style="margin:4px 0">• স্ক্রিনে দেওয়া <b>সঠিক নম্বরে</b> টাকা পাঠিয়েছেন কিনা</p>
+      <p style="margin:4px 0">• TrxID কোনো ভুল বর্ণ ছাড়াই <b>সঠিকভাবে</b> লিখেছেন কিনা</p>
+      <p style="margin:4px 0">• অন্য কারো বা পুরাতন কোনো TrxID ব্যবহার করছেন কিনা</p>
+    `;
+  }
+
+  // If backend returned a generic mobile error for Binance, sanitize it
+  let finalReason = reason || defaultReason;
+  if (isBinance && (finalReason.includes('0161') || finalReason.includes('নাম্বারে') || finalReason.includes('নম্বরে'))) {
+    finalReason = '❌ বাইন্যান্স অর্ডার আইডি ভুল! স্ক্রিনে প্রদর্শিত Binance Pay ID / UID তে পাঠানো অর্ডারের সঠিক Order ID লিখুন।';
+  }
+
   Swal.fire({
     icon: 'error',
-    title: '❌ ট্রানজেকশন ভুল',
+    title: title,
     html: `
       <div style="text-align:center;font-size:13px;line-height:1.7;color:#374151">
         <p style="font-size:14px;font-weight:bold;color:#dc2626;margin-bottom:12px">
-          ${reason || 'আপনার Transaction আইডিটি সঠিক নয় বা এই নম্বরে টাকা পাঠানো হয়নি।'}
+          ${finalReason}
         </p>
         <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:12px;border-radius:8px;text-align:left;font-size:12px">
-          <p style="margin:0 0 6px 0;font-weight:bold;color:#991b1b">✅ যা যা চেক করুন:</p>
-          <p style="margin:4px 0">• স্ক্রিনে দেওয়া <b>সঠিক নম্বরে</b> টাকা পাঠিয়েছেন কিনা</p>
-          <p style="margin:4px 0">• TrxID কোনো ভুল বর্ণ ছাড়াই <b>সঠিকভাবে</b> লিখেছেন কিনা</p>
-          <p style="margin:4px 0">• অন্য কারো বা পুরাতন কোনো TrxID ব্যবহার করছেন কিনা</p>
+          ${checklistHtml}
         </div>
         <p style="font-size:11px;color:#6b7280;margin-top:12px">
           সব ঠিক থাকলে পুনরায় ট্রাই করুন।

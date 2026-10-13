@@ -1184,7 +1184,7 @@ export function DepositStorePage({
                   ${submittedReceipt.amount.toFixed(2)} USD
                 </span>
               </div>
-              {submittedReceipt.bdtAmount && (
+              {submittedReceipt.bdtAmount && !submittedReceipt.method?.toLowerCase().includes('binance') && !submittedReceipt.method?.toLowerCase().includes('usdt') && (
                 <div className="flex justify-between">
                   <span className="text-slate-400">পরিশোধিত টাকা:</span>
                   <span className="text-pink-400 font-bold">
