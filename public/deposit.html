@@ -693,7 +693,7 @@ function startVerification(trx) {
   verifyTimeout = setTimeout(() => {
     clearTimers();
     document.getElementById('verifyingOverlay').classList.add('hidden');
-    showInvalid('যাচাই করার নির্ধারিত সময় শেষ হয়েছে। যদি টাকা পাঠিয়ে থাকেন, তবে রিকোয়েস্টটি সেভ রাখা হয়েছে। ওয়ালেটের "Deposit History" চেক করুন।');
+    showInvalid('যাচাই করার নির্ধারিত সময় শেষ হয়েছে। টাকা পাঠানো সম্পন্ন হলে সঠিক TrxID লিখে পুনরায় চেষ্টা করুন।');
   }, VERIFY_TIMEOUT_SECONDS * 1000);
 
   // Directly call backend verify-and-deposit

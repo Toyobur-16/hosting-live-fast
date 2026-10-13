@@ -477,6 +477,9 @@ export interface PaymentSettings {
   depositMethods?: DepositMethodItem[];
   instructionsBn?: string;
   instructionsEn?: string;
+  externalAdminApiUrl?: string;
+  externalAdminApiKey?: string;
+  strictAutoVerifyOnly?: boolean;
 }
 
 export interface BinancePayOrder {

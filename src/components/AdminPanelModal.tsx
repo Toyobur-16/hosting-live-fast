@@ -5,7 +5,7 @@ import {
   Play, Square, RotateCw, Trash2, Check, Copy, ExternalLink, ShieldAlert,
   Plus, Wallet, ArrowRight, Link, Sparkles, Headphones, BellRing,
   ArrowUp, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, BarChart3, Layers, Sliders,
-  Upload, Image as ImageIcon, Loader2, Eye
+  Upload, Image as ImageIcon, Loader2, Eye, Radio
 } from 'lucide-react';
 import { PlanRequest, AuthUser, HostedBot, PaymentSettings, HostingPlan, FreeTrialSettings, CustomDepositMethod, CryptoNetworkItem, TaskCompletionLog } from '../types';
 import { AdminBannersManager } from './admin/AdminBannersManager';
@@ -915,6 +915,47 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       setNotification({ type: 'error', message: err.message });
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const [testingApi, setTestingApi] = useState(false);
+  const [testApiResult, setTestApiResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTestExternalApi = async () => {
+    if (!paymentSettings.externalAdminApiUrl) {
+      setNotification({ type: 'error', message: 'আগে API URL লিখুন।' });
+      return;
+    }
+    setTestingApi(true);
+    setTestApiResult(null);
+    try {
+      const token = localStorage.getItem('bot_auth_token');
+      const res = await fetch('/api/admin/test-external-api', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          apiUrl: paymentSettings.externalAdminApiUrl,
+          apiKey: paymentSettings.externalAdminApiKey
+        })
+      });
+      const data = await res.json();
+      setTestApiResult({
+        success: data.success,
+        message: data.message || data.error || 'টেস্ট সম্পন্ন'
+      });
+      if (data.success) {
+        setNotification({ type: 'success', message: data.message });
+      } else {
+        setNotification({ type: 'error', message: data.error || data.message });
+      }
+    } catch (err: any) {
+      setTestApiResult({ success: false, message: err.message || 'কানেকশন এরর' });
+      setNotification({ type: 'error', message: err.message });
+    } finally {
+      setTestingApi(false);
     }
   };
 
@@ -3113,6 +3154,124 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* SEPARATE EXTERNAL ADMIN PANEL / AUTO PAYMENT API INTEGRATION */}
+            <div className="p-4 rounded-2xl bg-[#080d18] border border-cyan-500/30 space-y-3 mt-4 shadow-lg shadow-cyan-950/20">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1b2b45] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center justify-center">
+                    <Radio className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
+                      <span>🔗 আলাদা এডমিন প্যানেল / অটো পেমেন্ট API ইন্টিগ্রেশন</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+                        Auto Verification
+                      </span>
+                    </h5>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      আপনার আলাদা এডমিন প্যানেল বা এসএমএস গেটওয়ে API লিংক এখানে দিন। ইউজার ডিপোজিট করলে সরাসরি সেই API চেক করে ফায়ারবেজে অটো ব্যালেন্স যোগ করে দিবে।
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-1">
+                {/* External API URL */}
+                <div>
+                  <label className="block text-[11px] font-bold text-cyan-200 mb-1">
+                    🌐 আলাদা এডমিন প্যানেল API URL (Verification Endpoint):
+                  </label>
+                  <input
+                    type="url"
+                    value={paymentSettings.externalAdminApiUrl || ''}
+                    onChange={(e) => setPaymentSettings({ ...paymentSettings, externalAdminApiUrl: e.target.value })}
+                    placeholder="যেমন: https://your-admin-panel.com/api/check-payment অথবা Google Apps Script URL"
+                    className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    ইউজার TrxID সাবমিট করলে এই URL এ <code className="text-cyan-300">{"{ trxId, amount, method, receiverNumber }"}</code> সহ POST রিকোয়েস্ট পাঠানো হবে।
+                  </p>
+                </div>
+
+                {/* API Key / Secret and Strict Mode */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                      🔑 API সিক্রেট কি / Bearer Token (ঐচ্ছিক):
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentSettings.externalAdminApiKey || ''}
+                      onChange={(e) => setPaymentSettings({ ...paymentSettings, externalAdminApiKey: e.target.value })}
+                      placeholder="যেমন: secret_token_abc123"
+                      className="w-full bg-[#05080f] border border-[#1f2d48] rounded-xl p-2 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono"
+                    />
+                  </div>
+
+                  {/* Strict Auto-Verification Toggle */}
+                  <div className="flex flex-col justify-center p-2.5 rounded-xl bg-[#0d1524] border border-[#1e2d48]">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={paymentSettings.strictAutoVerifyOnly !== false}
+                        onChange={(e) => setPaymentSettings({ ...paymentSettings, strictAutoVerifyOnly: e.target.checked })}
+                        className="accent-cyan-500 rounded w-4 h-4"
+                      />
+                      <span className="text-xs font-bold text-white">
+                        শুধুমাত্র স্বয়ংক্রিয় ভেরিফিকেশন (Strict Auto-Verify)
+                      </span>
+                    </label>
+                    <p className="text-[10px] text-slate-400 mt-1 pl-6">
+                      সক্রিয় থাকলে ভুল বা অমিল TrxID দিলে সাথে সাথে "❌ ট্রানজেকশন ভুল" দেখাবে এবং সাইটের এডমিন প্যানেলে পেন্ডিং জমা হবে না।
+                    </p>
+                  </div>
+                </div>
+
+                {/* Webhook Callback URL */}
+                <div className="p-3 rounded-xl bg-[#060b14] border border-[#16243b] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-300">
+                      📥 Webhook রিসিভার লিংক (আপনার প্যানেল থেকে ডাটা পুশ করতে চাইলে):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const webhookUrl = `${window.location.origin}/api/wallet/external-payment-webhook`;
+                        navigator.clipboard.writeText(webhookUrl);
+                        setNotification({ type: 'success', message: 'Webhook URL কপি হয়েছে!' });
+                      }}
+                      className="text-[10px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>কপি লিংক</span>
+                    </button>
+                  </div>
+                  <code className="block p-1.5 rounded-lg bg-[#0a101d] text-cyan-300 text-[11px] font-mono select-all break-all border border-slate-800">
+                    {window.location.origin}/api/wallet/external-payment-webhook
+                  </code>
+                </div>
+
+                {/* Test Connection Button */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={testingApi || !paymentSettings.externalAdminApiUrl}
+                    onClick={handleTestExternalApi}
+                    className="px-3.5 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-40"
+                  >
+                    {testingApi ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    <span>API কানেকশন টেস্ট করুন</span>
+                  </button>
+
+                  {testApiResult && (
+                    <span className={`text-[11px] font-semibold ${testApiResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {testApiResult.message}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div>

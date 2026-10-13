@@ -445,6 +445,7 @@ const ANNOUNCEMENTS_FILE = path.join(HOSTED_BOTS_DIR, 'announcements.json');
 const SITE_SETTINGS_FILE = path.join(HOSTED_BOTS_DIR, 'site_settings.json');
 const FREE_TRIAL_SETTINGS_FILE = path.join(HOSTED_BOTS_DIR, 'free_trial_settings.json');
 const BINANCE_ORDERS_FILE = path.join(HOSTED_BOTS_DIR, 'binance_orders.json');
+const EXTERNAL_VERIFIED_PAYMENTS_FILE = path.join(HOSTED_BOTS_DIR, 'external_verified_payments.json');
 
 // Ensure base directories and persistence files exist
 if (!fs.existsSync(HOSTED_BOTS_DIR)) {
@@ -699,7 +700,10 @@ const DEFAULT_PAYMENT_SETTINGS = {
   nagadLogoUrl: '',
   customMethods: [],
   instructionsBn: 'বাইন্যান্স (Binance Pay / UID / USDT) দিয়ে নির্ধারিত ডলার পাঠিয়ে আপনার Transaction ID / Order ID এবং আপনার প্রেরক আইডি নিচে লিখে সাবমিট করুন। এডমিন অনুমোদন করলেই সাথে সাথে আপনার ওয়ালেটে ব্যালেন্স জমা হবে।',
-  instructionsEn: 'Send USDT via Binance Pay / UID or On-chain network, then submit your Binance Transaction ID / Order ID below.'
+  instructionsEn: 'Send USDT via Binance Pay / UID or On-chain network, then submit your Binance Transaction ID / Order ID below.',
+  externalAdminApiUrl: process.env.EXTERNAL_ADMIN_API_URL || process.env.GOOGLE_APPS_SCRIPT_URL || process.env.SMS_VERIFY_API_URL || '',
+  externalAdminApiKey: process.env.EXTERNAL_ADMIN_API_KEY || '',
+  strictAutoVerifyOnly: true
 };
 
 if (!fs.existsSync(PAYMENT_SETTINGS_FILE)) {
@@ -1059,7 +1063,23 @@ function recordBotDeployment(botId: string, details: {
 
 function getAccounts(): any[] {
   try {
-    return JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf-8'));
+    const list = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf-8'));
+    if (Array.isArray(list)) {
+      let modified = false;
+      list.forEach((acc, idx) => {
+        if (!acc.id) {
+          acc.id = `user_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`;
+          modified = true;
+        }
+      });
+      if (modified) {
+        try {
+          fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(list, null, 2) + '\n', 'utf-8');
+        } catch {}
+      }
+      return list;
+    }
+    return [];
   } catch {
     return [];
   }
@@ -1164,6 +1184,25 @@ function getBinanceOrders(): any[] {
 
 function saveBinanceOrders(data: any[]) {
   fs.writeFileSync(BINANCE_ORDERS_FILE, JSON.stringify(data, null, 2) + '\n', 'utf-8');
+}
+
+function getExternalVerifiedPayments(): any[] {
+  try {
+    if (fs.existsSync(EXTERNAL_VERIFIED_PAYMENTS_FILE)) {
+      return JSON.parse(fs.readFileSync(EXTERNAL_VERIFIED_PAYMENTS_FILE, 'utf-8'));
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function saveExternalVerifiedPayments(data: any[]) {
+  try {
+    fs.writeFileSync(EXTERNAL_VERIFIED_PAYMENTS_FILE, JSON.stringify(data, null, 2) + '\n', 'utf-8');
+  } catch (err) {
+    console.error('Failed to save external verified payments:', err);
+  }
 }
 
 function getBinanceCredentials() {
@@ -4434,6 +4473,80 @@ app.post('/api/wallet/deposit', async (req, res) => {
     }
   }
 
+  // If local BDT mobile banking payment (bKash/Nagad/Rocket), check external Admin Panel API
+  if (isLocalBdtPayment) {
+    const paySettings = getPaymentSettings();
+    const externalApiUrl = (paySettings.externalAdminApiUrl || process.env.EXTERNAL_ADMIN_API_URL || process.env.GOOGLE_APPS_SCRIPT_URL || process.env.SMS_VERIFY_API_URL || '').trim();
+    const externalApiKey = (paySettings.externalAdminApiKey || process.env.EXTERNAL_ADMIN_API_KEY || '').trim();
+    const strictAutoVerify = paySettings.strictAutoVerifyOnly !== false;
+
+    let bdtAutoApproved = false;
+    const externalVerifiedTxs = getExternalVerifiedPayments();
+    if (externalVerifiedTxs.find((t: any) => String(t.trxId || t.transactionId || '').toUpperCase() === cleanTrx)) {
+      bdtAutoApproved = true;
+    }
+
+    if (!bdtAutoApproved && externalApiUrl && externalApiUrl.startsWith('http')) {
+      try {
+        const extHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (externalApiKey) {
+          extHeaders['Authorization'] = `Bearer ${externalApiKey}`;
+          extHeaders['x-api-key'] = externalApiKey;
+        }
+        const verifyRes = await fetch(externalApiUrl, {
+          method: 'POST',
+          headers: extHeaders,
+          body: JSON.stringify({
+            action: 'check_transaction',
+            trxId: cleanTrx,
+            amount: finalBdtPaid,
+            method: method,
+            senderNumber: effectiveSender,
+            userId: user.id,
+            userEmail: user.email
+          }),
+          signal: AbortSignal.timeout(6000)
+        });
+        if (verifyRes.ok) {
+          const verifyData: any = await verifyRes.json();
+          if (verifyData && (verifyData.verified === true || verifyData.status === 'success' || verifyData.status === 'approved')) {
+            bdtAutoApproved = true;
+          }
+        }
+      } catch {}
+    }
+
+    if (bdtAutoApproved) {
+      newRequest.status = 'approved';
+      newRequest.reviewedAt = new Date().toISOString();
+      newRequest.reviewedBy = 'External Admin Panel Auto-Verify';
+      const accounts = getAccounts();
+      const acc = accounts.find((a) => a.id === user.id || a.email.toLowerCase() === user.email.toLowerCase());
+      if (acc) {
+        acc.balanceUsd = Math.round(((acc.balanceUsd || 0) + finalUsdAmount) * 100) / 100;
+        saveAccounts(accounts);
+        FirebaseSync.syncAccountToCloud(acc).catch(() => {});
+      }
+      requests.unshift(newRequest);
+      savePlanRequests(requests);
+      await FirebaseSync.syncPlanRequestToCloud(newRequest).catch(() => {});
+      return res.json({
+        success: true,
+        autoApproved: true,
+        creditedAmount: finalUsdAmount,
+        message: `🎉 অভিনন্দন! আপনার ৳${finalBdtPaid} (${finalUsdAmount} USD) ডিপোজিট সফলভাবে স্বয়ংক্রিয়ভাবে যাচাই হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!`,
+        request: newRequest
+      });
+    }
+
+    if (strictAutoVerify) {
+      return res.status(400).json({
+        success: false,
+        error: '❌ ট্রানজেকশন ভুল! এই নম্বরে টাকা পাঠানো হয়নি অথবা ট্রানজেকশন আইডি সঠিক নয়।'
+      });
+    }
+  }
+
   requests.unshift(newRequest);
   savePlanRequests(requests);
 
@@ -4540,41 +4653,66 @@ app.post('/api/wallet/verify-and-deposit', async (req, res) => {
     const usdAmount = numBdt > 0 ? Math.max(0.01, parseFloat((numBdt / rate).toFixed(2))) : 1;
 
     let autoApproved = false;
+    const paySettings = getPaymentSettings();
+    const externalApiUrl = (paySettings.externalAdminApiUrl || process.env.EXTERNAL_ADMIN_API_URL || process.env.GOOGLE_APPS_SCRIPT_URL || process.env.SMS_VERIFY_API_URL || '').trim();
+    const externalApiKey = (paySettings.externalAdminApiKey || process.env.EXTERNAL_ADMIN_API_KEY || '').trim();
+    const strictAutoVerify = paySettings.strictAutoVerifyOnly !== false; // Default: true for strict external auto-verification
 
-    // 4. Check external SMS verification webhook if configured
-    const scriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL || process.env.SMS_VERIFY_API_URL;
-    if (scriptUrl && scriptUrl.startsWith('http')) {
+    // 4. Check against external verified payments pool (webhook from separate admin panel)
+    const externalVerifiedTxs = getExternalVerifiedPayments();
+    const matchedExternal = externalVerifiedTxs.find((tx: any) => {
+      const tId = String(tx.trxId || tx.transactionId || '').trim().toUpperCase();
+      return tId === cleanTrx && !isTransactionAlreadyCredited(cleanTrx);
+    });
+    if (matchedExternal) {
+      autoApproved = true;
+    }
+
+    // 5. Check external Admin Panel / SMS verification API if configured
+    if (!autoApproved && externalApiUrl && externalApiUrl.startsWith('http')) {
       try {
-        const verifyRes = await fetch(scriptUrl, {
+        const extHeaders: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+        if (externalApiKey) {
+          extHeaders['Authorization'] = `Bearer ${externalApiKey}`;
+          extHeaders['x-api-key'] = externalApiKey;
+        }
+
+        const verifyRes = await fetch(externalApiUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: extHeaders,
           body: JSON.stringify({
             action: 'check_transaction',
             trxId: cleanTrx,
+            transactionId: cleanTrx,
             amount: numBdt,
             method: methodName,
             receiverNumber: expectedNumber,
-            senderNumber: senderNumber || ''
+            senderNumber: senderNumber || '',
+            userId: user ? user.id : (userId || ''),
+            userEmail: user ? user.email : (userEmail || '')
           }),
-          signal: AbortSignal.timeout(4500)
+          signal: AbortSignal.timeout(6000)
         });
+
         if (verifyRes.ok) {
           const verifyData: any = await verifyRes.json();
-          if (verifyData && verifyData.verified === true) {
+          if (verifyData && (verifyData.verified === true || verifyData.status === 'success' || verifyData.status === 'approved')) {
             autoApproved = true;
-          } else if (verifyData && verifyData.verified === false && verifyData.invalidTrx === true) {
+          } else if (verifyData && (verifyData.verified === false || verifyData.invalidTrx === true || verifyData.status === 'error' || verifyData.status === 'invalid')) {
             return res.status(400).json({
               success: false,
-              error: '❌ ট্রানজেকশন ভুল! এসএমএস ডাটাবেজে এই নম্বরে টাকা পাঠানোর কোনো রেকর্ড পাওয়া যায়নি।'
+              error: verifyData.error || '❌ ট্রানজেকশন ভুল! এই নম্বরে টাকা পাঠানো হয়নি বা ট্রানজেকশন সঠিক নয়।'
             });
           }
         }
-      } catch (scriptErr) {
-        console.warn('External SMS verification check notice:', scriptErr);
+      } catch (scriptErr: any) {
+        console.warn('External Admin Panel verification check notice:', scriptErr.message || scriptErr);
       }
     }
 
-    // 5. Check Binance if Binance/USDT method
+    // 6. Check Binance if Binance/USDT method
     if (!autoApproved && (methodName.toLowerCase().includes('binance') || methodName.toLowerCase().includes('usdt'))) {
       const creds = getBinanceCredentials();
       if (creds.isConfigured) {
@@ -4595,6 +4733,15 @@ app.post('/api/wallet/verify-and-deposit', async (req, res) => {
           }
         } catch {}
       }
+    }
+
+    // If not auto-approved and strictAutoVerify is active, reject immediately with "ট্রানজেকশন ভুল"
+    // DO NOT save to pending requests queue or send to website admin panel!
+    if (!autoApproved && strictAutoVerify) {
+      return res.status(400).json({
+        success: false,
+        error: '❌ ট্রানজেকশন ভুল! এই নম্বরে টাকা পাঠানো হয়নি অথবা ট্রানজেকশন আইডি সঠিক নয়।'
+      });
     }
 
     const effectiveUserId = user ? user.id : (userId || `user_${Date.now()}`);
@@ -4658,7 +4805,7 @@ app.post('/api/wallet/verify-and-deposit', async (req, res) => {
       success: true,
       autoApproved: false,
       status: 'pending',
-      message: '✅ আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে। অ্যাডমিন প্যানেল থেকে দ্রুত ভেরিফাই করে অনুমোদন করা হবে। নিচে "Deposit History" সেকশনে এর লাইভ স্ট্যাটাস দেখতে পারবেন।',
+      message: '✅ আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে। নিচে "Deposit History" সেকশনে এর লাইভ স্ট্যাটাস দেখতে পারবেন।',
       request: newDeposit
     });
   } catch (err: any) {
@@ -4749,6 +4896,92 @@ app.get('/api/wallet/my-deposits', (req, res) => {
     balanceUsd: liveUser?.balanceUsd ?? user.balanceUsd ?? 0,
     balanceBdt: liveUser?.balanceBdt ?? user.balanceBdt ?? 0
   });
+});
+
+// Webhook endpoint for separate admin panel / external automated payment checker
+app.post('/api/wallet/external-payment-webhook', async (req, res) => {
+  try {
+    const { trxId, transactionId, amount, amountBdt, method, receiverNumber, senderNumber, userId, userEmail, secret } = req.body;
+    const paySettings = getPaymentSettings();
+    if (paySettings.externalAdminApiKey && secret && secret !== paySettings.externalAdminApiKey) {
+      return res.status(401).json({ success: false, error: 'Unauthorized secret token' });
+    }
+
+    const cleanTrx = String(trxId || transactionId || '').trim().toUpperCase();
+    if (!cleanTrx) {
+      return res.status(400).json({ success: false, error: 'TrxID required' });
+    }
+
+    const existingTxs = getExternalVerifiedPayments();
+    if (!existingTxs.find((t: any) => String(t.trxId || t.transactionId || '').toUpperCase() === cleanTrx)) {
+      existingTxs.push({
+        trxId: cleanTrx,
+        amount: parseFloat(amountBdt || amount || '0'),
+        method: method || 'bKash',
+        receiverNumber: receiverNumber || '',
+        senderNumber: senderNumber || '',
+        userEmail: userEmail || '',
+        userId: userId || '',
+        receivedAt: new Date().toISOString()
+      });
+      saveExternalVerifiedPayments(existingTxs);
+    }
+
+    // If userId or userEmail provided, credit wallet immediately!
+    if (userId || userEmail) {
+      const accounts = getAccounts();
+      const acc = accounts.find((a) => (userId && a.id === userId) || (userEmail && a.email?.toLowerCase() === userEmail.toLowerCase()));
+      if (acc) {
+        const numBdt = parseFloat(amountBdt || amount || '0');
+        const rate = getMethodRateToBdt(method || 'bKash') || 120;
+        const usd = numBdt > 0 ? Math.round((numBdt / rate) * 100) / 100 : 1;
+        if (!isTransactionAlreadyCredited(cleanTrx)) {
+          modifyUserWallet(acc.id, usd, 'deposit', `External Auto-Verified: ${method || 'bKash'} (${usd} USD)`, method || 'bKash', cleanTrx, 'USD');
+          acc.balanceUsd = Math.round(((acc.balanceUsd || 0) + usd) * 100) / 100;
+          saveAccounts(accounts);
+          FirebaseSync.syncAccountToCloud(acc).catch(() => {});
+        }
+      }
+    }
+
+    return res.json({ success: true, message: `✅ Transaction ${cleanTrx} registered and verified from external admin panel.` });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Webhook processing failed' });
+  }
+});
+
+// Admin test endpoint to check connection to separate admin panel API
+app.post('/api/admin/test-external-api', async (req, res) => {
+  const admin = getAuthUser(req);
+  if (!isUserAdmin(admin)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const { apiUrl, apiKey } = req.body;
+  if (!apiUrl || !String(apiUrl).startsWith('http')) {
+    return res.status(400).json({ success: false, error: 'সঠিক API URL (http বা https) প্রদান করুন।' });
+  }
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+      headers['x-api-key'] = apiKey;
+    }
+    const testRes = await fetch(apiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ action: 'ping', test: true, timestamp: Date.now() }),
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.json({
+      success: testRes.ok,
+      status: testRes.status,
+      message: testRes.ok
+        ? '🎉 আপনার আলাদা এডমিন প্যানেল API সফলভাবে সংযুক্ত হয়েছে ও রেসপন্স করেছে!'
+        : `⚠️ API থেকে রেসপন্স কোড এসেছে: ${testRes.status} (${testRes.statusText})`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: `সংযোগ ব্যর্থ হয়েছে: ${err.message || 'সার্ভার পাওয়া যায়নি'}` });
+  }
 });
 
 // Binance Pay Instant Deposit Endpoints
