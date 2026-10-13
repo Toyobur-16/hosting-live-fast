@@ -1237,12 +1237,12 @@ function generateBinancePayHeaders(apiKey: string, secretKey: string, bodyObj: a
   };
 }
 
-// Check if a transaction has already been credited
+// Check if a transaction has already been credited to user balance
 function isTransactionAlreadyCredited(txId: string): boolean {
   if (!txId) return false;
   const clean = txId.trim().toLowerCase();
 
-  // 1. Check in completed wallet ledger transactions
+  // 1. Check in completed wallet ledger transactions (actual source of truth for credited balance)
   try {
     const txs = getWalletTransactions();
     if (Array.isArray(txs)) {
@@ -1257,17 +1257,19 @@ function isTransactionAlreadyCredited(txId: string): boolean {
     }
   } catch {}
 
-  // 2. Check in requests ONLY if already approved (pending requests must NOT block crediting!)
-  const requests = getPlanRequests();
-  const reqExists = requests.some((r) =>
-    r.status === 'approved' && (
-      (r.transactionId && r.transactionId.toLowerCase() === clean) ||
-      (r.senderIdentifier && r.senderIdentifier.toLowerCase() === clean) ||
-      (r.id && r.id.toLowerCase() === `dep_${clean}`)
-    )
-  );
-  if (reqExists) return true;
+  // 2. Check in external verified payments list
+  try {
+    const ext = getExternalVerifiedPayments();
+    if (Array.isArray(ext)) {
+      const inExt = ext.some((t: any) =>
+        (t.trxId && String(t.trxId).trim().toLowerCase() === clean) ||
+        (t.transactionId && String(t.transactionId).trim().toLowerCase() === clean)
+      );
+      if (inExt) return true;
+    }
+  } catch {}
 
+  // 3. Check in binance orders if marked PAID
   const orders = getBinanceOrders();
   const ordExists = orders.some((o) =>
     o.status === 'PAID' && (

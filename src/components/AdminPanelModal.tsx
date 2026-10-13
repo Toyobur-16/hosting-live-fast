@@ -144,13 +144,24 @@ export const CRYPTO_NETWORK_PRESETS = [
 
 export const isDepositRequest = (r: any): boolean => {
   if (!r) return false;
+  const pName = String(r.planName || '').toLowerCase();
+  const pId = String(r.planId || '').toLowerCase();
+  const rId = String(r.id || '').toLowerCase();
+  const rType = String(r.type || '').toLowerCase();
   return (
-    r.type === 'deposit' ||
-    r.planId === 'wallet_deposit' ||
+    rType === 'deposit' ||
+    pId === 'wallet_deposit' ||
+    pId === 'deposit' ||
+    pId === 'manual_deposit' ||
     Boolean(r.isDeposit) ||
-    (typeof r.id === 'string' && r.id.startsWith('dep_')) ||
-    (typeof r.planName === 'string' && (r.planName.includes('ডিপোজিট') || r.planName.toLowerCase().includes('deposit'))) ||
-    Boolean(r.amountBdt && !r.durationDays && !r.maxBots)
+    rId.startsWith('dep_') ||
+    rId.startsWith('deposit_') ||
+    pName.includes('ডিপোজিট') ||
+    pName.includes('deposit') ||
+    pName.includes('ওয়ালেট') ||
+    pName.includes('ওয়ালেট') ||
+    pName.includes('wallet') ||
+    Boolean(r.method && !r.durationDays && !r.maxBots)
   );
 };
 
@@ -1295,7 +1306,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               className="flex items-center gap-1.5 overflow-x-auto py-0.5 scroll-smooth no-scrollbar flex-1"
             >
               {[
-                { id: 'requests' as AdminTabType, labelBn: 'প্ল্যান সাবস্ক্রিপশন অনুরোধ', labelEn: 'Plan Requests', icon: Clock, iconColor: 'text-sky-400', badge: totalPendingCount },
+                { id: 'requests' as AdminTabType, labelBn: 'প্যাকেজ সাবস্ক্রিপশন', labelEn: 'Package Subscriptions', icon: Clock, iconColor: 'text-sky-400', badge: totalPendingCount },
                 { id: 'users' as AdminTabType, labelBn: 'ইউজার ও ওয়ালেট', labelEn: 'Users & Wallets', icon: Users, iconColor: 'text-indigo-400' },
                 { id: 'pricing' as AdminTabType, labelBn: 'প্যাকেজ ও প্রাইসিং', labelEn: 'Packages & Pricing', icon: DollarSign, iconColor: 'text-amber-400' },
                 { id: 'banners' as AdminTabType, labelBn: 'ব্যানার স্লাইডার', labelEn: 'Banners', icon: Sparkles, iconColor: 'text-pink-400' },
@@ -1362,8 +1373,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
                 <span>
                   {lang === 'bn'
-                    ? '💡 নোটিশ: ওয়ালেট ডিপোজিট রিকোয়েস্টগুলো আপনার আলাদা এডমিন প্যানেলে রুট করা আছে। এখানে শুধুমাত্র বট হোস্টিং প্ল্যান সাবস্ক্রিপশন ও সোশ্যাল টাস্কের অনুরোধ প্রদর্শিত হবে।'
-                    : '💡 Notice: Wallet deposit requests are managed exclusively in your Separate Admin Panel. Only bot hosting plan subscriptions and tasks appear here.'}
+                    ? '💡 নোটিশ: আপনার সমস্ত ওয়ালেট ডিপোজিট রিকোয়েস্ট আলাদা এডমিন প্যানেলে রুট করা আছে এবং সেখান থেকেই সরাসরি পরিচালিত ও অনুমোদিত হয়। এখানে কোনো ডিপোজিট আসবে না, শুধুমাত্র বট হোস্টিং প্যাকেজ সাবস্ক্রিপশন ও সোশ্যাল টাস্কের অনুরোধ প্রদর্শিত হবে।'
+                    : '💡 Notice: All wallet deposit requests are managed in your Separate Admin Panel. No deposit requests appear here — only bot hosting package subscriptions and social tasks appear here.'}
                 </span>
               </div>
 
@@ -1388,14 +1399,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => setRequestCategory('plans_deposits')}
+                  onClick={() => setRequestCategory('plans')}
                   className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
-                    requestCategory === 'plans_deposits'
+                    requestCategory === 'plans' || requestCategory === 'plans_deposits'
                       ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-sm'
                       : 'bg-[#09101d] border-[#1a2942] text-slate-400 hover:text-white hover:bg-[#121c2e]'
                   }`}
                 >
-                  <span>{lang === 'bn' ? '📦 প্ল্যান সাবস্ক্রিপশন' : '📦 Plan Subscriptions'}</span>
+                  <span>{lang === 'bn' ? '📦 প্যাকেজ সাবস্ক্রিপশন' : '📦 Package Subscriptions'}</span>
                   {pendingPlanRequestsCount > 0 && (
                     <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black">
                       {pendingPlanRequestsCount}

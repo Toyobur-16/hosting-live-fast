@@ -36,6 +36,7 @@ const API_KEY = process.env.FIREBASE_API_KEY || configApiKey;
 const VAULT_SECRET = process.env.VERIFICATION_SECRET || 'hlf_email_verify_secret_key_2026';
 
 const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${FIRESTORE_DATABASE_ID}/documents`;
+const DEFAULT_DB_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 const AUTH_BASE_URL = 'https://identitytoolkit.googleapis.com/v1/accounts';
 
 let firestoreQuotaExhaustedUntil = 0;
@@ -307,27 +308,58 @@ export class FirebaseSync {
 
       const bodyStr = JSON.stringify({ fields });
 
-      // 1. Save by User ID
+      // 1. Save to (default) database users & accounts collections for Separate Admin Panel
       const userDocId = encodeURIComponent(String(cleanUser.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
-      const urlById = `${BASE_URL}/accounts/${userDocId}?key=${API_KEY}`;
-      const resById = await fetch(urlById, {
-        method: 'PATCH',
-        headers,
-        body: bodyStr,
-        signal: AbortSignal.timeout(6000)
-      }).catch(() => null);
-      checkResponseQuota(resById);
-
-      // 2. Save by Email for instant direct lookup using safe valid Firestore document ID
       const emailDocId = `email_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-      const urlByEmail = `${BASE_URL}/accounts/${emailDocId}?key=${API_KEY}`;
-      const resByEmail = await fetch(urlByEmail, {
+
+      const defaultUserFields: Record<string, any> = {
+        email: toFirestoreValue(cleanEmail),
+        balance: toFirestoreValue(Math.round(cleanUser.balanceUsd || 0)),
+        balanceUsd: toFirestoreValue(cleanUser.balanceUsd || 0),
+        balanceBdt: toFirestoreValue(cleanUser.balanceBdt || 0),
+        name: toFirestoreValue(cleanUser.name || cleanEmail.split('@')[0]),
+        role: toFirestoreValue(cleanUser.role || 'user'),
+        plan: toFirestoreValue(cleanUser.plan || 'free'),
+        updatedAt: toFirestoreValue(Date.now())
+      };
+      const defaultUserBodyStr = JSON.stringify({ fields: defaultUserFields });
+
+      fetch(`${DEFAULT_DB_URL}/users/${userDocId}?key=${API_KEY}`, {
+        method: 'PATCH',
+        headers,
+        body: defaultUserBodyStr,
+        signal: AbortSignal.timeout(4000)
+      }).catch(() => {});
+
+      fetch(`${DEFAULT_DB_URL}/accounts/${userDocId}?key=${API_KEY}`, {
         method: 'PATCH',
         headers,
         body: bodyStr,
-        signal: AbortSignal.timeout(6000)
-      }).catch(() => null);
-      checkResponseQuota(resByEmail);
+        signal: AbortSignal.timeout(4000)
+      }).catch(() => {});
+
+      // 2. Save to named DB (if not quota exhausted)
+      let resById: any = null;
+      let resByEmail: any = null;
+      if (!isFirestoreQuotaExhausted()) {
+        const urlById = `${BASE_URL}/accounts/${userDocId}?key=${API_KEY}`;
+        resById = await fetch(urlById, {
+          method: 'PATCH',
+          headers,
+          body: bodyStr,
+          signal: AbortSignal.timeout(4000)
+        }).catch(() => null);
+        checkResponseQuota(resById);
+
+        const urlByEmail = `${BASE_URL}/accounts/${emailDocId}?key=${API_KEY}`;
+        resByEmail = await fetch(urlByEmail, {
+          method: 'PATCH',
+          headers,
+          body: bodyStr,
+          signal: AbortSignal.timeout(4000)
+        }).catch(() => null);
+        checkResponseQuota(resByEmail);
+      }
 
       // 3. Also sync to Firebase Auth if password exists
       if (cleanUser.password) {
@@ -409,52 +441,85 @@ export class FirebaseSync {
         ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
       };
 
-      // 1. Direct lookup by email document ID in Firestore
-      const emailDocId = `email_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-      const urlDirect = `${BASE_URL}/accounts/${emailDocId}?key=${API_KEY}`;
-      const resDirect = await fetch(urlDirect, { headers, signal: AbortSignal.timeout(6000) }).catch(() => null);
-      if (resDirect && resDirect.ok) {
-        const docData: any = await resDirect.json();
-        if (docData && docData.fields) {
-          const parsed = fromFirestoreFields(docData.fields);
-          if (parsed && parsed.email) {
-            console.log(`✅ [Firebase Firestore] Found user account ${cleanEmail} directly!`);
-            return parsed;
+      // 0. Direct lookup in (default) database /users (used by Separate Admin Panel)
+      try {
+        const defUsersRes = await fetch(`${DEFAULT_DB_URL}/users?key=${API_KEY}&pageSize=100`, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
+        if (defUsersRes && defUsersRes.ok) {
+          const defData: any = await defUsersRes.json();
+          if (defData && Array.isArray(defData.documents)) {
+            for (const d of defData.documents) {
+              if (d.fields) {
+                const parsed = fromFirestoreFields(d.fields);
+                const dEmail = String(parsed.email || '').trim().toLowerCase();
+                const dId = d.name.split('/').pop();
+                if (dEmail === cleanEmail || dId === cleanEmail) {
+                  const bal = Number(parsed.balance !== undefined ? parsed.balance : (parsed.balanceUsd || 0));
+                  console.log(`✅ [Firebase Firestore] Found user account ${cleanEmail} in (default)/users! Balance: $${bal}`);
+                  return {
+                    id: dId || `user_${Date.now()}`,
+                    email: dEmail || cleanEmail,
+                    name: parsed.name || cleanEmail.split('@')[0],
+                    balanceUsd: isNaN(bal) ? 0 : bal,
+                    balanceBdt: Number(parsed.balanceBdt || 0),
+                    role: parsed.role || 'user',
+                    plan: parsed.plan || 'free',
+                    ...parsed
+                  };
+                }
+              }
+            }
           }
         }
-      }
+      } catch {}
 
-      // 2. Structured query search in Firestore by email field
-      const runQueryUrl = `${BASE_URL}:runQuery?key=${API_KEY}`;
-      const queryBody = {
-        structuredQuery: {
-          from: [{ collectionId: 'accounts' }],
-          where: {
-            fieldFilter: {
-              field: { fieldPath: 'email' },
-              op: 'EQUAL',
-              value: { stringValue: cleanEmail }
+      // 1. Direct lookup by email document ID in Firestore
+      const emailDocId = `email_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+      if (!isFirestoreQuotaExhausted()) {
+        const urlDirect = `${BASE_URL}/accounts/${emailDocId}?key=${API_KEY}`;
+        const resDirect = await fetch(urlDirect, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
+        if (resDirect && resDirect.ok) {
+          const docData: any = await resDirect.json();
+          if (docData && docData.fields) {
+            const parsed = fromFirestoreFields(docData.fields);
+            if (parsed && parsed.email) {
+              console.log(`✅ [Firebase Firestore] Found user account ${cleanEmail} directly!`);
+              return parsed;
             }
-          },
-          limit: 1
+          }
         }
-      };
-      const queryRes = await fetch(runQueryUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers
-        },
-        body: JSON.stringify(queryBody)
-      }).catch(() => null);
 
-      if (queryRes && queryRes.ok) {
-        const queryData: any = await queryRes.json();
-        if (Array.isArray(queryData) && queryData[0]?.document?.fields) {
-          const parsed = fromFirestoreFields(queryData[0].document.fields);
-          if (parsed && parsed.email) {
-            console.log(`✅ [Firebase Firestore] Found user account ${cleanEmail} via query!`);
-            return parsed;
+        // 2. Structured query search in Firestore by email field
+        const runQueryUrl = `${BASE_URL}:runQuery?key=${API_KEY}`;
+        const queryBody = {
+          structuredQuery: {
+            from: [{ collectionId: 'accounts' }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: 'email' },
+                op: 'EQUAL',
+                value: { stringValue: cleanEmail }
+              }
+            },
+            limit: 1
+          }
+        };
+        const queryRes = await fetch(runQueryUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers
+          },
+          body: JSON.stringify(queryBody)
+        }).catch(() => null);
+
+        if (queryRes && queryRes.ok) {
+          const queryData: any = await queryRes.json();
+          if (Array.isArray(queryData) && queryData[0]?.document?.fields) {
+            const parsed = fromFirestoreFields(queryData[0].document.fields);
+            if (parsed && parsed.email) {
+              console.log(`✅ [Firebase Firestore] Found user account ${cleanEmail} via query!`);
+              return parsed;
+            }
           }
         }
       }
@@ -484,34 +549,68 @@ export class FirebaseSync {
         ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
       };
 
-      // 1. Read all documents from Firestore /accounts collection via :runQuery
-      const runQueryUrl = `${BASE_URL}:runQuery?key=${API_KEY}`;
-      const queryBody = {
-        structuredQuery: {
-          from: [{ collectionId: 'accounts' }],
-          limit: 300
-        }
-      };
-      const res = await fetch(runQueryUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers
-        },
-        body: JSON.stringify(queryBody)
-      }).catch(() => null);
+      // 0. Read from (default) database /users and /accounts (Separate Admin Panel)
+      for (const col of ['users', 'accounts']) {
+        try {
+          const res = await fetch(`${DEFAULT_DB_URL}/${col}?key=${API_KEY}&pageSize=100`, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
+          if (res && res.ok) {
+            const data: any = await res.json();
+            if (data && Array.isArray(data.documents)) {
+              for (const doc of data.documents) {
+                if (doc.fields) {
+                  const parsed = fromFirestoreFields(doc.fields);
+                  const email = String(parsed.email || '').trim().toLowerCase();
+                  if (email && email.includes('@') && !seenEmails.has(email) && !isTestEmail(email)) {
+                    seenEmails.add(email);
+                    const bal = Number(parsed.balance !== undefined ? parsed.balance : (parsed.balanceUsd || 0));
+                    collected.push({
+                      id: doc.name.split('/').pop(),
+                      email,
+                      name: parsed.name || email.split('@')[0],
+                      balanceUsd: isNaN(bal) ? 0 : bal,
+                      balanceBdt: Number(parsed.balanceBdt || 0),
+                      role: parsed.role || 'user',
+                      plan: parsed.plan || 'free',
+                      ...parsed
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch {}
+      }
 
-      if (res && res.ok) {
-        const list: any = await res.json();
-        if (Array.isArray(list)) {
-          for (const item of list) {
-            if (item.document?.fields) {
-              const acc = fromFirestoreFields(item.document.fields);
-              if (acc && acc.email) {
-                const clean = acc.email.trim().toLowerCase();
-                if (!seenEmails.has(clean) && !isTestEmail(clean)) {
-                  seenEmails.add(clean);
-                  collected.push(acc);
+      // 1. Read all documents from Firestore /accounts collection via :runQuery (if not quota exhausted)
+      if (!isFirestoreQuotaExhausted()) {
+        const runQueryUrl = `${BASE_URL}:runQuery?key=${API_KEY}`;
+        const queryBody = {
+          structuredQuery: {
+            from: [{ collectionId: 'accounts' }],
+            limit: 300
+          }
+        };
+        const res = await fetch(runQueryUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers
+          },
+          body: JSON.stringify(queryBody)
+        }).catch(() => null);
+
+        if (res && res.ok) {
+          const list: any = await res.json();
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              if (item.document?.fields) {
+                const acc = fromFirestoreFields(item.document.fields);
+                if (acc && acc.email) {
+                  const clean = acc.email.trim().toLowerCase();
+                  if (!seenEmails.has(clean) && !isTestEmail(clean)) {
+                    seenEmails.add(clean);
+                    collected.push(acc);
+                  }
                 }
               }
             }
@@ -796,7 +895,6 @@ export class FirebaseSync {
   }
 
   // Live Auto-Approval Watcher for the separate Admin Panel (Screenshot 1 & 2)
-  // Live Auto-Approval Watcher for the separate Admin Panel
   static startExternalDepositsWatcher(
     getAccountsFn: () => any[],
     saveAccountsFn: (accs: any[]) => void,
@@ -808,7 +906,6 @@ export class FirebaseSync {
     sendAlertFn?: (user: any, deposit: any, status: 'approved' | 'rejected') => Promise<void>
   ): void {
     const checkDepositsFromExternalPanel = async () => {
-      if (isFirestoreQuotaExhausted()) return;
       try {
         const idToken = await getAdminIdToken();
         const headers: Record<string, string> = {
@@ -816,15 +913,20 @@ export class FirebaseSync {
           ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
         };
 
-        const defaultDbBaseUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+        const defaultDbBaseUrl = DEFAULT_DB_URL;
         const namedDbBaseUrl = BASE_URL;
 
+        // Primary endpoints: (default) database where the separate Admin Panel operates
         const endpoints = [
-          `${defaultDbBaseUrl}/deposits?key=${API_KEY}`,
-          `${namedDbBaseUrl}/deposits?key=${API_KEY}`,
-          `${defaultDbBaseUrl}/plan_requests?key=${API_KEY}`,
-          `${namedDbBaseUrl}/plan_requests?key=${API_KEY}`
+          `${defaultDbBaseUrl}/deposits?key=${API_KEY}&pageSize=100`,
+          `${defaultDbBaseUrl}/plan_requests?key=${API_KEY}&pageSize=100`
         ];
+
+        // Also check named database if not quota-paused
+        if (!isFirestoreQuotaExhausted()) {
+          endpoints.push(`${namedDbBaseUrl}/deposits?key=${API_KEY}&pageSize=100`);
+          endpoints.push(`${namedDbBaseUrl}/plan_requests?key=${API_KEY}&pageSize=100`);
+        }
 
         const allDocs: any[] = [];
         const seenDocPaths = new Set<string>();
@@ -834,7 +936,7 @@ export class FirebaseSync {
             const res = await fetch(ep, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
             if (res && res.status === 429) {
               setFirestoreQuotaExhausted(30 * 60 * 1000);
-              return;
+              continue; // Resilient: NEVER abort other working endpoints!
             }
             if (res && res.ok) {
               const data: any = await res.json();
@@ -849,8 +951,6 @@ export class FirebaseSync {
             }
           } catch {}
         }
-
-        if (allDocs.length === 0) return;
 
         const currentRequests = getRequestsFn();
         const accounts = getAccountsFn();
@@ -873,15 +973,39 @@ export class FirebaseSync {
               const uid = String(parsed.userId || '').trim();
               let acc = accounts.find((a) => (uid && a.id === uid) || (email && a.email?.toLowerCase() === email));
 
-              if (!acc && email) {
+              if (!acc && (email || uid)) {
                 try {
-                  const cloudUser = await FirebaseSync.loadSingleAccountByEmail(email);
+                  const cloudUser = await FirebaseSync.loadSingleAccountByEmail(email || uid);
                   if (cloudUser && cloudUser.id) {
                     acc = cloudUser;
-                    accounts.push(acc);
-                    saveAccountsFn(accounts);
+                    if (!accounts.some((a) => a.id === acc.id)) {
+                      accounts.push(acc);
+                      saveAccountsFn(accounts);
+                    }
                   }
                 } catch {}
+              }
+
+              // If user is still not found in memory, auto-create so balance is NEVER lost
+              if (!acc) {
+                const newUid = uid || `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                acc = {
+                  id: newUid,
+                  name: parsed.userName || parsed.sender || (email ? email.split('@')[0] : 'User'),
+                  email: email || `${cleanTrx.toLowerCase()}@user.local`,
+                  role: 'user',
+                  plan: 'free',
+                  balanceUsd: 0,
+                  balanceBdt: 0,
+                  maxBots: 1,
+                  emailVerified: true,
+                  isVerified: true,
+                  createdAt: parsed.createdAt || new Date().toISOString(),
+                  updatedAt: Date.now()
+                };
+                accounts.push(acc);
+                saveAccountsFn(accounts);
+                console.log(`👤 Auto-created user account for approved deposit: ${acc.email} (${acc.id})`);
               }
 
               if (acc) {
@@ -954,15 +1078,62 @@ export class FirebaseSync {
         if (requestsUpdated) {
           saveRequestsFn(currentRequests);
         }
+
+        // Direct live balance sync from (default)/users collection in case external admin modified user balance directly
+        try {
+          const usersRes = await fetch(`${defaultDbBaseUrl}/users?key=${API_KEY}&pageSize=100`, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
+          if (usersRes && usersRes.ok) {
+            const uData: any = await usersRes.json();
+            if (uData && Array.isArray(uData.documents)) {
+              let accsChanged = false;
+              for (const uDoc of uData.documents) {
+                if (!uDoc?.fields) continue;
+                const uFields = fromFirestoreFields(uDoc.fields);
+                const uDocId = uDoc.name.split('/').pop();
+                const uEmail = String(uFields.email || '').trim().toLowerCase();
+                const extBal = Number(uFields.balance !== undefined ? uFields.balance : uFields.balanceUsd);
+                if (isNaN(extBal) || extBal < 0) continue;
+
+                let localUser = accounts.find((a) => (uDocId && a.id === uDocId) || (uEmail && a.email?.toLowerCase() === uEmail));
+                if (!localUser && uEmail) {
+                  localUser = {
+                    id: uDocId || `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                    name: uFields.name || uEmail.split('@')[0],
+                    email: uEmail,
+                    role: 'user',
+                    plan: 'free',
+                    balanceUsd: extBal,
+                    balanceBdt: 0,
+                    maxBots: 1,
+                    emailVerified: true,
+                    isVerified: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: Date.now()
+                  };
+                  accounts.push(localUser);
+                  accsChanged = true;
+                } else if (localUser && extBal > (localUser.balanceUsd || 0)) {
+                  console.log(`🔄 [External Users Sync] Syncing higher balance for ${localUser.email}: $${localUser.balanceUsd} -> $${extBal}`);
+                  localUser.balanceUsd = extBal;
+                  localUser.updatedAt = Date.now();
+                  accsChanged = true;
+                }
+              }
+              if (accsChanged) {
+                saveAccountsFn(accounts);
+              }
+            }
+          }
+        } catch {}
       } catch (err: any) {
         // Silent background catch
       }
     };
 
-    // Run first check 2 seconds after startup
-    setTimeout(checkDepositsFromExternalPanel, 2000);
-    // Then keep watching every 6 seconds
-    setInterval(checkDepositsFromExternalPanel, 6000);
+    // Run first check 1.5 seconds after startup
+    setTimeout(checkDepositsFromExternalPanel, 1500);
+    // Then keep watching every 5 seconds for instant credit
+    setInterval(checkDepositsFromExternalPanel, 5000);
   }
 
   // ==========================================
