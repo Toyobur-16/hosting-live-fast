@@ -17,7 +17,8 @@ import { AdminWebsitesManager } from './admin/AdminWebsitesManager';
 import { AdminDepositMethodsManager } from './admin/AdminDepositMethodsManager';
 import { Mail, Globe, Share2 } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, doc, updateDoc } from '../lib/firebase';
-import { playDepositSuccessSound } from '../utils/audioAlert';
+import { playDepositSuccessSound, playNewDepositAlertSound } from '../utils/audioAlert';
+import { AdminDepositToast, DepositToastNotification } from './admin/AdminDepositToast';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -291,6 +292,81 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Real-Time deposit notifications state
+  const [depositToasts, setDepositToasts] = useState<DepositToastNotification[]>([]);
+  const [highlightedRequestId, setHighlightedRequestId] = useState<string | null>(null);
+
+  const knownDepositIdsRef = useRef<Set<string>>(new Set());
+  const isInitialPlanRef = useRef<boolean>(true);
+  const isInitialDepositsRef = useRef<boolean>(true);
+  const modalMountTimeRef = useRef<number>(Date.now());
+
+  // Callback to trigger real-time deposit toast & sound
+  const triggerDepositToast = React.useCallback((dep: PlanRequest) => {
+    if (!dep || !dep.id) return;
+    if (knownDepositIdsRef.current.has(dep.id)) return;
+    knownDepositIdsRef.current.add(dep.id);
+
+    playNewDepositAlertSound();
+
+    setDepositToasts((prev) => {
+      if (prev.some((t) => t.id === dep.id)) return prev;
+      return [
+        {
+          id: dep.id,
+          request: dep,
+          timestamp: Date.now()
+        },
+        ...prev.slice(0, 4)
+      ];
+    });
+  }, []);
+
+  // Auto-dismiss toasts after 14s
+  useEffect(() => {
+    if (depositToasts.length === 0) return;
+    const timers = depositToasts.map((toast) => {
+      return setTimeout(() => {
+        setDepositToasts((prev) => prev.filter((t) => t.id !== toast.id));
+      }, 14000);
+    });
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+    };
+  }, [depositToasts]);
+
+  const handleDismissDepositToast = (id: string) => {
+    setDepositToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const handleClearAllDepositToasts = () => {
+    setDepositToasts([]);
+  };
+
+  const handleViewDepositInQueue = (req: PlanRequest) => {
+    setActiveTab('requests');
+    setRequestCategory('plans_deposits');
+    setFilterStatus('all');
+    setHighlightedRequestId(req.id);
+    handleDismissDepositToast(req.id);
+
+    setTimeout(() => {
+      const el = document.getElementById(`request-${req.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 200);
+
+    setTimeout(() => {
+      setHighlightedRequestId((curr) => (curr === req.id ? null : curr));
+    }, 7000);
+  };
+
+  const handleQuickApproveFromToast = async (requestId: string) => {
+    await handleApproveRequest(requestId);
+    handleDismissDepositToast(requestId);
+  };
+
   const adminDirectUrl = `${window.location.origin}/?admin=true`;
 
   // UI, Scrolling and Viewport state
@@ -335,9 +411,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+
+    modalMountTimeRef.current = Date.now();
+    isInitialPlanRef.current = true;
+    isInitialDepositsRef.current = true;
+
     loadAllAdminData();
 
-    // Real-Time live listener: any deposit created anywhere appears immediately
+    // 1. Real-Time live listener: any deposit or plan request created anywhere appears immediately
     const unsubPlan = onSnapshot(collection(db, 'plan_requests'), (snapshot) => {
       if (!snapshot.empty) {
         setRequests((prev) => {
@@ -354,8 +435,71 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           return list;
         });
       }
+
+      if (isInitialPlanRef.current) {
+        isInitialPlanRef.current = false;
+        snapshot.forEach((d) => {
+          const data = d.data() as PlanRequest;
+          if (data && data.id) {
+            knownDepositIdsRef.current.add(data.id);
+          }
+        });
+      } else {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as PlanRequest;
+            if (data && data.id && !knownDepositIdsRef.current.has(data.id)) {
+              const isDeposit = data.type === 'deposit' || data.planId === 'wallet_deposit' || !data.planId;
+              if (isDeposit && data.status === 'pending') {
+                triggerDepositToast(data);
+              }
+            }
+          }
+        });
+      }
     }, () => {});
-    // Real-Time live listener: user task submissions appear immediately in real-time
+
+    // 2. Real-Time live listener on /deposits collection (dual-redundancy for direct client deposit submissions)
+    const unsubDeposits = onSnapshot(collection(db, 'deposits'), (snapshot) => {
+      if (!snapshot.empty) {
+        setRequests((prev) => {
+          const map = new Map<string, PlanRequest>();
+          prev.forEach((r) => { if (r && r.id) map.set(r.id, r); });
+          snapshot.forEach((d) => {
+            const data = d.data() as PlanRequest;
+            if (data && data.id) {
+              map.set(data.id, { ...map.get(data.id), ...data, type: 'deposit' });
+            }
+          });
+          const list = Array.from(map.values());
+          list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          return list;
+        });
+      }
+
+      if (isInitialDepositsRef.current) {
+        isInitialDepositsRef.current = false;
+        snapshot.forEach((d) => {
+          const data = d.data() as PlanRequest;
+          if (data && data.id) {
+            knownDepositIdsRef.current.add(data.id);
+          }
+        });
+      } else {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as PlanRequest;
+            if (data && data.id && !knownDepositIdsRef.current.has(data.id)) {
+              if (data.status === 'pending') {
+                triggerDepositToast({ ...data, type: 'deposit' });
+              }
+            }
+          }
+        });
+      }
+    }, () => {});
+
+    // 3. Real-Time live listener: user task submissions appear immediately in real-time
     const unsubTasks = onSnapshot(collection(db, 'task_completions'), (snapshot) => {
       if (!snapshot.empty) {
         setTaskSubmissions((prev) => {
@@ -374,11 +518,26 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       }
     }, () => {});
 
+    // 4. In-app message & polling listeners
+    const handleMsg = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'deposit_submitted') {
+        loadAllAdminData();
+      }
+    };
+    window.addEventListener('message', handleMsg);
+
+    const pollTimer = setInterval(() => {
+      loadAllAdminData();
+    }, 8000);
+
     return () => {
       unsubPlan();
+      unsubDeposits();
       unsubTasks();
+      window.removeEventListener('message', handleMsg);
+      clearInterval(pollTimer);
     };
-  }, [isOpen]);
+  }, [isOpen, triggerDepositToast]);
 
   const loadAllAdminData = async () => {
     setLoading(true);
@@ -408,7 +567,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           if (r && r.id) reqMap.set(r.id, r);
         }
 
-        const planSnap = await getDocs(collection(db, 'plan_requests')).catch(() => null);
+        const [planSnap, depSnap] = await Promise.all([
+          getDocs(collection(db, 'plan_requests')).catch(() => null),
+          getDocs(collection(db, 'deposits')).catch(() => null)
+        ]);
 
         if (planSnap && !planSnap.empty) {
           planSnap.forEach((d) => {
@@ -419,9 +581,35 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           });
         }
 
+        if (depSnap && !depSnap.empty) {
+          depSnap.forEach((d) => {
+            const data = d.data() as PlanRequest;
+            if (data && data.id && !reqMap.has(data.id)) {
+              reqMap.set(data.id, { ...data, type: 'deposit' });
+            }
+          });
+        }
+
         const finalReqs = Array.from(reqMap.values());
         finalReqs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         setRequests(finalReqs);
+
+        if (!isInitialPlanRef.current) {
+          for (const req of finalReqs) {
+            if (
+              req &&
+              req.id &&
+              req.status === 'pending' &&
+              (req.type === 'deposit' || req.planId === 'wallet_deposit' || !req.planId) &&
+              !knownDepositIdsRef.current.has(req.id)
+            ) {
+              const created = req.createdAt ? new Date(req.createdAt).getTime() : 0;
+              if (created > modalMountTimeRef.current - 15000) {
+                triggerDepositToast(req);
+              }
+            }
+          }
+        }
       } catch (fbErr) {
         setRequests(combinedRequests);
       }
@@ -955,10 +1143,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
-  // Filter out all deposit requests - deposit requests are managed in external admin panel
-  const planOnlyRequests = requests.filter((r) => r.type !== 'deposit');
-
-  const filteredRequests = planOnlyRequests.filter((r) => {
+  const filteredRequests = requests.filter((r) => {
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -966,8 +1151,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       r.userName?.toLowerCase().includes(q) ||
       r.userEmail?.toLowerCase().includes(q) ||
       r.senderNumber?.includes(q) ||
+      r.senderIdentifier?.includes(q) ||
       r.transactionId?.toLowerCase().includes(q) ||
       (r.planName && r.planName.toLowerCase().includes(q)) ||
+      (r.method && r.method.toLowerCase().includes(q)) ||
       (r.type && r.type.includes(q))
     );
   });
@@ -985,7 +1172,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     );
   });
 
-  const pendingPlanRequestsCount = planOnlyRequests.filter((r) => r.status === 'pending').length;
+  const pendingPlanRequestsCount = requests.filter((r) => r.status === 'pending').length;
   const pendingTasksCount = taskSubmissions.filter((t) => t.status === 'pending').length;
   const totalPendingCount = pendingPlanRequestsCount + pendingTasksCount;
 
@@ -1455,7 +1642,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       return (
                         <div
                           key={req.id}
-                          className="p-3.5 sm:p-4 rounded-2xl bg-[#0d1524] border border-[#1f2d48] flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 text-xs hover:border-slate-600 transition-colors"
+                          id={`request-${req.id}`}
+                          className={`p-3.5 sm:p-4 rounded-2xl bg-[#0d1524] border flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 text-xs transition-all ${
+                            highlightedRequestId === req.id
+                              ? 'border-emerald-400 ring-2 ring-emerald-400 bg-emerald-950/30 shadow-2xl shadow-emerald-500/25 animate-pulse'
+                              : 'border-[#1f2d48] hover:border-slate-600'
+                          }`}
                         >
                           <div className="space-y-1.5 max-w-xl w-full min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -3279,6 +3471,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             <ArrowUp className="w-4 h-4" />
           </button>
         )}
+
+        {/* Real-Time Deposit Toast Notifications Stack */}
+        <AdminDepositToast
+          toasts={depositToasts}
+          onDismiss={handleDismissDepositToast}
+          onClearAll={handleClearAllDepositToasts}
+          onViewInQueue={handleViewDepositInQueue}
+          onApprove={handleQuickApproveFromToast}
+          onViewScreenshot={(url) => setViewScreenshotUrl(url)}
+          actionLoadingId={actionLoadingId}
+          lang={lang}
+        />
 
       </div>
     </div>

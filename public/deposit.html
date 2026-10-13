@@ -168,10 +168,12 @@
       </div>
 
       <div class="mt-4">
-        <label id="trx-label" class="block text-xs font-bold text-gray-600 mb-2">ট্রানজেকশন আইডি</label>
+        <label id="trx-label" class="block text-xs font-bold text-gray-600 mb-2">
+          <i class="fas fa-receipt mr-1 text-purple-600"></i> ট্রানজেকশন আইডি (TrxID)
+        </label>
         <input type="text" id="pay-trx-input" maxlength="40"
           placeholder="ট্রানজেকশন আইডি লিখুন"
-          class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-purple-500 transition uppercase">
+          class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-purple-500 transition uppercase font-mono">
       </div>
     </div>
 
@@ -585,10 +587,26 @@ function backToMethodStep() {
 /* ══════════════════════════════════════════
    HANDLE VERIFY — Binance vs Mobile
 ══════════════════════════════════════════ */
+function getActiveAuth() {
+  let token = localStorage.getItem('bot_auth_token') || '';
+  let user = null;
+  try {
+    user = JSON.parse(localStorage.getItem('bot_auth_user') || '{}');
+  } catch(e) {}
+  if (!token && window.parent && window.parent.localStorage) {
+    try {
+      token = window.parent.localStorage.getItem('bot_auth_token') || '';
+      user = JSON.parse(window.parent.localStorage.getItem('bot_auth_user') || '{}');
+    } catch(e) {}
+  }
+  return { token, user };
+}
+
 function handleNewVerify() {
-  const trx = document.getElementById('pay-trx-input').value.trim().toUpperCase();
-  if (!trx) return Swal.fire('Required', currentPaymentType === 'binance' ? 'Order ID দিন' : 'ট্রানজেকশন আইডি দিন', 'warning');
-  if (trx.length < 4) return Swal.fire('Invalid', 'সঠিকভাবে লিখুন', 'warning');
+  const trx = (document.getElementById('pay-trx-input') ? document.getElementById('pay-trx-input').value : '').trim().toUpperCase();
+
+  if (!trx) return Swal.fire('Required', currentPaymentType === 'binance' ? 'Order ID দিন' : 'ট্রানজেকশন আইডি (TrxID) দিন', 'warning');
+  if (trx.length < 5) return Swal.fire('Invalid', 'সঠিকভাবে TrxID লিখুন (কমপক্ষে ৫ বা ততোধিক অক্ষর)', 'warning');
 
   /* ═══ BINANCE — Manual Submit ═══ */
   if (currentPaymentType === 'binance') {
@@ -596,163 +614,131 @@ function handleNewVerify() {
   }
 
   /* ═══ MOBILE BANKING — Auto Verify ═══ */
-  if (trx.length < 6) return Swal.fire('Invalid', 'ট্রানজেকশন আইডি সঠিক নয়', 'warning');
-
-  Swal.showLoading();
-  db.collection('deposits')
-    .where('trxId', '==', trx)
-    .where('status', 'in', ['pending', 'approved'])
-    .limit(1).get()
-    .then(function(snap) {
-      Swal.close();
-      if (!snap.empty) {
-        return Swal.fire({
-          icon: 'error',
-          title: '❌ এই TrxID আগেই ব্যবহার হয়েছে',
-          text: 'অন্য ট্রানজেকশন আইডি দিন।'
-        });
-      }
-      startVerification(trx);
-    })
-    .catch(function(err) {
-      Swal.close();
-      Swal.fire('Error', err.message, 'error');
-    });
+  startVerification(trx);
 }
 
 /* ══════════════════════════════════════════
    BINANCE MANUAL SUBMIT
 ══════════════════════════════════════════ */
 function submitBinanceDeposit(orderId) {
-  const uid = currentUser ? currentUser.uid : 'test_user_' + Date.now();
-  const email = currentUser ? currentUser.email : 'test@demo.com';
+  const authData = getActiveAuth();
+  const uid = authData.user?.id || (currentUser ? currentUser.uid : 'user_' + Date.now());
+  const email = authData.user?.email || (currentUser ? currentUser.email : 'user@app.com');
 
   Swal.showLoading();
 
-  // Duplicate check
-  db.collection('deposits')
-    .where('trxId', '==', orderId)
-    .limit(1).get()
-    .then(function(snap) {
-      if (!snap.empty) {
-        Swal.close();
-        return Swal.fire({
-          icon: 'error',
-          title: '❌ এই Order ID আগেই ব্যবহার হয়েছে',
-          text: 'অন্য Order ID দিন।'
-        });
-      }
-
-      // Save deposit
-      return db.collection('deposits').add({
-        userId: uid,
-        amount: currentDepositAmount,
-        trxId: orderId,
-        status: 'pending',
-        date: new Date(),
-        userEmail: email,
-        method: currentPaymentMethod,
-        methodType: 'binance',
-        receiveUid: currentMethodData ? currentMethodData.number : ''
-      })
-      .then(function() {
-        Swal.fire({
-          icon: 'success',
-          title: '✅ Order Submitted',
-          html: `
-            <div style="text-align:left;font-size:13px;line-height:1.8;color:#374151">
-              <b>Order ID:</b> ${orderId}<br>
-              <b>Amount:</b> ${currentDepositAmount} USDT<br>
-              <b>Method:</b> ${currentPaymentMethod}<br>
-              <b>To UID:</b> ${currentMethodData ? currentMethodData.number : '—'}<br><br>
-              <span style="color:#6b7280;font-size:11px">
-                আপনার Order টি Admin এর কাছে পাঠানো হয়েছে।<br>
-                Admin ম্যানুয়ালি যাচাই করে Approve করলে<br>
-                আপনার ব্যালেন্সে যোগ হবে।
-              </span>
-            </div>
-          `,
-          confirmButtonText: 'OK',
-          confirmButtonColor: '#f59e0b',
-          allowOutsideClick: false
-        }).then(function() {
-          resetDeposit();
-        });
-      });
+  fetch('/api/wallet/verify-and-deposit', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authData.token ? { 'Authorization': 'Bearer ' + authData.token } : {})
+    },
+    body: JSON.stringify({
+      trxId: orderId,
+      amount: currentDepositAmount,
+      amountBdt: currentDepositAmount,
+      method: 'binance',
+      receiverNumber: currentMethodData ? currentMethodData.number : '',
+      userId: uid,
+      userEmail: email
     })
-    .catch(function(err) {
-      Swal.close();
-      Swal.fire('Error', err.message, 'error');
-    });
+  })
+  .then(res => res.json())
+  .then(data => {
+    Swal.close();
+    try {
+      if (window.parent) window.parent.postMessage({ type: 'deposit_submitted', trxId: orderId }, '*');
+    } catch(e) {}
+
+    if (data.success && data.autoApproved) {
+      showSuccess(data.creditedAmount);
+    } else if (data.success) {
+      showPendingSubmitted(data.message, orderId);
+    } else {
+      showInvalid(data.error);
+    }
+  })
+  .catch(err => {
+    Swal.close();
+    showInvalid('সার্ভার সংযোগে ত্রুটি: ' + (err.message || 'আবার চেষ্টা করুন'));
+  });
 }
 
 /* ══════════════════════════════════════════
-   MOBILE BANKING — AUTO VERIFY
+   MOBILE BANKING — AUTO VERIFY & CHECK
 ══════════════════════════════════════════ */
 function startVerification(trx) {
-  const uid = currentUser ? currentUser.uid : 'test_user_' + Date.now();
-  const email = currentUser ? currentUser.email : 'test@demo.com';
+  const authData = getActiveAuth();
+  const uid = authData.user?.id || (currentUser ? currentUser.uid : 'user_' + Date.now());
+  const email = authData.user?.email || (currentUser ? currentUser.email : '');
+  const receiverNum = (document.getElementById('pay-admin-number') ? document.getElementById('pay-admin-number').innerText : '').trim();
 
   document.getElementById('verifyingOverlay').classList.remove('hidden');
   let secondsLeft = VERIFY_TIMEOUT_SECONDS;
-  document.getElementById('verifyCountdown').innerText = '⏳ ' + secondsLeft + ' সেকেন্ড বাকি...';
+  const countdownEl = document.getElementById('verifyCountdown');
+  if (countdownEl) countdownEl.innerText = '⏳ ' + secondsLeft + ' সেকেন্ড বাকি...';
 
   countdownInterval = setInterval(() => {
     secondsLeft--;
     if (secondsLeft <= 0) {
       clearInterval(countdownInterval);
+      countdownInterval = null;
+      if (countdownEl) countdownEl.innerText = '⏳ ০ সেকেন্ড বাকি...';
     } else {
-      document.getElementById('verifyCountdown').innerText = '⏳ ' + secondsLeft + ' সেকেন্ড বাকি...';
+      if (countdownEl) countdownEl.innerText = '⏳ ' + secondsLeft + ' সেকেন্ড বাকি...';
     }
   }, 1000);
 
-  const usdtVal = parseFloat(calcUsdt(currentDepositAmount));
-
-  db.collection('deposits').add({
-    userId: uid,
-    amount: currentDepositAmount,
-    amountBdt: currentDepositAmount,
-    amountUsdt: usdtVal,
-    usdtRate: USDT_RATE,
-    trxId: trx,
-    status: 'pending',
-    date: new Date(),
-    userEmail: email,
-    method: currentPaymentMethod,
-    methodType: 'mobile_banking'
-  })
-  .then(function(ref) {
-    verifyListener = ref.onSnapshot(function(doc) {
-      const data = doc.data();
-      if (!data) return;
-
-      if (data.status === 'approved') {
-        clearTimers();
-        document.getElementById('verifyingOverlay').classList.add('hidden');
-        showSuccess();
-      } else if (data.status === 'rejected') {
-        clearTimers();
-        document.getElementById('verifyingOverlay').classList.add('hidden');
-        showInvalid('আপনার পেমেন্ট বাতিল করা হয়েছে।');
-      }
-    });
-
-    verifyTimeout = setTimeout(function() {
-      ref.get().then(function(doc) {
-        const data = doc.data();
-        if (data && data.status === 'approved') return;
-
-        clearTimers();
-        document.getElementById('verifyingOverlay').classList.add('hidden');
-        ref.delete().catch(()=>{});
-        showInvalid();
-      });
-    }, VERIFY_TIMEOUT_SECONDS * 1000);
-  })
-  .catch(function(err) {
+  // Fail-safe timeout so overlay NEVER freezes
+  verifyTimeout = setTimeout(() => {
     clearTimers();
     document.getElementById('verifyingOverlay').classList.add('hidden');
-    Swal.fire('Error', err.message, 'error');
+    showInvalid('যাচাই করার নির্ধারিত সময় শেষ হয়েছে। যদি টাকা পাঠিয়ে থাকেন, তবে রিকোয়েস্টটি সেভ রাখা হয়েছে। ওয়ালেটের "Deposit History" চেক করুন।');
+  }, VERIFY_TIMEOUT_SECONDS * 1000);
+
+  // Directly call backend verify-and-deposit
+  fetch('/api/wallet/verify-and-deposit', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authData.token ? { 'Authorization': 'Bearer ' + authData.token } : {})
+    },
+    body: JSON.stringify({
+      trxId: trx,
+      transactionId: trx,
+      amount: currentDepositAmount,
+      amountBdt: currentDepositAmount,
+      method: currentPaymentMethod || 'bKash',
+      senderNumber: '',
+      receiverNumber: receiverNum,
+      userId: uid,
+      userEmail: email
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    clearTimers();
+    document.getElementById('verifyingOverlay').classList.add('hidden');
+
+    // Notify parent window to immediately refresh Deposit History
+    try {
+      if (window.parent) {
+        window.parent.postMessage({ type: 'deposit_submitted', trxId: trx, status: data.status }, '*');
+      }
+    } catch(e) {}
+
+    if (data.success && data.autoApproved) {
+      showSuccess(data.creditedAmount);
+    } else if (data.success) {
+      showPendingSubmitted(data.message, trx);
+    } else {
+      showInvalid(data.error || '❌ ট্রানজেকশন ভুল! এই নম্বরে টাকা পাঠানো হয়নি বা ট্রানজেকশন সঠিক নয়।');
+    }
+  })
+  .catch(err => {
+    clearTimers();
+    document.getElementById('verifyingOverlay').classList.add('hidden');
+    showInvalid('সার্ভারে সংযোগে সমস্যা হয়েছে: ' + (err.message || 'আবার চেষ্টা করুন'));
   });
 }
 
@@ -762,22 +748,50 @@ function clearTimers() {
   if (verifyListener) { verifyListener(); verifyListener = null; }
 }
 
-function showSuccess() {
-  const usdtAmount = calcUsdt(currentDepositAmount);
+function showSuccess(creditedUsd) {
+  const usdtAmount = creditedUsd ? Number(creditedUsd).toFixed(2) : calcUsdt(currentDepositAmount);
   Swal.fire({
     icon: 'success',
     title: '✅ Payment Successful',
     html: `
       <div style="text-align:center;font-size:14px;line-height:1.8;color:#374151">
-        <p style="font-size:18px;font-weight:bold;color:#059669">৳${currentDepositAmount} Added</p>
-        <p style="font-size:13px;font-weight:bold;color:#4b5563">≈ ${usdtAmount} USDT</p>
-        <p style="font-size:12px;color:#6b7280;margin-top:6px">
-          আপনার ব্যালেন্সে সফলভাবে যোগ হয়েছে।
+        <p style="font-size:18px;font-weight:bold;color:#059669">৳${currentDepositAmount} BDT Added</p>
+        <p style="font-size:14px;font-weight:bold;color:#0f766e">≈ $${usdtAmount} USDT ব্যালেন্স যোগ হয়েছে</p>
+        <p style="font-size:12px;color:#6b7280;margin-top:8px">
+          🎉 আপনার পেমেন্ট সফলভাবে অটোমেটিক ভেরিফাই হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!
         </p>
       </div>
     `,
-    confirmButtonText: 'OK',
+    confirmButtonText: 'ঠিক আছে (OK)',
     confirmButtonColor: '#059669',
+    allowOutsideClick: false
+  }).then(function() {
+    resetDeposit();
+  });
+}
+
+function showPendingSubmitted(message, trx) {
+  const usdtAmount = calcUsdt(currentDepositAmount);
+  Swal.fire({
+    icon: 'info',
+    title: '📥 রিকোয়েস্ট জমা হয়েছে',
+    html: `
+      <div style="text-align:left;font-size:13px;line-height:1.7;color:#374151">
+        <p style="font-weight:bold;color:#0d9488;margin-bottom:8px">
+          ${message || 'আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে।'}
+        </p>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:10px;border-radius:10px;font-size:12px">
+          <p><b>পরিমাণ:</b> ৳${currentDepositAmount} BDT (≈ $${usdtAmount} USDT)</p>
+          <p><b>TrxID:</b> <code style="color:#0f766e;font-weight:bold">${trx}</code></p>
+          <p><b>মেথড:</b> ${currentPaymentMethod}</p>
+        </div>
+        <p style="font-size:11px;color:#6b7280;margin-top:10px">
+          অ্যাডমিন প্যানেল থেকে ভেরিফাই করে ব্যালেন্স যোগ করা হবে। আপনার ওয়ালেটের <b>Deposit History</b> সেকশনে এর লাইভ স্ট্যাটাস দেখতে পারবেন।
+        </p>
+      </div>
+    `,
+    confirmButtonText: 'ঠিক আছে (OK)',
+    confirmButtonColor: '#0d9488',
     allowOutsideClick: false
   }).then(function() {
     resetDeposit();
@@ -787,28 +801,26 @@ function showSuccess() {
 function showInvalid(reason) {
   Swal.fire({
     icon: 'error',
-    title: '❌ Transaction খুঁজে পাওয়া যায়নি',
+    title: '❌ ট্রানজেকশন ভুল',
     html: `
       <div style="text-align:center;font-size:13px;line-height:1.7;color:#374151">
         <p style="font-size:14px;font-weight:bold;color:#dc2626;margin-bottom:12px">
-          ${reason || 'আপনার Transaction টি খুঁজে পাওয়া যায়নি।'}
+          ${reason || 'আপনার Transaction আইডিটি সঠিক নয় বা এই নম্বরে টাকা পাঠানো হয়নি।'}
         </p>
-        <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:12px;border-radius:8px;text-align:left;font-size:12px">
-          <p style="margin:0 0 6px 0;font-weight:bold">✅ যা যা চেক করুন:</p>
-          <p style="margin:4px 0">• টাকা <b>সঠিক নম্বরে</b> পাঠিয়েছেন কিনা</p>
-          <p style="margin:4px 0">• TrxID <b>সঠিকভাবে</b> লিখেছেন কিনা</p>
-          <p style="margin:4px 0">• Amount <b>সঠিক</b> দিয়েছেন কিনা</p>
+        <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:12px;border-radius:8px;text-align:left;font-size:12px">
+          <p style="margin:0 0 6px 0;font-weight:bold;color:#991b1b">✅ যা যা চেক করুন:</p>
+          <p style="margin:4px 0">• স্ক্রিনে দেওয়া <b>সঠিক নম্বরে</b> টাকা পাঠিয়েছেন কিনা</p>
+          <p style="margin:4px 0">• TrxID কোনো ভুল বর্ণ ছাড়াই <b>সঠিকভাবে</b> লিখেছেন কিনা</p>
+          <p style="margin:4px 0">• অন্য কারো বা পুরাতন কোনো TrxID ব্যবহার করছেন কিনা</p>
         </div>
         <p style="font-size:11px;color:#6b7280;margin-top:12px">
-          সব ঠিক থাকলে আবার চেষ্টা করুন।
+          সব ঠিক থাকলে পুনরায় ট্রাই করুন।
         </p>
       </div>
     `,
     confirmButtonText: 'আবার চেষ্টা করুন',
     confirmButtonColor: '#dc2626',
     allowOutsideClick: false
-  }).then(function() {
-    document.getElementById('pay-trx-input').value = '';
   });
 }
 

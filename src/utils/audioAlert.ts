@@ -125,3 +125,48 @@ export function playSessionWarningSound(): void {
     console.warn('Could not play session warning sound:', e);
   }
 }
+
+/**
+ * Generates an attentive, premium chime for new incoming deposit requests
+ * in the Admin Panel to alert admins in real time.
+ */
+export function playNewDepositAlertSound(): void {
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+
+    const now = ctx.currentTime;
+    // Cheerful, high-attention double chime: (D5, G5, B5, D6)
+    const notes = [
+      { freq: 587.33, time: 0, duration: 0.22, vol: 0.22 },
+      { freq: 783.99, time: 0.08, duration: 0.24, vol: 0.24 },
+      { freq: 987.77, time: 0.16, duration: 0.28, vol: 0.25 },
+      { freq: 1174.66, time: 0.26, duration: 0.45, vol: 0.28 }
+    ];
+
+    notes.forEach((note) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(note.freq, now + note.time);
+
+      gain.gain.setValueAtTime(0.001, now + note.time);
+      gain.gain.linearRampToValueAtTime(note.vol, now + note.time + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + note.time + note.duration);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + note.time);
+      osc.stop(now + note.time + note.duration + 0.02);
+    });
+  } catch (e) {
+    console.warn('Could not play new deposit alert sound:', e);
+  }
+}

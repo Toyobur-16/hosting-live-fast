@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthUser, PaymentSettings, DepositRequest, BinancePayOrder, CustomDepositMethod } from '../types';
-import { db, doc, setDoc } from '../lib/firebase';
+import { db, doc, setDoc, collection, query, where, onSnapshot } from '../lib/firebase';
 import { DepositStorePage } from './DepositStorePage';
 
 interface StoreWalletPageProps {
@@ -115,7 +115,32 @@ export function StoreWalletPage({
     if (user) {
       fetchUserRequests();
     }
-  }, [user]);
+
+    const handleMsg = (e: MessageEvent) => {
+      if (e.data && (e.data.type === 'deposit_submitted' || e.data.type === 'deposit_updated')) {
+        fetchUserRequests();
+        refreshUserData();
+      }
+    };
+    window.addEventListener('message', handleMsg);
+
+    // Live Firestore listener on plan_requests for user's deposits
+    let unsubFirestore: (() => void) | null = null;
+    if (user?.id) {
+      try {
+        const q = query(collection(db, 'plan_requests'), where('userId', '==', user.id));
+        unsubFirestore = onSnapshot(q, () => {
+          fetchUserRequests();
+          refreshUserData();
+        }, () => {});
+      } catch {}
+    }
+
+    return () => {
+      window.removeEventListener('message', handleMsg);
+      if (unsubFirestore) unsubFirestore();
+    };
+  }, [user?.id]);
 
   // Auto-sync Balance polling every 5 seconds when user is logged in
   useEffect(() => {
@@ -842,88 +867,285 @@ export function StoreWalletPage({
             </div>
           </div>
 
-          {/* Recent Activity Teaser */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#00d293]" />
-                <span>সাম্প্রতিক ডিপোজিট ও লেনদেন</span>
-              </h3>
-              <button
-                onClick={() => setView('history')}
-                className="text-xs font-bold text-[#00d293] hover:underline cursor-pointer flex items-center gap-1"
-              >
-                <span>সব হিস্ট্রি দেখুন ({userRequests.length})</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
+          {/* ============================================================== */}
+          {/* DEDICATED DEPOSIT HISTORY SECTION */}
+          {/* ============================================================== */}
+          <div className="space-y-4 pt-2">
+            {/* Header with Title, Count & Refresh */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0d1527] p-3.5 sm:p-4 rounded-2xl border border-slate-800 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#00d293]/15 flex items-center justify-center text-[#00d293] shrink-0 border border-[#00d293]/30">
+                  <Receipt className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base sm:text-lg font-black text-white">
+                      ডিপোজিট হিস্ট্রি (Deposit History)
+                    </h3>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#162540] text-emerald-400 border border-emerald-500/30">
+                      {filteredHistoryRequests.length} টি রেকর্ড
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    আপনার আগের ডিপোজিট রিকোয়েস্ট ও বর্তমান স্ট্যাটাস (অপেক্ষমান/অনুমোদিত) ট্র্যাক করুন
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  onClick={() => {
+                    fetchUserRequests();
+                    refreshUserData();
+                  }}
+                  disabled={loadingRequests}
+                  className="px-3 py-1.5 rounded-xl bg-[#14213a] hover:bg-[#1a2c4e] text-slate-300 hover:text-white border border-slate-700/60 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="হিস্ট্রি রিফ্রেশ করুন"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingRequests ? 'animate-spin text-emerald-400' : ''}`} />
+                  <span>রিফ্রেশ</span>
+                </button>
+              </div>
             </div>
 
+            {/* Filter Tabs & Search Bar */}
+            <div className="bg-[#0b1220] p-3 rounded-2xl border border-slate-800 space-y-2.5">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                {/* Filter Chips */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                  <button
+                    onClick={() => setHistoryFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition shrink-0 ${
+                      historyFilter === 'all'
+                        ? 'bg-[#00d293] text-slate-950 font-black shadow-sm'
+                        : 'bg-[#141f33] text-slate-300 hover:text-white hover:bg-[#1a2942]'
+                    }`}
+                  >
+                    সব ({userRequests.length})
+                  </button>
+                  <button
+                    onClick={() => setHistoryFilter('pending')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition shrink-0 flex items-center gap-1.5 ${
+                      historyFilter === 'pending'
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
+                        : 'bg-[#141f33] text-amber-400 hover:bg-amber-500/20'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span>অপেক্ষমান ({depositStats.pendingCount})</span>
+                  </button>
+                  <button
+                    onClick={() => setHistoryFilter('approved')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition shrink-0 flex items-center gap-1.5 ${
+                      historyFilter === 'approved'
+                        ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                        : 'bg-[#141f33] text-emerald-400 hover:bg-emerald-500/20'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>অনুমোদিত ({depositStats.approvedCount})</span>
+                  </button>
+                  <button
+                    onClick={() => setHistoryFilter('rejected')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition shrink-0 flex items-center gap-1.5 ${
+                      historyFilter === 'rejected'
+                        ? 'bg-rose-500 text-white font-black shadow-sm'
+                        : 'bg-[#141f33] text-rose-400 hover:bg-rose-500/20'
+                    }`}
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>বাতিল ({depositStats.rejectedCount})</span>
+                  </button>
+                </div>
+
+                {/* Search Box */}
+                <div className="relative min-w-[200px] sm:max-w-[260px]">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={historySearchQuery}
+                    onChange={(e) => setHistorySearchQuery(e.target.value)}
+                    placeholder="TrxID বা মেথড খুঁজুন..."
+                    className="w-full bg-[#131b2e] border border-slate-700/80 rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00d293] transition"
+                  />
+                  {historySearchQuery && (
+                    <button
+                      onClick={() => setHistorySearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* List of Requests */}
             {loadingRequests ? (
-              <div className="p-8 text-center text-slate-400 text-xs">হিস্ট্রি লোড হচ্ছে...</div>
-            ) : userRequests.length === 0 ? (
-              <div className="p-8 rounded-2xl bg-[#0d1424] border border-[#1e2e42] text-center space-y-2">
-                <Clock className="w-8 h-8 text-slate-600 mx-auto" />
-                <p className="text-xs text-slate-400">কোনো হিস্ট্রি রেকর্ড নেই।</p>
+              <div className="p-10 rounded-2xl bg-[#0b1220] border border-slate-800 text-center space-y-2">
+                <Loader2 className="w-7 h-7 text-[#00d293] animate-spin mx-auto" />
+                <p className="text-xs text-slate-400 font-medium">ডিপোজিট হিস্ট্রি লোড হচ্ছে...</p>
+              </div>
+            ) : filteredHistoryRequests.length === 0 ? (
+              <div className="p-8 sm:p-10 rounded-2xl bg-[#0b1220] border border-slate-800 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-slate-800/60 flex items-center justify-center mx-auto text-slate-500">
+                  <Receipt className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">
+                    {historySearchQuery || historyFilter !== 'all' ? 'কোনো ফলাফল পাওয়া যায়নি' : 'এখনো কোনো ডিপোজিট রিকোয়েস্ট নেই'}
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    {historySearchQuery || historyFilter !== 'all'
+                      ? 'ফিল্টার পরিবর্তন করে অথবা অন্য ট্রানজেকশন আইডি দিয়ে চেষ্টা করুন।'
+                      : 'বিকাশ, নগদ বা বাইন্যান্সের মাধ্যমে ডিপোজিট করতে "Add Money" বাটনে ক্লিক করুন।'}
+                  </p>
+                </div>
+                {!historySearchQuery && historyFilter === 'all' && (
+                  <button
+                    onClick={() => {
+                      if (onNavigateToDepositStore) onNavigateToDepositStore();
+                      else setView('deposit');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00d293] hover:bg-[#00be84] text-slate-950 font-black text-xs transition cursor-pointer shadow-md shadow-[#00d293]/20"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>এখনই ডিপোজিট করুন (Add Money)</span>
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="space-y-2.5">
-                {userRequests.slice(0, 4).map((req) => (
-                  <div
-                    key={req.id}
-                    className="p-3 sm:p-4 rounded-2xl bg-[#0f172a] border border-[#1e293b] flex items-center justify-between shadow-sm hover:border-slate-700 transition gap-2 sm:gap-3 overflow-hidden"
-                  >
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                      <div
-                        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                          req.status === 'approved'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : req.status === 'rejected'
-                            ? 'bg-rose-500/20 text-rose-400'
-                            : 'bg-amber-500/20 text-amber-400'
-                        }`}
-                      >
-                        {req.status === 'approved' ? (
-                          <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                        ) : req.status === 'rejected' ? (
-                          <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                        ) : (
-                          <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold text-white flex items-center gap-1.5 flex-wrap">
-                          <span className="uppercase text-[11px] sm:text-xs truncate max-w-[110px] sm:max-w-none">{req.method} Deposit</span>
-                          <span
-                            className={`text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-black shrink-0 ${
+              <div className="space-y-3">
+                {filteredHistoryRequests.map((req) => {
+                  const bdtFormatted = req.bdtAmount ? `৳${req.bdtAmount.toLocaleString()}` : null;
+                  const usdFormatted = `$${Number(req.amount || 0).toFixed(2)} USDT`;
+
+                  return (
+                    <div
+                      key={req.id}
+                      className="p-3.5 sm:p-4 rounded-2xl bg-[#0c1424] border border-slate-800/80 hover:border-slate-700 transition shadow-sm space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        {/* Left: Icon and Basic Info */}
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div
+                            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
                               req.status === 'approved'
-                                ? 'bg-emerald-500/20 text-emerald-400'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                                 : req.status === 'rejected'
-                                ? 'bg-rose-500/20 text-rose-400'
-                                : 'bg-amber-500/20 text-amber-400'
+                                ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                             }`}
                           >
-                            {req.status === 'approved' ? 'সফল' : req.status === 'rejected' ? 'বাতিল' : 'অপেক্ষমান'}
-                          </span>
+                            {req.status === 'approved' ? (
+                              <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                            ) : req.status === 'rejected' ? (
+                              <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
+                            ) : (
+                              <Clock className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-black text-xs sm:text-sm text-white uppercase tracking-wide">
+                                {req.method} Deposit
+                              </span>
+                              {/* Status Badge */}
+                              <span
+                                className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 border ${
+                                  req.status === 'approved'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                    : req.status === 'rejected'
+                                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                }`}
+                              >
+                                {req.status === 'approved' && <CheckCircle2 className="w-3 h-3" />}
+                                {req.status === 'rejected' && <XCircle className="w-3 h-3" />}
+                                {req.status === 'pending' && <Clock className="w-3 h-3 animate-spin" />}
+                                <span>
+                                  {req.status === 'approved'
+                                    ? 'অনুমোদিত (Completed)'
+                                    : req.status === 'rejected'
+                                    ? 'বাতিল (Rejected)'
+                                    : 'অপেক্ষমান (Pending)'}
+                                </span>
+                              </span>
+                            </div>
+
+                            {/* TrxID row with Copy */}
+                            <div className="flex items-center gap-2 mt-1 text-xs">
+                              <span className="text-slate-400 font-medium">TrxID:</span>
+                              <span className="font-mono font-bold text-amber-300 bg-black/40 px-2 py-0.5 rounded-md border border-slate-800 text-[11px] truncate max-w-[170px] sm:max-w-none">
+                                {req.transactionId || 'N/A'}
+                              </span>
+                              {req.transactionId && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(req.transactionId, `trx_${req.id}`)}
+                                  className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 cursor-pointer"
+                                  title="কপি করুন"
+                                >
+                                  {copiedField === `trx_${req.id}` ? (
+                                    <Check className="w-3 h-3 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Sender Info if available */}
+                            {req.senderIdentifier && (
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                <span className="text-slate-500">প্রেরক:</span> {req.senderIdentifier}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate font-mono">
-                          TrxID: {req.transactionId || 'N/A'} • {new Date(req.createdAt).toLocaleDateString()}
-                        </p>
+
+                        {/* Right: Amounts & View Receipt */}
+                        <div className="text-right shrink-0">
+                          <span className="text-sm sm:text-base font-black text-emerald-400 block tracking-tight">
+                            +{usdFormatted}
+                          </span>
+                          {bdtFormatted && (
+                            <span className="text-[11px] font-bold text-slate-400 block">
+                              {bdtFormatted} BDT
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReceipt(req)}
+                            className="mt-1.5 px-2.5 py-1 rounded-lg bg-[#141e33] hover:bg-[#1a2942] text-[11px] font-bold text-slate-300 hover:text-white border border-slate-700/60 inline-flex items-center gap-1 cursor-pointer transition shadow-xs"
+                          >
+                            <Eye className="w-3 h-3 text-[#00d293]" />
+                            <span>রসিদ দেখুন</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Footer Info: Date & Review Note */}
+                      <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-500" />
+                          <span>জমার তারিখ: {new Date(req.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                        </span>
+                        {req.status === 'approved' && req.reviewedAt && (
+                          <span className="text-emerald-400 font-medium">
+                            অনুমোদন: {new Date(req.reviewedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                        {req.status === 'pending' && (
+                          <span className="text-amber-400 font-medium">
+                            এডমিন ভেরিফিকেশন চলছে...
+                          </span>
+                        )}
                       </div>
                     </div>
-
-                    <div className="text-right shrink-0 ml-1 sm:ml-2">
-                      <span className="text-xs sm:text-sm font-black text-[#00d293] block whitespace-nowrap">
-                        +${Number(req.amount || 0).toFixed(2)} USDT
-                      </span>
-                      <button
-                        onClick={() => setSelectedReceipt(req)}
-                        className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer mt-0.5 inline-block"
-                      >
-                        রসিদ দেখুন
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

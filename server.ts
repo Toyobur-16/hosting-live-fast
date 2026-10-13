@@ -4271,11 +4271,8 @@ function getMethodRateToBdt(methodNameOrId?: string): number {
   return 120; // Default fallback rate: 1 USD = 120 BDT
 }
 
-// Wallet Deposit Submission Endpoint - Disabled as deposit requests are handled by external admin panel
+// Wallet Deposit Submission Endpoint
 app.post('/api/wallet/deposit', async (req, res) => {
-  return res.status(403).json({
-    error: 'ডিপোজিট সিস্টেম বন্ধ রয়েছে। নতুন ডিপোজিট গেটওয়ে সংযুক্ত হওয়ার পর এটি চালু হবে।'
-  });
   let user = getAuthUser(req);
   if (!user && (req.body.userId || req.body.userEmail)) {
     const accounts = getAccounts();
@@ -4466,6 +4463,213 @@ app.post('/api/wallet/deposit', async (req, res) => {
   });
 });
 
+// Instant Payment Verification and Auto-Deposit Endpoint for Mobile Banking (bKash/Nagad/Rocket) & Crypto
+app.post('/api/wallet/verify-and-deposit', async (req, res) => {
+  try {
+    let user = getAuthUser(req);
+    const { trxId, transactionId, amount, amountBdt, method, senderNumber, receiverNumber, userId, userEmail } = req.body;
+
+    // Resolve user if token is missing
+    if (!user && (userId || userEmail)) {
+      const accounts = getAccounts();
+      user = accounts.find((a) => (userId && a.id === userId) || (userEmail && a.email?.toLowerCase() === userEmail.toLowerCase()));
+      if (!user && userEmail) {
+        try {
+          const cloudUser = await FirebaseSync.loadSingleAccountByEmail(userEmail);
+          if (cloudUser && cloudUser.id) user = cloudUser;
+        } catch {}
+      }
+    }
+
+    const cleanTrx = String(trxId || transactionId || '').trim().toUpperCase();
+    if (!cleanTrx || cleanTrx.length < 5) {
+      return res.status(400).json({
+        success: false,
+        error: '❌ ট্রানজেকশন ভুল! সঠিক ট্রানজেকশন আইডি (TrxID) লিখুন।'
+      });
+    }
+
+    // 1. Check if this TrxID was already credited
+    if (isTransactionAlreadyCredited(cleanTrx)) {
+      return res.status(400).json({
+        success: false,
+        error: `❌ ট্রানজেকশন ভুল: এই ট্রানজেকশন আইডিটি (${cleanTrx}) ইতিপূর্বে অন্য কেউ ব্যবহার করেছেন বা পূর্বে ওয়ালেটে ক্রেডিট করা হয়েছে! নতুন লেনদেনের ট্রানজেকশন আইডি দিন।`
+      });
+    }
+
+    // 2. Check in existing plan_requests
+    const allReqs = getPlanRequests();
+    const existingReq = allReqs.find((r) => r.transactionId === cleanTrx);
+    if (existingReq) {
+      if (existingReq.status === 'approved') {
+        return res.status(400).json({
+          success: false,
+          error: `❌ ট্রানজেকশন ভুল: এই ট্রানজেকশনটি (${cleanTrx}) ইতিমধ্যে অনুমোদিত ও ওয়ালেটে যুক্ত রয়েছে!`
+        });
+      } else if (existingReq.status === 'pending') {
+        return res.json({
+          success: true,
+          autoApproved: false,
+          status: 'pending',
+          alreadyPending: true,
+          message: '⏳ এই ডিপোজিট রিকোয়েস্টটি ইতিমধ্যে জমা রয়েছে এবং এডমিনের পর্যালোচনায় অপেক্ষমান আছে। "Deposit History" তে এর স্ট্যাটাস দেখতে পারবেন।',
+          request: existingReq
+        });
+      }
+    }
+
+    // 3. Match Method and Admin Recipient Number
+    const methodName = String(method || 'bKash').trim();
+    const depositMethods = getDepositMethods();
+    const matchingMethod = depositMethods.find((m) => m.name.toLowerCase() === methodName.toLowerCase() || m.id.toLowerCase() === methodName.toLowerCase());
+    const expectedNumber = matchingMethod?.accountValue || getPaymentSettings().bkashNumber || getPaymentSettings().nagadNumber || '';
+
+    if (receiverNumber && expectedNumber) {
+      const cleanExpected = expectedNumber.replace(/[^0-9]/g, '');
+      const cleanReceived = String(receiverNumber).replace(/[^0-9]/g, '');
+      if (cleanReceived && cleanExpected && cleanReceived !== cleanExpected) {
+        return res.status(400).json({
+          success: false,
+          error: `❌ ট্রানজেকশন ভুল: টাকা সঠিক নাম্বারে পাঠানো হয়নি! স্ক্রিনে প্রদর্শিত নম্বরে (${expectedNumber}) টাকা পাঠাতে হবে।`
+        });
+      }
+    }
+
+    const numBdt = parseFloat(amountBdt || amount || '0');
+    const rate = matchingMethod?.rateToBdt || getMethodRateToBdt(methodName) || 120;
+    const usdAmount = numBdt > 0 ? Math.max(0.01, parseFloat((numBdt / rate).toFixed(2))) : 1;
+
+    let autoApproved = false;
+
+    // 4. Check external SMS verification webhook if configured
+    const scriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL || process.env.SMS_VERIFY_API_URL;
+    if (scriptUrl && scriptUrl.startsWith('http')) {
+      try {
+        const verifyRes = await fetch(scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'check_transaction',
+            trxId: cleanTrx,
+            amount: numBdt,
+            method: methodName,
+            receiverNumber: expectedNumber,
+            senderNumber: senderNumber || ''
+          }),
+          signal: AbortSignal.timeout(4500)
+        });
+        if (verifyRes.ok) {
+          const verifyData: any = await verifyRes.json();
+          if (verifyData && verifyData.verified === true) {
+            autoApproved = true;
+          } else if (verifyData && verifyData.verified === false && verifyData.invalidTrx === true) {
+            return res.status(400).json({
+              success: false,
+              error: '❌ ট্রানজেকশন ভুল! এসএমএস ডাটাবেজে এই নম্বরে টাকা পাঠানোর কোনো রেকর্ড পাওয়া যায়নি।'
+            });
+          }
+        }
+      } catch (scriptErr) {
+        console.warn('External SMS verification check notice:', scriptErr);
+      }
+    }
+
+    // 5. Check Binance if Binance/USDT method
+    if (!autoApproved && (methodName.toLowerCase().includes('binance') || methodName.toLowerCase().includes('usdt'))) {
+      const creds = getBinanceCredentials();
+      if (creds.isConfigured) {
+        try {
+          const binanceTxs = await fetchBinancePersonalTransactions(creds);
+          const matched = binanceTxs.find((tx) => {
+            const tId = (tx.transactionId || '').toUpperCase();
+            const oId = (tx.orderId || '').toUpperCase();
+            return !isTransactionAlreadyCredited(tx.transactionId) && (tId === cleanTrx || oId === cleanTrx);
+          });
+          if (matched) {
+            autoApproved = true;
+          } else {
+            return res.status(404).json({
+              success: false,
+              error: `❌ ভুল ট্রানজেকশন বা অর্ডার আইডি! বাইনান্স লেনদেন তালিকায় "${cleanTrx}" পাওয়া যায়নি। সঠিক TrxID দিন।`
+            });
+          }
+        } catch {}
+      }
+    }
+
+    const effectiveUserId = user ? user.id : (userId || `user_${Date.now()}`);
+    const effectiveEmail = user ? user.email : (userEmail || 'user@app.com');
+    const effectiveName = user ? (user.name || user.email?.split('@')[0]) : 'User';
+
+    const reqId = `dep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newDeposit: any = {
+      id: reqId,
+      type: 'deposit',
+      userId: effectiveUserId,
+      userName: effectiveName,
+      userEmail: effectiveEmail,
+      planId: 'wallet_deposit',
+      planName: `ওয়ালেট ডিপোজিট ($${usdAmount} USD)`,
+      amount: usdAmount,
+      currency: 'USD',
+      bdtAmount: numBdt,
+      rateToBdt: rate,
+      method: methodName,
+      senderNumber: senderNumber || '',
+      senderIdentifier: senderNumber || effectiveEmail,
+      receiverNumber: expectedNumber,
+      transactionId: cleanTrx,
+      status: autoApproved ? 'approved' : 'pending',
+      createdAt: new Date().toISOString(),
+      ...(autoApproved ? { reviewedAt: new Date().toISOString(), reviewedBy: 'Auto-Verification Engine' } : {})
+    };
+
+    if (autoApproved) {
+      if (user) {
+        modifyUserWallet(user.id, usdAmount, 'deposit', `Auto-Approved: ${methodName} ($${usdAmount} USD)`, methodName, cleanTrx, 'USD');
+        const accs = getAccounts();
+        const acc = accs.find((a) => a.id === user.id);
+        if (acc) {
+          acc.balanceUsd = Math.round(((acc.balanceUsd || 0) + usdAmount) * 100) / 100;
+          saveAccounts(accs);
+          FirebaseSync.syncAccountToCloud(acc).catch(() => {});
+        }
+      }
+    }
+
+    allReqs.unshift(newDeposit);
+    savePlanRequests(allReqs);
+    await FirebaseSync.syncPlanRequestToCloud(newDeposit).catch(() => {});
+
+    if (autoApproved) {
+      return res.json({
+        success: true,
+        autoApproved: true,
+        status: 'approved',
+        creditedAmount: usdAmount,
+        amountBdt: numBdt,
+        transactionId: cleanTrx,
+        message: `🎉 অভিনন্দন! আপনার ৳${numBdt} (${usdAmount} USDT) ডিপোজিট সফলভাবে স্বয়ংক্রিয়ভাবে যাচাই হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!`,
+        request: newDeposit
+      });
+    }
+
+    return res.json({
+      success: true,
+      autoApproved: false,
+      status: 'pending',
+      message: '✅ আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে। অ্যাডমিন প্যানেল থেকে দ্রুত ভেরিফাই করে অনুমোদন করা হবে। নিচে "Deposit History" সেকশনে এর লাইভ স্ট্যাটাস দেখতে পারবেন।',
+      request: newDeposit
+    });
+  } catch (err: any) {
+    console.error('verify-and-deposit error:', err);
+    return res.status(500).json({
+      success: false,
+      error: `যাচাইকরণে ত্রুটি হয়েছে: ${err.message || 'অনুগ্রহ করে আবার চেষ্টা করুন।'}`
+    });
+  }
+});
+
 // User deposit history endpoint (combines manual deposits and Binance Pay orders)
 app.get('/api/wallet/my-deposits', (req, res) => {
   const user = getAuthUser(req);
@@ -4487,6 +4691,8 @@ app.get('/api/wallet/my-deposits', (req, res) => {
       userEmail: r.userEmail,
       amount: r.amount,
       currency: r.currency || 'USD',
+      bdtAmount: r.bdtAmount,
+      rateToBdt: r.rateToBdt,
       method: r.method || 'manual',
       senderIdentifier: r.senderIdentifier || r.senderNumber || '',
       transactionId: r.transactionId,
