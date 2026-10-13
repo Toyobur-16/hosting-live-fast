@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthUser, PaymentSettings, DepositRequest, BinancePayOrder, CustomDepositMethod } from '../types';
-import { db, doc, setDoc, collection, query, where, onSnapshot } from '../lib/firebase';
+import { db, defaultDb, doc, setDoc, collection, query, where, onSnapshot } from '../lib/firebase';
 import { DepositStorePage } from './DepositStorePage';
 
 interface StoreWalletPageProps {
@@ -124,21 +124,35 @@ export function StoreWalletPage({
     };
     window.addEventListener('message', handleMsg);
 
-    // Live Firestore listener on plan_requests for user's deposits
-    let unsubFirestore: (() => void) | null = null;
+    // Live Firestore listener on deposits & plan_requests for user's deposits
+    const unsubs: Array<() => void> = [];
     if (user?.id) {
       try {
-        const q = query(collection(db, 'plan_requests'), where('userId', '==', user.id));
-        unsubFirestore = onSnapshot(q, () => {
-          fetchUserRequests();
-          refreshUserData();
-        }, () => {});
+        const q1 = query(collection(defaultDb, 'deposits'), where('userId', '==', user.id));
+        unsubs.push(
+          onSnapshot(q1, () => {
+            fetchUserRequests();
+            refreshUserData();
+          }, () => {})
+        );
+
+        if (db !== defaultDb) {
+          const q2 = query(collection(db, 'plan_requests'), where('userId', '==', user.id));
+          unsubs.push(
+            onSnapshot(q2, () => {
+              fetchUserRequests();
+              refreshUserData();
+            }, () => {})
+          );
+        }
       } catch {}
     }
 
     return () => {
       window.removeEventListener('message', handleMsg);
-      if (unsubFirestore) unsubFirestore();
+      unsubs.forEach((unsub) => {
+        try { unsub(); } catch {}
+      });
     };
   }, [user?.id]);
 

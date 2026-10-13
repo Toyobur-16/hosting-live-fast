@@ -16,6 +16,19 @@ if (typeof (dns as any).setDefaultResultOrder === 'function') {
   } catch (e) {}
 }
 
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  getFirestore,
+  collection,
+  doc,
+  onSnapshot,
+  getDocs,
+  getDoc,
+  setDoc,
+  updateDoc,
+  Firestore
+} from 'firebase/firestore';
+
 let configProjectId = '';
 let configDbId = '';
 let configApiKey = '';
@@ -39,6 +52,29 @@ const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/dat
 const DEFAULT_DB_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 const AUTH_BASE_URL = 'https://identitytoolkit.googleapis.com/v1/accounts';
 
+let serverApp: any = null;
+try {
+  const serverFirebaseConfig = {
+    apiKey: API_KEY,
+    authDomain: `${PROJECT_ID}.firebaseapp.com`,
+    projectId: PROJECT_ID,
+    storageBucket: `${PROJECT_ID}.firebasestorage.app`
+  };
+  serverApp = !getApps().length
+    ? initializeApp(serverFirebaseConfig, 'server-firestore-sync')
+    : (getApps().find((a) => a.name === 'server-firestore-sync') || initializeApp(serverFirebaseConfig, 'server-firestore-sync'));
+} catch (e: any) {
+  try {
+    serverApp = getApp();
+  } catch {}
+}
+
+export const defaultFirestore: Firestore | null = serverApp ? getFirestore(serverApp) : null;
+export const namedFirestore: Firestore | null =
+  serverApp && FIRESTORE_DATABASE_ID && FIRESTORE_DATABASE_ID !== '(default)'
+    ? getFirestore(serverApp, FIRESTORE_DATABASE_ID)
+    : null;
+
 let firestoreQuotaExhaustedUntil = 0;
 
 export function isFirestoreQuotaExhausted(): boolean {
@@ -60,6 +96,31 @@ function checkResponseQuota(res: Response | null): void {
     markFirestoreQuotaExhausted();
   }
 }
+
+export async function safeSetDoc(ref: any, data: any, options?: any): Promise<boolean> {
+  if (isFirestoreQuotaExhausted()) return false;
+  try {
+    if (options) {
+      await setDoc(ref, data, options);
+    } else {
+      await setDoc(ref, data);
+    }
+    return true;
+  } catch (err: any) {
+    const msg = String(err?.message || err?.code || err || '').toLowerCase();
+    if (
+      err?.code === 'resource-exhausted' ||
+      msg.includes('resource_exhausted') ||
+      msg.includes('resource-exhausted') ||
+      msg.includes('quota') ||
+      msg.includes('limit')
+    ) {
+      markFirestoreQuotaExhausted();
+    }
+    return false;
+  }
+}
+
 
 function compressPayload(data: any): string {
   const json = JSON.stringify(data);
@@ -323,6 +384,40 @@ export class FirebaseSync {
         updatedAt: toFirestoreValue(Date.now())
       };
       const defaultUserBodyStr = JSON.stringify({ fields: defaultUserFields });
+
+      if (defaultFirestore && !isFirestoreQuotaExhausted()) {
+        try {
+          const userDocIdClean = String(cleanUser.id);
+          safeSetDoc(doc(defaultFirestore, 'accounts', userDocIdClean), {
+            ...cleanUser,
+            balanceUsd: cleanUser.balanceUsd || 0,
+            balance: cleanUser.balanceUsd || 0,
+            updatedAt: Date.now()
+          }, { merge: true }).catch(() => {});
+
+          safeSetDoc(doc(defaultFirestore, 'users', userDocIdClean), {
+            email: cleanEmail,
+            balance: cleanUser.balanceUsd || 0,
+            balanceUsd: cleanUser.balanceUsd || 0,
+            name: cleanUser.name || cleanEmail.split('@')[0],
+            role: cleanUser.role || 'user',
+            plan: cleanUser.plan || 'free',
+            updatedAt: Date.now()
+          }, { merge: true }).catch(() => {});
+        } catch {}
+      }
+
+      if (namedFirestore && !isFirestoreQuotaExhausted()) {
+        try {
+          const userDocIdClean = String(cleanUser.id);
+          safeSetDoc(doc(namedFirestore, 'accounts', userDocIdClean), {
+            ...cleanUser,
+            balanceUsd: cleanUser.balanceUsd || 0,
+            balance: cleanUser.balanceUsd || 0,
+            updatedAt: Date.now()
+          }, { merge: true }).catch(() => {});
+        } catch {}
+      }
 
       fetch(`${DEFAULT_DB_URL}/users/${userDocId}?key=${API_KEY}`, {
         method: 'PATCH',
@@ -759,11 +854,28 @@ export class FirebaseSync {
       const urlPlanDefault = `${defaultDbBaseUrl}/plan_requests/${docId}?key=${API_KEY}`;
       const urlPlanNamed = `${namedDbBaseUrl}/plan_requests/${docId}?key=${API_KEY}`;
 
+      if (defaultFirestore && !isFirestoreQuotaExhausted()) {
+        try {
+          const plainReq = { ...planReq, trxId: cleanTrx, transactionId: cleanTrx, updatedAt: Date.now() };
+          safeSetDoc(doc(defaultFirestore, 'deposits', String(planReq.id)), plainReq, { merge: true }).catch(() => {});
+          safeSetDoc(doc(defaultFirestore, 'plan_requests', String(planReq.id)), plainReq, { merge: true }).catch(() => {});
+        } catch {}
+      }
+      if (namedFirestore && !isFirestoreQuotaExhausted()) {
+        try {
+          const plainReq = { ...planReq, trxId: cleanTrx, transactionId: cleanTrx, updatedAt: Date.now() };
+          safeSetDoc(doc(namedFirestore, 'deposits', String(planReq.id)), plainReq, { merge: true }).catch(() => {});
+          safeSetDoc(doc(namedFirestore, 'plan_requests', String(planReq.id)), plainReq, { merge: true }).catch(() => {});
+        } catch {}
+      }
+
+      if (isFirestoreQuotaExhausted()) return true;
+
       const patchReqs = [
-        fetch(urlDepDefault, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }),
-        fetch(urlDepNamed, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }),
-        fetch(urlPlanDefault, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }),
-        fetch(urlPlanNamed, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) })
+        fetch(urlDepDefault, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }).catch(() => null),
+        fetch(urlDepNamed, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }).catch(() => null),
+        fetch(urlPlanDefault, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }).catch(() => null),
+        fetch(urlPlanNamed, { method: 'PATCH', headers, body: bodyStr, signal: AbortSignal.timeout(3000) }).catch(() => null)
       ];
 
       const patchResults = await Promise.allSettled(patchReqs);
@@ -771,7 +883,6 @@ export class FirebaseSync {
       if (isSuccess) {
         console.log(`✅ [Firebase Firestore] Synced deposit to separate Admin Panel & Cloud (${planReq.id}, Status: ${planReq.status}, TrxID: ${cleanTrx})`);
       }
-      return isSuccess;
       return isSuccess;
     } catch (err: any) {
       console.warn('FirebaseSync syncPlanRequestToCloud error:', err.message || err);
@@ -784,59 +895,88 @@ export class FirebaseSync {
     const seenIds = new Set<string>();
 
     try {
-      const idToken = await getAdminIdToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
-      };
-
-      const defaultDbBaseUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
-      const namedDbBaseUrl = BASE_URL;
-
-      const fetchQuery = async (baseUrl: string, colId: string) => {
+      if (defaultFirestore) {
         try {
-          const runQueryUrl = `${baseUrl}:runQuery?key=${API_KEY}`;
-          const qBody = {
-            structuredQuery: {
-              from: [{ collectionId: colId }],
-              limit: 300
-            }
-          };
-          const res = await fetch(runQueryUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(qBody),
-            signal: AbortSignal.timeout(6000)
-          }).catch(() => null);
+          const [depSnap, planSnap] = await Promise.allSettled([
+            getDocs(collection(defaultFirestore, 'deposits')),
+            getDocs(collection(defaultFirestore, 'plan_requests'))
+          ]);
+          if (depSnap.status === 'fulfilled') {
+            depSnap.value.forEach((d) => {
+              const data = d.data();
+              if (data && d.id && !seenIds.has(d.id)) {
+                seenIds.add(d.id);
+                collected.push({ ...data, id: d.id });
+              }
+            });
+          }
+          if (planSnap.status === 'fulfilled') {
+            planSnap.value.forEach((d) => {
+              const data = d.data();
+              if (data && d.id && !seenIds.has(d.id)) {
+                seenIds.add(d.id);
+                collected.push({ ...data, id: d.id });
+              }
+            });
+          }
+        } catch {}
+      }
 
-          if (res && res.ok) {
-            const list: any = await res.json();
-            if (Array.isArray(list)) {
-              for (const item of list) {
-                if (item.document?.fields) {
-                  const parsed = fromFirestoreFields(item.document.fields);
-                  if (parsed && (parsed.id || item.document.name)) {
-                    const docId = parsed.id || item.document.name.split('/').pop();
-                    if (docId && !seenIds.has(docId)) {
-                      seenIds.add(docId);
-                      collected.push({ ...parsed, id: docId });
+      if (collected.length === 0) {
+        const idToken = await getAdminIdToken();
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+        };
+
+        const defaultDbBaseUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+        const namedDbBaseUrl = BASE_URL;
+
+        const fetchQuery = async (baseUrl: string, colId: string) => {
+          try {
+            const runQueryUrl = `${baseUrl}:runQuery?key=${API_KEY}`;
+            const qBody = {
+              structuredQuery: {
+                from: [{ collectionId: colId }],
+                limit: 300
+              }
+            };
+            const res = await fetch(runQueryUrl, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(qBody),
+              signal: AbortSignal.timeout(6000)
+            }).catch(() => null);
+
+            if (res && res.ok) {
+              const list: any = await res.json();
+              if (Array.isArray(list)) {
+                for (const item of list) {
+                  if (item.document?.fields) {
+                    const parsed = fromFirestoreFields(item.document.fields);
+                    if (parsed && (parsed.id || item.document.name)) {
+                      const docId = parsed.id || item.document.name.split('/').pop();
+                      if (docId && !seenIds.has(docId)) {
+                        seenIds.add(docId);
+                        collected.push({ ...parsed, id: docId });
+                      }
                     }
                   }
                 }
               }
             }
-          }
-        } catch {}
-      };
+          } catch {}
+        };
 
-      // Query (default) database /deposits (separate Admin Panel primary collection)
-      await fetchQuery(defaultDbBaseUrl, 'deposits');
-      // Query (default) database /plan_requests
-      await fetchQuery(defaultDbBaseUrl, 'plan_requests');
-      // Query named database /deposits
-      await fetchQuery(namedDbBaseUrl, 'deposits');
-      // Query named database /plan_requests
-      await fetchQuery(namedDbBaseUrl, 'plan_requests');
+        // Query (default) database /deposits (separate Admin Panel primary collection)
+        await fetchQuery(defaultDbBaseUrl, 'deposits');
+        // Query (default) database /plan_requests
+        await fetchQuery(defaultDbBaseUrl, 'plan_requests');
+        // Query named database /deposits
+        await fetchQuery(namedDbBaseUrl, 'deposits');
+        // Query named database /plan_requests
+        await fetchQuery(namedDbBaseUrl, 'plan_requests');
+      }
 
       console.log(`✅ [Firebase Firestore] Loaded ${collected.length} deposit/plan requests from cloud across default & named DBs!`);
     } catch (err: any) {
@@ -886,9 +1026,7 @@ export class FirebaseSync {
         console.log(`✅ Restored & synced ${finalRequests.length} deposit/plan requests from Firebase Firestore!`);
       }
 
-      for (const req of finalRequests) {
-        this.syncPlanRequestToCloud(req).catch(() => {});
-      }
+      // Startup synchronization complete without redundant re-write loop
     } catch (err: any) {
       console.warn('FirebaseSync initPlanRequestsSync warning:', err.message || err);
     }
@@ -905,235 +1043,367 @@ export class FirebaseSync {
     saveNotifFn?: (notif: any) => void,
     sendAlertFn?: (user: any, deposit: any, status: 'approved' | 'rejected') => Promise<void>
   ): void {
-    const checkDepositsFromExternalPanel = async () => {
+    const processDepositDoc = async (docId: string, parsed: any) => {
       try {
-        const idToken = await getAdminIdToken();
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
-        };
+        if (!parsed) return;
+        const cleanTrx = String(parsed.trxId || parsed.transactionId || docId || '').trim().toUpperCase();
+        const rawStatus = String(parsed.status || '').toLowerCase().trim();
+        if (!cleanTrx) return;
 
-        const defaultDbBaseUrl = DEFAULT_DB_URL;
-        const namedDbBaseUrl = BASE_URL;
+        const currentRequests = getRequestsFn();
+        const accounts = getAccountsFn();
 
-        // Primary endpoints: (default) database where the separate Admin Panel operates
-        const endpoints = [
-          `${defaultDbBaseUrl}/deposits?key=${API_KEY}&pageSize=100`,
-          `${defaultDbBaseUrl}/plan_requests?key=${API_KEY}&pageSize=100`
-        ];
+        if (rawStatus === 'approved' || rawStatus === 'success' || rawStatus === 'completed') {
+          const alreadyCredited = isCreditedFn(cleanTrx);
+          const email = String(parsed.userEmail || '').trim().toLowerCase();
+          const uid = String(parsed.userId || '').trim();
+          let acc = accounts.find((a) => (uid && a.id === uid) || (email && a.email?.toLowerCase() === email));
 
-        // Also check named database if not quota-paused
-        if (!isFirestoreQuotaExhausted()) {
-          endpoints.push(`${namedDbBaseUrl}/deposits?key=${API_KEY}&pageSize=100`);
-          endpoints.push(`${namedDbBaseUrl}/plan_requests?key=${API_KEY}&pageSize=100`);
-        }
+          // If user not in memory, try loading from Firestore
+          if (!acc && (email || uid)) {
+            try {
+              if (defaultFirestore) {
+                if (uid) {
+                  const uSnap = await getDoc(doc(defaultFirestore, 'accounts', uid));
+                  if (uSnap.exists()) acc = uSnap.data();
+                }
+                if (!acc && email) {
+                  const snapUsers = await getDocs(collection(defaultFirestore, 'users'));
+                  snapUsers.forEach((d) => {
+                    const u = d.data();
+                    if (u.email && u.email.toLowerCase() === email) {
+                      acc = { id: d.id, ...u };
+                    }
+                  });
+                }
+              }
+            } catch {}
+          }
 
-        const allDocs: any[] = [];
-        const seenDocPaths = new Set<string>();
+          // If still not found, auto-create user so funds are NEVER lost
+          if (!acc && (email || uid)) {
+            const newUid = uid || `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            acc = {
+              id: newUid,
+              name: parsed.userName || parsed.sender || (email ? email.split('@')[0] : 'User'),
+              email: email || `${cleanTrx.toLowerCase()}@user.local`,
+              role: 'user',
+              plan: 'free',
+              balanceUsd: 0,
+              balanceBdt: 0,
+              maxBots: 1,
+              emailVerified: true,
+              isVerified: true,
+              createdAt: parsed.createdAt || new Date().toISOString(),
+              updatedAt: Date.now()
+            };
+            accounts.push(acc);
+            saveAccountsFn(accounts);
+            console.log(`👤 Auto-created user account for approved deposit: ${acc.email} (${acc.id})`);
+          }
 
-        for (const ep of endpoints) {
-          try {
-            const res = await fetch(ep, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
-            if (res && res.status === 429) {
-              setFirestoreQuotaExhausted(30 * 60 * 1000);
-              continue; // Resilient: NEVER abort other working endpoints!
+          if (acc) {
+            const method = parsed.method || 'Binance Pay / UID';
+            const isCrypto =
+              method.toLowerCase().includes('binance') ||
+              method.toLowerCase().includes('usdt') ||
+              method.toLowerCase().includes('crypto') ||
+              method.toLowerCase().includes('bep20') ||
+              method.toLowerCase().includes('trc20');
+            const rawAmt = parseFloat(parsed.amount || parsed.amountBdt || parsed.amountUsd || '0');
+            const rate = Number(parsed.rateToBdt) || 120;
+            let usdAmount = 0;
+
+            if (isCrypto || parsed.currency === 'USD' || (parsed.amountUsd && Number(parsed.amountUsd) > 0)) {
+              usdAmount = Math.max(0.01, parseFloat(Number(parsed.amountUsd || rawAmt).toFixed(2)));
+            } else {
+              const bdtAmt = parseFloat(parsed.amountBdt || parsed.amount || '0');
+              usdAmount = bdtAmt > 0 ? Math.max(0.01, parseFloat((bdtAmt / rate).toFixed(2))) : 1;
             }
+
+            if (!alreadyCredited) {
+              modifyWalletFn(
+                acc.id,
+                usdAmount,
+                'deposit',
+                `Approved by Admin Panel (${method}): $${usdAmount} USD`,
+                method,
+                cleanTrx,
+                'USD'
+              );
+              acc.balanceUsd = Math.round(((acc.balanceUsd || 0) + usdAmount) * 100) / 100;
+              acc.balance = acc.balanceUsd;
+              acc.updatedAt = Date.now();
+              saveAccountsFn(accounts);
+
+              // Update both accounts and users collections in (default) Firestore!
+              if (defaultFirestore && !isFirestoreQuotaExhausted()) {
+                try {
+                  const uId = acc.id;
+                  safeSetDoc(
+                    doc(defaultFirestore, 'accounts', uId),
+                    {
+                      ...acc,
+                      balanceUsd: acc.balanceUsd,
+                      balance: acc.balanceUsd,
+                      updatedAt: Date.now()
+                    },
+                    { merge: true }
+                  ).catch(() => {});
+                  safeSetDoc(
+                    doc(defaultFirestore, 'users', uId),
+                    {
+                      email: acc.email,
+                      balance: acc.balanceUsd,
+                      balanceUsd: acc.balanceUsd,
+                      name: acc.name,
+                      role: acc.role,
+                      plan: acc.plan,
+                      updatedAt: Date.now()
+                    },
+                    { merge: true }
+                  ).catch(() => {});
+                } catch {}
+              }
+
+              if (namedFirestore && !isFirestoreQuotaExhausted()) {
+                try {
+                  safeSetDoc(
+                    doc(namedFirestore, 'accounts', acc.id),
+                    {
+                      ...acc,
+                      balanceUsd: acc.balanceUsd,
+                      balance: acc.balanceUsd,
+                      updatedAt: Date.now()
+                    },
+                    { merge: true }
+                  ).catch(() => {});
+                } catch {}
+              }
+
+              console.log(
+                `🎉 [Separate Admin Panel] Real-Time Auto-Approval: Deposit ${cleanTrx} (+$${usdAmount} USD) approved for ${acc.email}! New Balance: $${acc.balanceUsd}`
+              );
+
+              if (saveNotifFn) {
+                saveNotifFn({
+                  id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                  userId: acc.id,
+                  type: 'deposit_approved',
+                  title: '✅ ডিপোজিট অনুমোদিত হয়েছে',
+                  message: `আপনার $${usdAmount} USD ডিপোজিট (${method}, TrxID: ${cleanTrx}) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!`,
+                  createdAt: new Date().toISOString(),
+                  read: false
+                });
+              }
+
+              if (sendAlertFn) {
+                sendAlertFn(acc, { ...parsed, amount: usdAmount, currency: 'USD', transactionId: cleanTrx }, 'approved').catch(() => {});
+              }
+            }
+
+            // Sync status to local plan_requests
+            const existingLocal = currentRequests.find((r) => (r.transactionId || '').toUpperCase() === cleanTrx || r.id === docId);
+            if (existingLocal) {
+              if (existingLocal.status !== 'approved') {
+                existingLocal.status = 'approved';
+                existingLocal.reviewedAt = new Date().toISOString();
+                existingLocal.reviewedBy = 'Separate Admin Panel';
+                saveRequestsFn(currentRequests);
+              }
+            } else {
+              // Add to current requests so /api/wallet/my-deposits shows it!
+              currentRequests.unshift({
+                id: docId,
+                type: 'deposit',
+                userId: acc.id,
+                userName: acc.name,
+                userEmail: acc.email,
+                planId: parsed.planId || 'wallet_deposit',
+                planName: parsed.planName || `ওয়ালেট ডিপোজিট ($${usdAmount} USD)`,
+                amount: usdAmount,
+                currency: 'USD',
+                bdtAmount: parsed.bdtAmount || Math.round(usdAmount * (parsed.rateToBdt || 120)),
+                rateToBdt: parsed.rateToBdt || 120,
+                method,
+                senderIdentifier: parsed.senderIdentifier || parsed.sender || '',
+                receiverNumber: parsed.receiverNumber || '',
+                transactionId: cleanTrx,
+                status: 'approved',
+                createdAt: parsed.createdAt || new Date().toISOString(),
+                reviewedAt: new Date().toISOString(),
+                reviewedBy: 'Separate Admin Panel'
+              });
+              saveRequestsFn(currentRequests);
+            }
+          }
+        } else if (rawStatus === 'rejected') {
+          const existingLocal = currentRequests.find((r) => (r.transactionId || '').toUpperCase() === cleanTrx || r.id === docId);
+          if (existingLocal && existingLocal.status !== 'rejected') {
+            existingLocal.status = 'rejected';
+            existingLocal.reviewedAt = new Date().toISOString();
+            existingLocal.reviewedBy = 'Separate Admin Panel';
+            saveRequestsFn(currentRequests);
+          }
+        }
+      } catch (err: any) {
+        console.warn('Error processing external deposit doc:', err?.message || err);
+      }
+    };
+
+    const processUserDoc = (uDocId: string, uData: any) => {
+      try {
+        if (!uData) return;
+        const accounts = getAccountsFn();
+        const docIdEmail = uDocId && uDocId.includes('@') ? uDocId.trim().toLowerCase() : '';
+        const uEmail = String(uData.email || docIdEmail || '').trim().toLowerCase();
+        const extBal = Number(uData.balanceUsd !== undefined && uData.balanceUsd > 0 ? uData.balanceUsd : (uData.balance !== undefined ? uData.balance : -1));
+        if (isNaN(extBal) || extBal < 0) return;
+
+        let localUser = accounts.find((a) =>
+          (uDocId && a.id === uDocId) ||
+          (uEmail && a.email?.toLowerCase() === uEmail) ||
+          (docIdEmail && a.email?.toLowerCase() === docIdEmail)
+        );
+        if (localUser && extBal > (localUser.balanceUsd || 0)) {
+          console.log(`🔄 [External Users Sync] Syncing higher balance for ${localUser.email}: $${localUser.balanceUsd} -> $${extBal}`);
+          localUser.balanceUsd = extBal;
+          localUser.balance = extBal;
+          localUser.updatedAt = Date.now();
+          saveAccountsFn(accounts);
+
+          if (defaultFirestore && !isFirestoreQuotaExhausted()) {
+            safeSetDoc(
+              doc(defaultFirestore, 'accounts', localUser.id),
+              {
+                ...localUser,
+                balanceUsd: extBal,
+                balance: extBal,
+                updatedAt: Date.now()
+              },
+              { merge: true }
+            ).catch(() => {});
+          }
+        }
+      } catch {}
+    };
+
+    // 1. Attach Real-Time Firestore SDK Listeners
+    if (defaultFirestore) {
+      try {
+        onSnapshot(
+          collection(defaultFirestore, 'deposits'),
+          (snap) => {
+            snap.docChanges().forEach((change) => {
+              if (change.type === 'added' || change.type === 'modified') {
+                processDepositDoc(change.doc.id, change.doc.data());
+              }
+            });
+          },
+          (err) => {
+            const msg = String(err?.message || '').toLowerCase();
+            if (msg.includes('quota') || msg.includes('resource-exhausted')) {
+              markFirestoreQuotaExhausted();
+            }
+          }
+        );
+
+        onSnapshot(
+          collection(defaultFirestore, 'plan_requests'),
+          (snap) => {
+            snap.docChanges().forEach((change) => {
+              if (change.type === 'added' || change.type === 'modified') {
+                processDepositDoc(change.doc.id, change.doc.data());
+              }
+            });
+          },
+          (err) => {
+            const msg = String(err?.message || '').toLowerCase();
+            if (msg.includes('quota') || msg.includes('resource-exhausted')) {
+              markFirestoreQuotaExhausted();
+            }
+          }
+        );
+
+        onSnapshot(
+          collection(defaultFirestore, 'users'),
+          (snap) => {
+            snap.docChanges().forEach((change) => {
+              if (change.type === 'added' || change.type === 'modified') {
+                processUserDoc(change.doc.id, change.doc.data());
+              }
+            });
+          },
+          (err) => {
+            const msg = String(err?.message || '').toLowerCase();
+            if (msg.includes('quota') || msg.includes('resource-exhausted')) {
+              markFirestoreQuotaExhausted();
+            }
+          }
+        );
+
+        console.log('✅ [FirebaseSync] Real-time onSnapshot listeners attached to (default) database (deposits, plan_requests, users)!');
+      } catch (err: any) {
+        console.warn('Error attaching Firestore onSnapshot listeners:', err?.message || err);
+      }
+    }
+
+    // 2. Comprehensive Scan Function (used on startup and as safety fallback)
+    const scanAllDocs = async () => {
+      if (isFirestoreQuotaExhausted()) return;
+      try {
+        if (defaultFirestore) {
+          const [depSnap, planSnap, usersSnap] = await Promise.allSettled([
+            getDocs(collection(defaultFirestore, 'deposits')),
+            getDocs(collection(defaultFirestore, 'plan_requests')),
+            getDocs(collection(defaultFirestore, 'users'))
+          ]);
+          if (depSnap.status === 'fulfilled') {
+            depSnap.value.forEach((d) => processDepositDoc(d.id, d.data()));
+          } else {
+            const rErr = (depSnap as PromiseRejectedResult).reason;
+            if (String(rErr?.message || '').toLowerCase().includes('quota')) markFirestoreQuotaExhausted();
+          }
+          if (planSnap.status === 'fulfilled') {
+            planSnap.value.forEach((d) => processDepositDoc(d.id, d.data()));
+          }
+          if (usersSnap.status === 'fulfilled') {
+            usersSnap.value.forEach((d) => processUserDoc(d.id, d.data()));
+          }
+        }
+      } catch (e: any) {
+        if (String(e?.message || '').toLowerCase().includes('quota')) markFirestoreQuotaExhausted();
+        // Fallback to REST only if SDK fails and quota is not exhausted
+        if (!isFirestoreQuotaExhausted()) {
+          try {
+            const idToken = await getAdminIdToken();
+            const headers: Record<string, string> = {
+              'Content-Type': 'application/json',
+              ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+            };
+            const res = await fetch(`${DEFAULT_DB_URL}/deposits?key=${API_KEY}&pageSize=100`, { headers, signal: AbortSignal.timeout(4000) }).catch(() => null);
+            checkResponseQuota(res);
             if (res && res.ok) {
-              const data: any = await res.json();
+              const data: any = await res.json().catch(() => null);
               if (data && Array.isArray(data.documents)) {
                 for (const docItem of data.documents) {
-                  if (docItem?.name && !seenDocPaths.has(docItem.name)) {
-                    seenDocPaths.add(docItem.name);
-                    allDocs.push(docItem);
+                  if (docItem?.fields) {
+                    const parsed = fromFirestoreFields(docItem.fields);
+                    const docId = docItem.name.split('/').pop();
+                    processDepositDoc(docId, parsed);
                   }
                 }
               }
             }
           } catch {}
         }
-
-        const currentRequests = getRequestsFn();
-        const accounts = getAccountsFn();
-        let requestsUpdated = false;
-
-        for (const docItem of allDocs) {
-          if (!docItem || !docItem.fields) continue;
-          const parsed = fromFirestoreFields(docItem.fields);
-          const docId = docItem.name.split('/').pop();
-          const cleanTrx = String(parsed.trxId || parsed.transactionId || docId || '').trim().toUpperCase();
-          const rawStatus = String(parsed.status || '').toLowerCase().trim();
-
-          if (!cleanTrx) continue;
-
-          // If approved in the separate Admin Panel:
-          if (rawStatus === 'approved' || rawStatus === 'success' || rawStatus === 'completed') {
-            const alreadyCredited = isCreditedFn(cleanTrx);
-            if (!alreadyCredited) {
-              const email = String(parsed.userEmail || '').trim().toLowerCase();
-              const uid = String(parsed.userId || '').trim();
-              let acc = accounts.find((a) => (uid && a.id === uid) || (email && a.email?.toLowerCase() === email));
-
-              if (!acc && (email || uid)) {
-                try {
-                  const cloudUser = await FirebaseSync.loadSingleAccountByEmail(email || uid);
-                  if (cloudUser && cloudUser.id) {
-                    acc = cloudUser;
-                    if (!accounts.some((a) => a.id === acc.id)) {
-                      accounts.push(acc);
-                      saveAccountsFn(accounts);
-                    }
-                  }
-                } catch {}
-              }
-
-              // If user is still not found in memory, auto-create so balance is NEVER lost
-              if (!acc) {
-                const newUid = uid || `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-                acc = {
-                  id: newUid,
-                  name: parsed.userName || parsed.sender || (email ? email.split('@')[0] : 'User'),
-                  email: email || `${cleanTrx.toLowerCase()}@user.local`,
-                  role: 'user',
-                  plan: 'free',
-                  balanceUsd: 0,
-                  balanceBdt: 0,
-                  maxBots: 1,
-                  emailVerified: true,
-                  isVerified: true,
-                  createdAt: parsed.createdAt || new Date().toISOString(),
-                  updatedAt: Date.now()
-                };
-                accounts.push(acc);
-                saveAccountsFn(accounts);
-                console.log(`👤 Auto-created user account for approved deposit: ${acc.email} (${acc.id})`);
-              }
-
-              if (acc) {
-                const method = parsed.method || 'bKash';
-                const isCrypto = method.toLowerCase().includes('binance') || method.toLowerCase().includes('usdt') || method.toLowerCase().includes('crypto') || method.toLowerCase().includes('bep20') || method.toLowerCase().includes('trc20');
-                const rawAmt = parseFloat(parsed.amount || parsed.amountBdt || parsed.amountUsd || '0');
-                const rate = Number(parsed.rateToBdt) || 120;
-                let usdAmount = 0;
-
-                if (isCrypto || parsed.currency === 'USD' || (parsed.amountUsd && Number(parsed.amountUsd) > 0)) {
-                  usdAmount = Math.max(0.01, parseFloat(Number(parsed.amountUsd || rawAmt).toFixed(2)));
-                } else {
-                  const bdtAmt = parseFloat(parsed.amountBdt || parsed.amount || '0');
-                  usdAmount = bdtAmt > 0 ? Math.max(0.01, parseFloat((bdtAmt / rate).toFixed(2))) : 1;
-                }
-
-                modifyWalletFn(
-                  acc.id,
-                  usdAmount,
-                  'deposit',
-                  `Approved by Admin Panel (${method}): $${usdAmount} USD`,
-                  method,
-                  cleanTrx,
-                  'USD'
-                );
-                acc.balanceUsd = Math.round(((acc.balanceUsd || 0) + usdAmount) * 100) / 100;
-                acc.updatedAt = Date.now();
-                saveAccountsFn(accounts);
-                FirebaseSync.syncAccountToCloud(acc).catch(() => {});
-
-                console.log(`🎉 [Separate Admin Panel] Deposit ${cleanTrx} (+$${usdAmount} USD) approved! Credited to user: ${acc.email}. New Balance: $${acc.balanceUsd}`);
-
-                if (saveNotifFn) {
-                  saveNotifFn({
-                    id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                    userId: acc.id,
-                    type: 'deposit_approved',
-                    title: '✅ ডিপোজিট অনুমোদিত হয়েছে',
-                    message: `আপনার $${usdAmount} USD ডিপোজিট (${method}, TrxID: ${cleanTrx}) অ্যাডমিন প্যানেল থেকে অনুমোদিত হয়েছে এবং ওয়ালেটে যুক্ত হয়েছে!`,
-                    createdAt: new Date().toISOString(),
-                    read: false
-                  });
-                }
-
-                if (sendAlertFn) {
-                  sendAlertFn(acc, { ...parsed, amount: usdAmount, currency: 'USD', transactionId: cleanTrx }, 'approved').catch(() => {});
-                }
-              }
-            }
-
-            // Sync status to local plan_requests
-            const existingLocal = currentRequests.find((r) => (r.transactionId || '').toUpperCase() === cleanTrx || r.id === docId);
-            if (existingLocal && existingLocal.status !== 'approved') {
-              existingLocal.status = 'approved';
-              existingLocal.reviewedAt = new Date().toISOString();
-              existingLocal.reviewedBy = 'Separate Admin Panel';
-              requestsUpdated = true;
-            }
-          } else if (rawStatus === 'rejected') {
-            const existingLocal = currentRequests.find((r) => (r.transactionId || '').toUpperCase() === cleanTrx || r.id === docId);
-            if (existingLocal && existingLocal.status !== 'rejected') {
-              existingLocal.status = 'rejected';
-              existingLocal.reviewedAt = new Date().toISOString();
-              existingLocal.reviewedBy = 'Separate Admin Panel';
-              requestsUpdated = true;
-            }
-          }
-        }
-
-        if (requestsUpdated) {
-          saveRequestsFn(currentRequests);
-        }
-
-        // Direct live balance sync from (default)/users collection in case external admin modified user balance directly
-        try {
-          const usersRes = await fetch(`${defaultDbBaseUrl}/users?key=${API_KEY}&pageSize=100`, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
-          if (usersRes && usersRes.ok) {
-            const uData: any = await usersRes.json();
-            if (uData && Array.isArray(uData.documents)) {
-              let accsChanged = false;
-              for (const uDoc of uData.documents) {
-                if (!uDoc?.fields) continue;
-                const uFields = fromFirestoreFields(uDoc.fields);
-                const uDocId = uDoc.name.split('/').pop();
-                const uEmail = String(uFields.email || '').trim().toLowerCase();
-                const extBal = Number(uFields.balance !== undefined ? uFields.balance : uFields.balanceUsd);
-                if (isNaN(extBal) || extBal < 0) continue;
-
-                let localUser = accounts.find((a) => (uDocId && a.id === uDocId) || (uEmail && a.email?.toLowerCase() === uEmail));
-                if (!localUser && uEmail) {
-                  localUser = {
-                    id: uDocId || `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                    name: uFields.name || uEmail.split('@')[0],
-                    email: uEmail,
-                    role: 'user',
-                    plan: 'free',
-                    balanceUsd: extBal,
-                    balanceBdt: 0,
-                    maxBots: 1,
-                    emailVerified: true,
-                    isVerified: true,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: Date.now()
-                  };
-                  accounts.push(localUser);
-                  accsChanged = true;
-                } else if (localUser && extBal > (localUser.balanceUsd || 0)) {
-                  console.log(`🔄 [External Users Sync] Syncing higher balance for ${localUser.email}: $${localUser.balanceUsd} -> $${extBal}`);
-                  localUser.balanceUsd = extBal;
-                  localUser.updatedAt = Date.now();
-                  accsChanged = true;
-                }
-              }
-              if (accsChanged) {
-                saveAccountsFn(accounts);
-              }
-            }
-          }
-        } catch {}
-      } catch (err: any) {
-        // Silent background catch
       }
     };
 
-    // Run first check 1.5 seconds after startup
-    setTimeout(checkDepositsFromExternalPanel, 1500);
-    // Then keep watching every 5 seconds for instant credit
-    setInterval(checkDepositsFromExternalPanel, 5000);
+    // Run immediate scan 500ms after boot
+    setTimeout(scanAllDocs, 500);
+    // Recurring safety fallback every 5 minutes (not 15 seconds) to strictly preserve Firestore quotas
+    setInterval(scanAllDocs, 5 * 60 * 1000);
   }
 
   // ==========================================
@@ -1142,6 +1412,15 @@ export class FirebaseSync {
   static async syncSiteSettingsToCloud(settings: any): Promise<boolean> {
     if (!settings) return false;
     try {
+      if (defaultFirestore && !isFirestoreQuotaExhausted()) {
+        safeSetDoc(doc(defaultFirestore, 'site_settings', 'general'), settings, { merge: true }).catch(() => {});
+      }
+      if (namedFirestore && !isFirestoreQuotaExhausted()) {
+        safeSetDoc(doc(namedFirestore, 'site_settings', 'general'), settings, { merge: true }).catch(() => {});
+      }
+
+      if (isFirestoreQuotaExhausted()) return true;
+
       const idToken = await getAdminIdToken();
 
       const fields: Record<string, any> = {};
@@ -1159,31 +1438,45 @@ export class FirebaseSync {
           'Content-Type': 'application/json',
           ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
         },
-        body: JSON.stringify({ fields })
-      });
-      return res.ok;
-    } catch (err: any) {
-      console.warn('FirebaseSync syncSiteSettingsToCloud error:', err.message || err);
+        body: JSON.stringify({ fields }),
+        signal: AbortSignal.timeout(3000)
+      }).catch(() => null);
+      checkResponseQuota(res);
+      return Boolean(res && res.ok);
+    } catch {
       return false;
     }
   }
 
   static async loadSiteSettingsFromCloud(): Promise<any | null> {
+    if (isFirestoreQuotaExhausted()) return null;
     try {
+      if (defaultFirestore) {
+        try {
+          const sSnap = await getDoc(doc(defaultFirestore, 'site_settings', 'general'));
+          if (sSnap.exists()) return sSnap.data();
+        } catch (e: any) {
+          if (String(e?.message || '').toLowerCase().includes('quota')) {
+            markFirestoreQuotaExhausted();
+            return null;
+          }
+        }
+      }
+
       const idToken = await getAdminIdToken();
 
       const url = `${BASE_URL}/site_settings/general?key=${API_KEY}`;
       const res = await fetch(url, {
-        headers: idToken ? { 'Authorization': `Bearer ${idToken}` } : {}
-      });
-      if (!res.ok) return null;
-      const data: any = await res.json();
+        headers: idToken ? { 'Authorization': `Bearer ${idToken}` } : {},
+        signal: AbortSignal.timeout(3000)
+      }).catch(() => null);
+      checkResponseQuota(res);
+      if (!res || !res.ok) return null;
+      const data: any = await res.json().catch(() => null);
       if (data && data.fields) {
         return fromFirestoreFields(data.fields);
       }
-    } catch (err: any) {
-      console.warn('FirebaseSync loadSiteSettingsFromCloud error:', err.message || err);
-    }
+    } catch {}
     return null;
   }
 

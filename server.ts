@@ -4001,14 +4001,6 @@ app.post('/api/admin/users/:id/adjust-wallet', (req, res) => {
   res.json(result);
 });
 
-app.get('/api/auth/me', (req, res) => {
-  const user = getAuthUser(req);
-  if (!user) {
-    return res.status(200).json({ authenticated: false, user: null });
-  }
-  res.json({ authenticated: true, user });
-});
-
 app.post('/api/auth/logout', (req, res) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -5141,7 +5133,11 @@ app.get('/api/wallet/my-deposits', (req, res) => {
   const combined: any[] = [];
 
   for (const item of [...userManualDeposits, ...userBinanceOrders]) {
-    const key = item.transactionId ? `trx_${item.transactionId}` : `id_${item.id}`;
+    if (item.transactionId && isTransactionAlreadyCredited(item.transactionId)) {
+      item.status = 'approved';
+    }
+    const cleanT = item.transactionId ? String(item.transactionId).trim().toUpperCase() : '';
+    const key = cleanT ? `trx_${cleanT}` : `id_${item.id}`;
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
       combined.push(item);

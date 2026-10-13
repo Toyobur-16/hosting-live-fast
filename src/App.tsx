@@ -33,7 +33,7 @@ import { HostedBot, LogEntry, AuthUser, SiteSettings } from './types';
 import { playBotStoppedAlert } from './utils/audioAlert';
 import { checkIsAdmin } from './utils/adminCheck';
 import { normalizeLogoUrl } from './utils/logoUrl';
-import { db, doc, onSnapshot, setDoc, auth, fallbackAuth, signOut } from './lib/firebase';
+import { db, defaultDb, doc, onSnapshot, setDoc, auth, fallbackAuth, signOut } from './lib/firebase';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'wallet' | 'support' | 'profile' | 'plans' | 'bots' | 'terminal' | 'deposit-store' | 'websites' | 'rewards' | 'guide' | 'faq'>('home');
@@ -582,39 +582,96 @@ export default function App() {
     checkAuth();
   }, []);
 
+  // Periodic automatic balance sync with server (ensures balance updates immediately even if Firestore is offline or quota-paused)
+  useEffect(() => {
+    if (!currentUser) return;
+    const interval = setInterval(() => {
+      checkAuth();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [currentUser?.id]);
+
   // Real-time Firebase Firestore account listener & two-way sync
   useEffect(() => {
     if (!currentUser?.id) return;
-    const userDocRef = doc(db, 'accounts', currentUser.id);
 
-    // Listen to real-time changes in Firestore (e.g., admin wallet top-ups, plan updates, verification)
-    const unsub = onSnapshot(userDocRef, (snap) => {
-      if (snap.exists()) {
-        const cloudData = snap.data();
-        if (cloudData) {
-          setCurrentUser((prev: any) => {
-            if (!prev) return null;
-            const hasChanged =
-              cloudData.balanceUsd !== prev.balanceUsd ||
-              cloudData.balanceBdt !== prev.balanceBdt ||
-              cloudData.plan !== prev.plan ||
-              cloudData.role !== prev.role ||
-              cloudData.name !== prev.name ||
-              cloudData.phoneNumber !== prev.phoneNumber ||
-              cloudData.avatar !== prev.avatar;
-            if (hasChanged) {
-              const merged = { ...prev, ...cloudData };
-              localStorage.setItem('bot_auth_user', JSON.stringify(merged));
-              return merged;
-            }
-            return prev;
-          });
+    const applyCloudUserData = (cloudData: any) => {
+      if (!cloudData) return;
+      setCurrentUser((prev: any) => {
+        if (!prev) return null;
+        const rawBal = cloudData.balanceUsd !== undefined ? cloudData.balanceUsd : cloudData.balance;
+        const cloudBal = rawBal !== undefined ? Number(rawBal) : undefined;
+
+        let targetBalUsd = prev.balanceUsd ?? 0;
+        if (cloudBal !== undefined && !isNaN(cloudBal)) {
+          // If cloud has a positive balance, update to it; never wipe out positive balance to 0 from an empty doc
+          if (cloudBal > 0 || (prev.balanceUsd === 0 && cloudBal === 0)) {
+            targetBalUsd = cloudBal;
+          }
         }
-      }
-    }, () => {});
 
-    return () => unsub();
-  }, [currentUser?.id]);
+        const hasChanged =
+          targetBalUsd !== prev.balanceUsd ||
+          (cloudData.balanceBdt !== undefined && cloudData.balanceBdt !== prev.balanceBdt) ||
+          (cloudData.plan && cloudData.plan !== prev.plan) ||
+          (cloudData.role && cloudData.role !== prev.role) ||
+          (cloudData.name && cloudData.name !== prev.name) ||
+          (cloudData.phoneNumber && cloudData.phoneNumber !== prev.phoneNumber) ||
+          (cloudData.avatar && cloudData.avatar !== prev.avatar);
+
+        if (hasChanged) {
+          const merged = { ...prev, ...cloudData, balanceUsd: targetBalUsd, balance: targetBalUsd };
+          try {
+            localStorage.setItem('bot_auth_user', JSON.stringify(merged));
+          } catch {}
+          return merged;
+        }
+        return prev;
+      });
+    };
+
+    const unsubs: Array<() => void> = [];
+
+    try {
+      // 1. Listen to accounts in defaultDb (where separate Admin Panel syncs)
+      unsubs.push(
+        onSnapshot(doc(defaultDb, 'accounts', currentUser.id), (snap) => {
+          if (snap.exists()) applyCloudUserData(snap.data());
+        }, () => {})
+      );
+
+      // 2. Listen to users in defaultDb by user ID
+      unsubs.push(
+        onSnapshot(doc(defaultDb, 'users', currentUser.id), (snap) => {
+          if (snap.exists()) applyCloudUserData(snap.data());
+        }, () => {})
+      );
+
+      // 2b. Listen to users in defaultDb by email (separate Admin Panel often keys doc by user email)
+      if (currentUser.email) {
+        unsubs.push(
+          onSnapshot(doc(defaultDb, 'users', currentUser.email.toLowerCase()), (snap) => {
+            if (snap.exists()) applyCloudUserData(snap.data());
+          }, () => {})
+        );
+      }
+
+      // 3. Listen to namedDb if different
+      if (db !== defaultDb) {
+        unsubs.push(
+          onSnapshot(doc(db, 'accounts', currentUser.id), (snap) => {
+            if (snap.exists()) applyCloudUserData(snap.data());
+          }, () => {})
+        );
+      }
+    } catch {}
+
+    return () => {
+      unsubs.forEach((unsub) => {
+        try { unsub(); } catch {}
+      });
+    };
+  }, [currentUser?.id, currentUser?.email]);
 
   useEffect(() => {
     fetchBots();

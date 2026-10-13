@@ -64,9 +64,10 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 // Initialize Firestore with specific database ID if configured
+export const defaultDb = getFirestore(app);
 export const db = firebaseAppletConfig.firestoreDatabaseId && firebaseAppletConfig.firestoreDatabaseId !== '(default)'
   ? getFirestore(app, firebaseAppletConfig.firestoreDatabaseId)
-  : getFirestore(app);
+  : defaultDb;
 
 // Quota exhaustion tracker across client app to prevent freezing and resource-exhausted spam
 let firestoreQuotaExhaustedUntil = 0;
