@@ -178,8 +178,10 @@ export const WalletDepositPage: React.FC<WalletDepositPageProps> = ({
           createdAt: new Date().toISOString(),
           updatedAt: Date.now()
         };
-        await setDoc(doc(db, 'plan_requests', reqId), firestorePayload);
-        await setDoc(doc(db, 'deposits', reqId), firestorePayload);
+        await Promise.allSettled([
+          setDoc(doc(db, 'plan_requests', reqId), firestorePayload),
+          setDoc(doc(db, 'deposits', reqId), firestorePayload)
+        ]);
       } catch (fbErr) {
         console.warn('Client direct Firestore write error (non-fatal, backend will sync):', fbErr);
       }

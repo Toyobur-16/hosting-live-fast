@@ -587,12 +587,6 @@ export default function App() {
     if (!currentUser?.id) return;
     const userDocRef = doc(db, 'accounts', currentUser.id);
 
-    // Initial backup write to Firestore
-    setDoc(userDocRef, {
-      ...currentUser,
-      updatedAt: new Date().toISOString()
-    }, { merge: true }).catch(() => {});
-
     // Listen to real-time changes in Firestore (e.g., admin wallet top-ups, plan updates, verification)
     const unsub = onSnapshot(userDocRef, (snap) => {
       if (snap.exists()) {

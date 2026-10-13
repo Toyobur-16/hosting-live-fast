@@ -142,6 +142,16 @@ export const CRYPTO_NETWORK_PRESETS = [
   }
 ];
 
+export const isDepositRequest = (r: any): boolean => {
+  if (!r) return false;
+  return (
+    r.type === 'deposit' ||
+    r.planId === 'wallet_deposit' ||
+    (typeof r.planName === 'string' && r.planName.includes('ডিপোজিট')) ||
+    (typeof r.planName === 'string' && r.planName.toLowerCase().includes('deposit'))
+  );
+};
+
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   isOpen,
   onClose,
@@ -164,7 +174,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   const [requests, setRequests] = useState<PlanRequest[]>([]);
   const [taskSubmissions, setTaskSubmissions] = useState<TaskCompletionLog[]>([]);
-  const [requestCategory, setRequestCategory] = useState<'all' | 'plans_deposits' | 'tasks'>('all');
+  const [requestCategory, setRequestCategory] = useState<'all' | 'plans' | 'tasks'>('all');
   const [viewScreenshotUrl, setViewScreenshotUrl] = useState<string | null>(null);
   const [rejectingTaskSub, setRejectingTaskSub] = useState<TaskCompletionLog | null>(null);
   const [rejectTaskReason, setRejectTaskReason] = useState('');
@@ -414,19 +424,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
     modalMountTimeRef.current = Date.now();
     isInitialPlanRef.current = true;
-    isInitialDepositsRef.current = true;
 
     loadAllAdminData();
 
-    // 1. Real-Time live listener: any deposit or plan request created anywhere appears immediately
+    // 1. Real-Time live listener: package subscriptions only (deposit requests are routed to the separate external admin panel)
     const unsubPlan = onSnapshot(collection(db, 'plan_requests'), (snapshot) => {
       if (!snapshot.empty) {
         setRequests((prev) => {
           const map = new Map<string, PlanRequest>();
-          prev.forEach((r) => { if (r && r.id) map.set(r.id, r); });
+          prev.forEach((r) => { if (r && r.id && !isDepositRequest(r)) map.set(r.id, r); });
           snapshot.forEach((d) => {
             const data = d.data() as PlanRequest;
-            if (data && data.id) {
+            if (data && data.id && !isDepositRequest(data)) {
               map.set(data.id, { ...map.get(data.id), ...data });
             }
           });
@@ -435,71 +444,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           return list;
         });
       }
-
-      if (isInitialPlanRef.current) {
-        isInitialPlanRef.current = false;
-        snapshot.forEach((d) => {
-          const data = d.data() as PlanRequest;
-          if (data && data.id) {
-            knownDepositIdsRef.current.add(data.id);
-          }
-        });
-      } else {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const data = change.doc.data() as PlanRequest;
-            if (data && data.id && !knownDepositIdsRef.current.has(data.id)) {
-              const isDeposit = data.type === 'deposit' || data.planId === 'wallet_deposit' || !data.planId;
-              if (isDeposit && data.status === 'pending') {
-                triggerDepositToast(data);
-              }
-            }
-          }
-        });
-      }
     }, () => {});
 
-    // 2. Real-Time live listener on /deposits collection (dual-redundancy for direct client deposit submissions)
-    const unsubDeposits = onSnapshot(collection(db, 'deposits'), (snapshot) => {
-      if (!snapshot.empty) {
-        setRequests((prev) => {
-          const map = new Map<string, PlanRequest>();
-          prev.forEach((r) => { if (r && r.id) map.set(r.id, r); });
-          snapshot.forEach((d) => {
-            const data = d.data() as PlanRequest;
-            if (data && data.id) {
-              map.set(data.id, { ...map.get(data.id), ...data, type: 'deposit' });
-            }
-          });
-          const list = Array.from(map.values());
-          list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-          return list;
-        });
-      }
-
-      if (isInitialDepositsRef.current) {
-        isInitialDepositsRef.current = false;
-        snapshot.forEach((d) => {
-          const data = d.data() as PlanRequest;
-          if (data && data.id) {
-            knownDepositIdsRef.current.add(data.id);
-          }
-        });
-      } else {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const data = change.doc.data() as PlanRequest;
-            if (data && data.id && !knownDepositIdsRef.current.has(data.id)) {
-              if (data.status === 'pending') {
-                triggerDepositToast({ ...data, type: 'deposit' });
-              }
-            }
-          }
-        });
-      }
-    }, () => {});
-
-    // 3. Real-Time live listener: user task submissions appear immediately in real-time
+    // 2. Real-Time live listener: user task submissions appear immediately in real-time
     const unsubTasks = onSnapshot(collection(db, 'task_completions'), (snapshot) => {
       if (!snapshot.empty) {
         setTaskSubmissions((prev) => {
@@ -518,9 +465,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       }
     }, () => {});
 
-    // 4. In-app message & polling listeners
+    // 3. In-app message & polling listeners
     const handleMsg = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'deposit_submitted') {
+      if (e.data && e.data.type === 'plan_submitted') {
         loadAllAdminData();
       }
     };
@@ -528,16 +475,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
     const pollTimer = setInterval(() => {
       loadAllAdminData();
-    }, 8000);
+    }, 10000);
 
     return () => {
       unsubPlan();
-      unsubDeposits();
       unsubTasks();
       window.removeEventListener('message', handleMsg);
       clearInterval(pollTimer);
     };
-  }, [isOpen, triggerDepositToast]);
+  }, [isOpen]);
 
   const loadAllAdminData = async () => {
     setLoading(true);
@@ -552,40 +498,27 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         setOverview(ovData);
       }
 
-      // 2. Plan & Deposit requests (Backend + Firestore Dual Fetch)
+      // 2. Plan requests only (deposit requests are managed exclusively in separate external admin panel)
       let combinedRequests: PlanRequest[] = [];
       const reqRes = await fetch('/api/admin/plan-requests', { headers });
       if (reqRes.ok) {
         const reqData = await reqRes.json();
-        combinedRequests = reqData.requests || [];
+        combinedRequests = (reqData.requests || []).filter((r: any) => !isDepositRequest(r));
       }
 
-      // Also query Firestore client-side to ensure any newly submitted deposits instantly appear
       try {
         const reqMap = new Map<string, PlanRequest>();
         for (const r of combinedRequests) {
-          if (r && r.id) reqMap.set(r.id, r);
+          if (r && r.id && !isDepositRequest(r)) reqMap.set(r.id, r);
         }
 
-        const [planSnap, depSnap] = await Promise.all([
-          getDocs(collection(db, 'plan_requests')).catch(() => null),
-          getDocs(collection(db, 'deposits')).catch(() => null)
-        ]);
+        const planSnap = await getDocs(collection(db, 'plan_requests')).catch(() => null);
 
         if (planSnap && !planSnap.empty) {
           planSnap.forEach((d) => {
             const data = d.data() as PlanRequest;
-            if (data && data.id && !reqMap.has(data.id)) {
+            if (data && data.id && !isDepositRequest(data) && !reqMap.has(data.id)) {
               reqMap.set(data.id, data);
-            }
-          });
-        }
-
-        if (depSnap && !depSnap.empty) {
-          depSnap.forEach((d) => {
-            const data = d.data() as PlanRequest;
-            if (data && data.id && !reqMap.has(data.id)) {
-              reqMap.set(data.id, { ...data, type: 'deposit' });
             }
           });
         }
@@ -593,23 +526,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         const finalReqs = Array.from(reqMap.values());
         finalReqs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         setRequests(finalReqs);
-
-        if (!isInitialPlanRef.current) {
-          for (const req of finalReqs) {
-            if (
-              req &&
-              req.id &&
-              req.status === 'pending' &&
-              (req.type === 'deposit' || req.planId === 'wallet_deposit' || !req.planId) &&
-              !knownDepositIdsRef.current.has(req.id)
-            ) {
-              const created = req.createdAt ? new Date(req.createdAt).getTime() : 0;
-              if (created > modalMountTimeRef.current - 15000) {
-                triggerDepositToast(req);
-              }
-            }
-          }
-        }
       } catch (fbErr) {
         setRequests(combinedRequests);
       }

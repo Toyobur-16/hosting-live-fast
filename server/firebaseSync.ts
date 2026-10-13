@@ -38,6 +38,24 @@ const VAULT_SECRET = process.env.VERIFICATION_SECRET || 'hlf_email_verify_secret
 const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${FIRESTORE_DATABASE_ID}/documents`;
 const AUTH_BASE_URL = 'https://identitytoolkit.googleapis.com/v1/accounts';
 
+let firestoreQuotaExhaustedUntil = 0;
+
+export function isFirestoreQuotaExhausted(): boolean {
+  return Date.now() < firestoreQuotaExhaustedUntil;
+}
+
+export function markFirestoreQuotaExhausted(): void {
+  firestoreQuotaExhaustedUntil = Date.now() + 60 * 60 * 1000;
+  console.warn('⚠️ [Server FirebaseSync] Firestore free tier daily write units exhausted. Direct Firestore REST writes paused for 1 hour; local persistence & Auth Vault are active.');
+}
+
+function checkResponseQuota(res: Response | null): void {
+  if (!res) return;
+  if (res.status === 429 || res.status === 403) {
+    markFirestoreQuotaExhausted();
+  }
+}
+
 function compressPayload(data: any): string {
   const json = JSON.stringify(data);
   return zlib.deflateRawSync(Buffer.from(json, 'utf-8')).toString('base64url');
@@ -260,6 +278,14 @@ export class FirebaseSync {
     try {
       const cleanUser = stripHeavyFields(user);
       const cleanEmail = cleanUser.email.trim().toLowerCase();
+
+      // If Firestore daily write quota is currently exhausted, write to personal Firebase Auth Vault
+      if (isFirestoreQuotaExhausted()) {
+        const { vaultEmail, vaultPassword } = getUserVaultIdentity(cleanEmail);
+        writeVaultData(vaultEmail, vaultPassword, cleanEmail, cleanUser).catch(() => {});
+        return true;
+      }
+
       const idToken = await getAdminIdToken();
 
       const fields: Record<string, any> = {};
@@ -286,6 +312,7 @@ export class FirebaseSync {
         body: bodyStr,
         signal: AbortSignal.timeout(6000)
       }).catch(() => null);
+      checkResponseQuota(resById);
 
       // 2. Save by Email for instant direct lookup using safe valid Firestore document ID
       const emailDocId = `email_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
@@ -296,6 +323,7 @@ export class FirebaseSync {
         body: bodyStr,
         signal: AbortSignal.timeout(6000)
       }).catch(() => null);
+      checkResponseQuota(resByEmail);
 
       // 3. Also sync to Firebase Auth if password exists
       if (cleanUser.password) {
@@ -347,12 +375,7 @@ export class FirebaseSync {
         .filter((a) => a && a.id && a.email)
         .map(stripHeavyFields);
 
-      // Save each to Firestore
-      for (const acc of cleaned) {
-        await this.syncAccountToCloud(acc).catch(() => {});
-      }
-
-      // Each shard comfortably holds up to 12 accounts compressed
+      // Each shard comfortably holds up to 12 accounts compressed via Firebase Auth Vault
       const SHARD_SIZE = 12;
       const totalShards = Math.min(10, Math.ceil(cleaned.length / SHARD_SIZE));
       for (let i = 0; i < totalShards; i++) {
@@ -769,6 +792,7 @@ export class FirebaseSync {
   }
 
   // Live Auto-Approval Watcher for the separate Admin Panel (Screenshot 1 & 2)
+  // Live Auto-Approval Watcher for the separate Admin Panel
   static startExternalDepositsWatcher(
     getAccountsFn: () => any[],
     saveAccountsFn: (accs: any[]) => void,
@@ -776,48 +800,99 @@ export class FirebaseSync {
     saveRequestsFn: (reqs: any[]) => void,
     modifyWalletFn: (userId: string, amount: number, type: 'deposit' | 'purchase' | 'refund', desc: string, method?: string, trxId?: string, currency?: string) => any,
     isCreditedFn: (trxId: string) => boolean,
-    saveNotifFn?: (notif: any) => void
+    saveNotifFn?: (notif: any) => void,
+    sendAlertFn?: (user: any, deposit: any, status: 'approved' | 'rejected') => Promise<void>
   ): void {
-    setInterval(async () => {
+    const checkDepositsFromExternalPanel = async () => {
+      if (isFirestoreQuotaExhausted()) return;
       try {
-        const defaultDbBaseUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
-        const res = await fetch(`${defaultDbBaseUrl}/deposits?key=${API_KEY}`, {
-          signal: AbortSignal.timeout(6000)
-        }).catch(() => null);
+        const idToken = await getAdminIdToken();
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+        };
 
-        if (!res || !res.ok) return;
-        const data: any = await res.json();
-        if (!data || !Array.isArray(data.documents)) return;
+        const defaultDbBaseUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+        const namedDbBaseUrl = BASE_URL;
+
+        const endpoints = [
+          `${defaultDbBaseUrl}/deposits?key=${API_KEY}`,
+          `${namedDbBaseUrl}/deposits?key=${API_KEY}`,
+          `${defaultDbBaseUrl}/plan_requests?key=${API_KEY}`,
+          `${namedDbBaseUrl}/plan_requests?key=${API_KEY}`
+        ];
+
+        const allDocs: any[] = [];
+        const seenDocPaths = new Set<string>();
+
+        for (const ep of endpoints) {
+          try {
+            const res = await fetch(ep, { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
+            if (res && res.status === 429) {
+              setFirestoreQuotaExhausted(30 * 60 * 1000);
+              return;
+            }
+            if (res && res.ok) {
+              const data: any = await res.json();
+              if (data && Array.isArray(data.documents)) {
+                for (const docItem of data.documents) {
+                  if (docItem?.name && !seenDocPaths.has(docItem.name)) {
+                    seenDocPaths.add(docItem.name);
+                    allDocs.push(docItem);
+                  }
+                }
+              }
+            }
+          } catch {}
+        }
+
+        if (allDocs.length === 0) return;
 
         const currentRequests = getRequestsFn();
         const accounts = getAccountsFn();
         let requestsUpdated = false;
 
-        for (const docItem of data.documents) {
+        for (const docItem of allDocs) {
           if (!docItem || !docItem.fields) continue;
           const parsed = fromFirestoreFields(docItem.fields);
           const docId = docItem.name.split('/').pop();
-          const cleanTrx = String(parsed.trxId || parsed.transactionId || '').trim().toUpperCase();
-          const status = String(parsed.status || '').toLowerCase();
+          const cleanTrx = String(parsed.trxId || parsed.transactionId || docId || '').trim().toUpperCase();
+          const rawStatus = String(parsed.status || '').toLowerCase().trim();
 
           if (!cleanTrx) continue;
 
-          // If approved in the separate Admin Panel or auto-approved by Cloud Function:
-          if (status === 'approved') {
+          // If approved in the separate Admin Panel:
+          if (rawStatus === 'approved' || rawStatus === 'success' || rawStatus === 'completed') {
             const alreadyCredited = isCreditedFn(cleanTrx);
             if (!alreadyCredited) {
               const email = String(parsed.userEmail || '').trim().toLowerCase();
               const uid = String(parsed.userId || '').trim();
-              const acc = accounts.find((a) => (uid && a.id === uid) || (email && a.email?.toLowerCase() === email));
+              let acc = accounts.find((a) => (uid && a.id === uid) || (email && a.email?.toLowerCase() === email));
+
+              if (!acc && email) {
+                try {
+                  const cloudUser = await FirebaseSync.loadSingleAccountByEmail(email);
+                  if (cloudUser && cloudUser.id) {
+                    acc = cloudUser;
+                    accounts.push(acc);
+                    saveAccountsFn(accounts);
+                  }
+                } catch {}
+              }
 
               if (acc) {
                 const method = parsed.method || 'bKash';
-                const isCrypto = method.toLowerCase().includes('binance') || method.toLowerCase().includes('usdt');
-                const rawAmt = parseFloat(parsed.amount || parsed.amountBdt || '0');
-                const rate = 120;
-                const usdAmount = isCrypto
-                  ? Math.max(0.01, parseFloat(rawAmt.toFixed(2)))
-                  : (rawAmt > 0 ? Math.max(0.01, parseFloat((rawAmt / rate).toFixed(2))) : 1);
+                const isCrypto = method.toLowerCase().includes('binance') || method.toLowerCase().includes('usdt') || method.toLowerCase().includes('crypto') || method.toLowerCase().includes('bep20') || method.toLowerCase().includes('trc20');
+                const rawAmt = parseFloat(parsed.amount || parsed.amountBdt || parsed.amountUsd || '0');
+                const rate = Number(parsed.rateToBdt) || 120;
+                let usdAmount = 0;
+
+                if (isCrypto || parsed.currency === 'USD' || (parsed.amountUsd && Number(parsed.amountUsd) > 0)) {
+                  usdAmount = Math.max(0.01, parseFloat(Number(parsed.amountUsd || rawAmt).toFixed(2)));
+                } else {
+                  const bdtAmt = parseFloat(parsed.amountBdt || parsed.amount || '0');
+                  usdAmount = bdtAmt > 0 ? Math.max(0.01, parseFloat((bdtAmt / rate).toFixed(2))) : 1;
+                }
 
                 modifyWalletFn(
                   acc.id,
@@ -829,10 +904,11 @@ export class FirebaseSync {
                   'USD'
                 );
                 acc.balanceUsd = Math.round(((acc.balanceUsd || 0) + usdAmount) * 100) / 100;
+                acc.updatedAt = Date.now();
                 saveAccountsFn(accounts);
                 FirebaseSync.syncAccountToCloud(acc).catch(() => {});
 
-                console.log(`🎉 [Separate Admin Panel] Deposit ${cleanTrx} (${usdAmount} USD) approved! Credited to user: ${acc.email}`);
+                console.log(`🎉 [Separate Admin Panel] Deposit ${cleanTrx} (+$${usdAmount} USD) approved! Credited to user: ${acc.email}. New Balance: $${acc.balanceUsd}`);
 
                 if (saveNotifFn) {
                   saveNotifFn({
@@ -845,6 +921,10 @@ export class FirebaseSync {
                     read: false
                   });
                 }
+
+                if (sendAlertFn) {
+                  sendAlertFn(acc, { ...parsed, amount: usdAmount, currency: 'USD', transactionId: cleanTrx }, 'approved').catch(() => {});
+                }
               }
             }
 
@@ -856,11 +936,12 @@ export class FirebaseSync {
               existingLocal.reviewedBy = 'Separate Admin Panel';
               requestsUpdated = true;
             }
-          } else if (status === 'rejected') {
+          } else if (rawStatus === 'rejected') {
             const existingLocal = currentRequests.find((r) => (r.transactionId || '').toUpperCase() === cleanTrx || r.id === docId);
             if (existingLocal && existingLocal.status !== 'rejected') {
               existingLocal.status = 'rejected';
               existingLocal.reviewedAt = new Date().toISOString();
+              existingLocal.reviewedBy = 'Separate Admin Panel';
               requestsUpdated = true;
             }
           }
@@ -872,7 +953,12 @@ export class FirebaseSync {
       } catch (err: any) {
         // Silent background catch
       }
-    }, 10000); // Check every 10 seconds
+    };
+
+    // Run first check 2 seconds after startup
+    setTimeout(checkDepositsFromExternalPanel, 2000);
+    // Then keep watching every 6 seconds
+    setInterval(checkDepositsFromExternalPanel, 6000);
   }
 
   // ==========================================

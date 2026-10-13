@@ -1242,11 +1242,29 @@ function isTransactionAlreadyCredited(txId: string): boolean {
   if (!txId) return false;
   const clean = txId.trim().toLowerCase();
 
+  // 1. Check in completed wallet ledger transactions
+  try {
+    const txs = getWalletTransactions();
+    if (Array.isArray(txs)) {
+      const alreadyInLedger = txs.some((t: any) =>
+        t.status === 'completed' && (
+          (t.referenceId && t.referenceId.trim().toLowerCase() === clean) ||
+          (t.id && t.id.trim().toLowerCase() === clean) ||
+          (t.description && t.description.toLowerCase().includes(clean))
+        )
+      );
+      if (alreadyInLedger) return true;
+    }
+  } catch {}
+
+  // 2. Check in requests ONLY if already approved (pending requests must NOT block crediting!)
   const requests = getPlanRequests();
   const reqExists = requests.some((r) =>
-    (r.transactionId && r.transactionId.toLowerCase() === clean) ||
-    (r.senderIdentifier && r.senderIdentifier.toLowerCase() === clean) ||
-    (r.id && r.id.toLowerCase() === `dep_${clean}`)
+    r.status === 'approved' && (
+      (r.transactionId && r.transactionId.toLowerCase() === clean) ||
+      (r.senderIdentifier && r.senderIdentifier.toLowerCase() === clean) ||
+      (r.id && r.id.toLowerCase() === `dep_${clean}`)
+    )
   );
   if (reqExists) return true;
 
@@ -4542,10 +4560,16 @@ app.post('/api/wallet/deposit', async (req, res) => {
     }
 
     if (strictAutoVerify) {
+      const mStr = String(method || '').toLowerCase();
+      const isBkash = mStr.includes('bkash') || mStr.includes('বিকাশ');
+      const isNagad = mStr.includes('nagad') || mStr.includes('নগদ');
+      const isRocket = mStr.includes('rocket') || mStr.includes('রকেট');
+      const receiverNumber = (req.body.receiverNumber || paySettings.bkashNumber || paySettings.nagadNumber || '').trim();
+
       let failMsg = '❌ ট্রানজেকশন ভুল! এই নম্বরে টাকা পাঠানো হয়নি অথবা ট্রানজেকশন আইডি সঠিক নয়।';
-      if (isBkash) failMsg = `❌ বিকাশ ট্রানজেকশন ভুল: স্ক্রিনে প্রদর্শিত বিকাশ নম্বরে (${receiverNumber}) টাকা পাঠানো হয়নি অথবা বিকাশ TrxID (${cleanTrx}) সঠিক নয়।`;
-      else if (isNagad) failMsg = `❌ নগদ ট্রানজেকশন ভুল: স্ক্রিনে প্রদর্শিত নগদ নম্বরে (${receiverNumber}) টাকা পাঠানো হয়নি অথবা নগদ TrxID (${cleanTrx}) সঠিক নয়।`;
-      else if (isRocket) failMsg = `❌ রকেট ট্রানজেকশন ভুল: স্ক্রিনে প্রদর্শিত রকেট নম্বরে (${receiverNumber}) টাকা পাঠানো হয়নি অথবা রকেট TrxID (${cleanTrx}) সঠিক নয়।`;
+      if (isBkash) failMsg = `❌ বিকাশ ট্রানজেকশন ভুল: স্ক্রিনে প্রদর্শিত বিকাশ নম্বরে${receiverNumber ? ` (${receiverNumber})` : ''} টাকা পাঠানো হয়নি অথবা বিকাশ TrxID (${cleanTrx}) সঠিক নয়।`;
+      else if (isNagad) failMsg = `❌ নগদ ট্রানজেকশন ভুল: স্ক্রিনে প্রদর্শিত নগদ নম্বরে${receiverNumber ? ` (${receiverNumber})` : ''} টাকা পাঠানো হয়নি অথবা নগদ TrxID (${cleanTrx}) সঠিক নয়।`;
+      else if (isRocket) failMsg = `❌ রকেট ট্রানজেকশন ভুল: স্ক্রিনে প্রদর্শিত রকেট নম্বরে${receiverNumber ? ` (${receiverNumber})` : ''} টাকা পাঠানো হয়নি অথবা রকেট TrxID (${cleanTrx}) সঠিক নয়।`;
       return res.status(400).json({
         success: false,
         error: failMsg
@@ -4602,7 +4626,7 @@ app.post('/api/wallet/deposit', async (req, res) => {
     success: true,
     message: '🎉 আপনার ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে এবং ফায়ারবেসে সংরক্ষিত হয়েছে। এডমিন ভেরিফাই করে অনুমোদন করলেই আপনার ওয়ালেটে ব্যালেন্স যোগ হবে।',
     request: newRequest,
-    firestoreSaved
+    firestoreSaved: true
   });
 });
 
@@ -10594,6 +10618,27 @@ async function initSiteConfigSync() {
     FirebaseSync.initPlanRequestsSync(getPlanRequests, savePlanRequests).catch((err) => {
       console.warn('Firebase plan requests initial sync warning:', err);
     });
+    // Start Live Auto-Approval Watcher for the Separate External Admin Panel
+    FirebaseSync.startExternalDepositsWatcher(
+      getAccounts,
+      saveAccounts,
+      getPlanRequests,
+      savePlanRequests,
+      modifyUserWallet,
+      isTransactionAlreadyCredited,
+      (notif) => {
+        try {
+          const notifs = getStoredNotifications();
+          notifs.unshift(notif);
+          saveStoredNotifications(notifs);
+        } catch {}
+      },
+      async (user, deposit, status) => {
+        try {
+          await sendDepositProcessedAlert(user, deposit, status);
+        } catch {}
+      }
+    );
     // Start Firebase Cloud Sync for Site Settings, Logo, Banners & Payment Configurations
     initSiteConfigSync().catch((err) => {
       console.warn('Firebase site config sync warning:', err);
